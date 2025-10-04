@@ -3,3 +3,4 @@ journal/
 
 # Environment variables (contains API keys)
 .env
+node_modules/
