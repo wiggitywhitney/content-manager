@@ -1,10 +1,10 @@
 # PRD: Automated Content Publishing from Google Sheets to Micro.blog
 
 **Issue**: [#1](https://github.com/wiggitywhitney/content-manager/issues/1)
-**Status**: Planning
+**Status**: In Progress
 **Priority**: High
 **Created**: 2025-09-26
-**Last Updated**: 2025-09-26
+**Last Updated**: 2025-10-04
 
 ## Problem Statement
 
@@ -90,9 +90,10 @@ January 9, 2025
 
 ### Technology Stack
 - **Runtime**: GitHub Actions (scheduled workflow)
-- **Language**: Python or JavaScript (TBD based on API client availability)
+- **Language**: JavaScript/Node.js
 - **Storage**: GitHub repository files for tracking state
 - **APIs**: Google Sheets API, Micro.blog Micropub API
+- **Credential Management**: GitHub Secrets (simple, built-in solution)
 
 ### Architecture
 ```
@@ -133,12 +134,33 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 ## Implementation Milestones
 
 ### Milestone 1: Foundation Setup
-- [ ] GitHub repository configured with Actions
-- [ ] Google Sheets API integration working
-- [ ] Basic spreadsheet reading functionality
-- [ ] Secure credential management in GitHub Secrets
 
-**Success Criteria**: Can read and parse spreadsheet data on schedule
+**Implementation broken into 3 focused tasks:**
+
+#### Task 1: Google Sheets API Setup & Local Testing (~2 hours)
+- [ ] Set up Google Cloud service account with Sheets API access
+- [ ] Create Node.js script that reads the spreadsheet using `googleapis` npm package
+- [ ] Parse and validate all columns (Name, Type, Show, Date, Location, Confirmed, Link)
+- [ ] Test locally with service account credentials
+- [ ] Add structured logging for parsed data
+
+**Success Criteria**: Can run a local Node.js script that logs all spreadsheet data correctly
+
+#### Task 2: GitHub Actions Integration (~1-2 hours)
+- [ ] Create `.github/workflows/sync-content.yml`
+- [ ] Configure GitHub Secrets for service account credentials
+- [ ] Set up scheduled workflow (hourly or on-demand for testing)
+- [ ] Verify workflow runs successfully and logs spreadsheet data
+
+**Success Criteria**: GitHub Actions successfully runs on schedule and logs spreadsheet data
+
+#### Task 3: Error Handling & Logging (~1 hour)
+- [ ] Add proper error handling for API failures (network, auth, rate limits)
+- [ ] Implement structured logging with different log levels
+- [ ] Test failure scenarios (invalid credentials, network timeout, malformed data)
+- [ ] Document error recovery behavior
+
+**Success Criteria**: Script handles errors gracefully with actionable error messages
 
 ### Milestone 2: Micro.blog Integration
 - [ ] Micro.blog API authentication working
@@ -213,12 +235,67 @@ The feature is complete when:
 5. She receives email notifications for any system errors
 6. The system runs reliably without manual intervention
 
+## Design Decisions
+
+### Decision 1: Use JavaScript/Node.js for Implementation
+**Date**: 2025-10-04
+**Rationale**:
+- Repository already has Node.js infrastructure (package.json, node_modules)
+- Excellent Google Sheets API support via `googleapis` npm package
+- Consistency with existing tooling (commit-story MCP server already uses Node.js)
+- Strong GitHub Actions support for Node.js workflows
+
+**Impact**:
+- Milestone 1 tasks will use Node.js and npm ecosystem
+- Can leverage existing Node.js knowledge and patterns
+- Faster setup time since infrastructure already exists
+
+### Decision 2: Use GitHub Secrets Instead of External Secret Management
+**Date**: 2025-10-04
+**Rationale**:
+- This is a single scheduled GitHub Actions job with minimal secret needs
+- GitHub Secrets provides everything needed: encryption, access control, injection into workflows
+- External solutions (GCP Secret Manager + teller) add unnecessary complexity:
+  - Additional API calls that can fail
+  - Extra dependencies to install in CI
+  - More IAM permissions to manage
+  - Workload Identity Federation setup
+- Keep it simple: use the right tool for the job size
+
+**Impact**:
+- Milestone 1 Task 2 will use GitHub Secrets for service account credentials
+- Simpler workflow configuration
+- Fewer external dependencies and failure points
+- Faster development iteration
+
+**When to Reconsider**: If secrets need to be shared across multiple systems (multiple CIs, local dev, production), or if compliance requires centralized secret rotation, revisit external secret management.
+
+### Decision 3: Break Milestone 1 Into 3 Focused Tasks
+**Date**: 2025-10-04
+**Rationale**:
+- Original milestone was too large (4-6 hours) as a single atomic unit
+- 7 smaller subtasks were too granular (15-30 minutes each)
+- 3 tasks provide meaningful, independently testable chunks:
+  - Task 1: Core functionality working locally
+  - Task 2: CI/CD integration
+  - Task 3: Production-ready error handling
+
+**Impact**:
+- Better progress tracking with meaningful milestones
+- Each task delivers concrete, testable value
+- Easier to pause/resume work between tasks
+- Clearer success criteria for each stage
+
 ## Progress Log
+
+### 2025-10-04
+- **Design Decisions**: Finalized JavaScript/Node.js, GitHub Secrets, and task breakdown
+- **Status Updated**: Changed from Planning to In Progress
+- **Next Steps**: Begin Milestone 1, Task 1 (Google Sheets API Setup & Local Testing)
 
 ### 2025-09-26
 - **PRD Created**: Initial requirements gathering and documentation
 - **GitHub Issue**: [#1](https://github.com/wiggitywhitney/content-manager/issues/1) created
-- **Next Steps**: Begin Milestone 1 implementation
 
 ---
 
