@@ -1,6 +1,3 @@
-# Journal entries (private by default - remove this line to make journals public)
-journal/
-
 # Environment variables (contains API keys)
 .env
 node_modules/
