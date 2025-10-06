@@ -11,6 +11,6 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "commit-story": "^1.0.0"
+    "commit-story": "file:../commit_story/commit-story-1.2.1.tgz"
   }
 }
