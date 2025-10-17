@@ -7,3 +7,6 @@ journal/
 
 # Environment variables (API keys and secrets)
 .env
+
+# macOS system files
+.DS_Store
