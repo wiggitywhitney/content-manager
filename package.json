@@ -12,5 +12,9 @@
   "type": "commonjs",
   "devDependencies": {
     "commit-story": "file:../commit_story/commit-story-1.2.1.tgz"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "googleapis": "^164.0.0"
   }
 }
