@@ -133,11 +133,9 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 ## Implementation Milestones
 
-### Milestone 1: Foundation Setup
+### Milestone 1: Google Sheets API Setup & Local Testing
+**Estimated Time**: ~2 hours
 
-**Implementation broken into 3 focused tasks:**
-
-#### Task 1: Google Sheets API Setup & Local Testing (~2 hours)
 - [ ] Set up Google Cloud service account with Sheets API access
 - [ ] Create Node.js script that reads the spreadsheet using `googleapis` npm package
 - [ ] Parse and validate all columns (Name, Type, Show, Date, Location, Confirmed, Link)
@@ -146,7 +144,9 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: Can run a local Node.js script that logs all spreadsheet data correctly
 
-#### Task 2: GitHub Actions Integration (~1-2 hours)
+### Milestone 2: GitHub Actions Integration
+**Estimated Time**: ~1-2 hours
+
 - [ ] Create `.github/workflows/sync-content.yml`
 - [ ] Configure GitHub Secrets for service account credentials
 - [ ] Set up scheduled workflow (hourly or on-demand for testing)
@@ -154,7 +154,9 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: GitHub Actions successfully runs on schedule and logs spreadsheet data
 
-#### Task 3: Error Handling & Logging (~1 hour)
+### Milestone 3: Error Handling & Logging
+**Estimated Time**: ~1 hour
+
 - [ ] Add proper error handling for API failures (network, auth, rate limits)
 - [ ] Implement structured logging with different log levels
 - [ ] Test failure scenarios (invalid credentials, network timeout, malformed data)
@@ -162,7 +164,7 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: Script handles errors gracefully with actionable error messages
 
-### Milestone 2: Micro.blog Integration
+### Milestone 4: Micro.blog Integration
 - [ ] Micro.blog API authentication working
 - [ ] Can create the 5 required pages (Podcast, Video, Blog, Present, Guest)
 - [ ] Basic post creation functionality
@@ -170,7 +172,7 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: Can create posts on correct micro.blog pages
 
-### Milestone 3: Full CRUD Operations
+### Milestone 5: Full CRUD Operations
 - [ ] New row detection and posting
 - [ ] Row update detection and post editing
 - [ ] Row deletion detection and post removal
@@ -179,7 +181,7 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: Complete bidirectional sync between spreadsheet and micro.blog
 
-### Milestone 4: Page Visibility Management
+### Milestone 6: Page Visibility Management
 - [ ] Activity tracking for each page
 - [ ] Auto-hide logic for inactive pages (4+ months)
 - [ ] Auto-show logic when content added to hidden pages
@@ -187,7 +189,7 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: Pages automatically hide/show based on activity
 
-### Milestone 5: Error Handling & Monitoring
+### Milestone 7: Error Notifications & Monitoring
 - [ ] Comprehensive error catching and logging
 - [ ] Email notification system for errors
 - [ ] GitHub issue creation for persistent failures
@@ -196,7 +198,7 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: System handles errors gracefully and notifies appropriately
 
-### Milestone 6: Production Deployment
+### Milestone 8: Production Deployment
 - [ ] System running on scheduled GitHub Actions
 - [ ] All APIs and credentials properly configured
 - [ ] Documentation for maintenance and troubleshooting
@@ -263,35 +265,39 @@ The feature is complete when:
 - Keep it simple: use the right tool for the job size
 
 **Impact**:
-- Milestone 1 Task 2 will use GitHub Secrets for service account credentials
+- Milestone 2 will use GitHub Secrets for service account credentials
 - Simpler workflow configuration
 - Fewer external dependencies and failure points
 - Faster development iteration
 
 **When to Reconsider**: If secrets need to be shared across multiple systems (multiple CIs, local dev, production), or if compliance requires centralized secret rotation, revisit external secret management.
 
-### Decision 3: Break Milestone 1 Into 3 Focused Tasks
-**Date**: 2025-10-04
+### Decision 3: Break Foundation Setup Into Separate Milestones
+**Date**: 2025-10-04 (Updated: 2025-10-17)
 **Rationale**:
-- Original milestone was too large (4-6 hours) as a single atomic unit
-- 7 smaller subtasks were too granular (15-30 minutes each)
-- 3 tasks provide meaningful, independently testable chunks:
-  - Task 1: Core functionality working locally
-  - Task 2: CI/CD integration
-  - Task 3: Production-ready error handling
+- Original "Foundation Setup" milestone was too large (4-6 hours) as a single atomic unit
+- Breaking into 3 separate milestones provides meaningful, independently testable chunks:
+  - Milestone 1: Core functionality working locally
+  - Milestone 2: CI/CD integration
+  - Milestone 3: Production-ready error handling
 
 **Impact**:
-- Better progress tracking with meaningful milestones
-- Each task delivers concrete, testable value
-- Easier to pause/resume work between tasks
+- Better progress tracking with clear milestone boundaries
+- Each milestone delivers concrete, testable value
+- Easier to pause/resume work between milestones
 - Clearer success criteria for each stage
+- Total milestone count increased from 6 to 8
 
 ## Progress Log
+
+### 2025-10-17
+- **PRD Structure Update**: Restructured implementation milestones - broke Foundation Setup into 3 separate milestones for better progress tracking
+- **Milestone Count**: Increased from 6 to 8 total milestones
+- **Next Steps**: Begin Milestone 1 (Google Sheets API Setup & Local Testing)
 
 ### 2025-10-04
 - **Design Decisions**: Finalized JavaScript/Node.js, GitHub Secrets, and task breakdown
 - **Status Updated**: Changed from Planning to In Progress
-- **Next Steps**: Begin Milestone 1, Task 1 (Google Sheets API Setup & Local Testing)
 
 ### 2025-09-26
 - **PRD Created**: Initial requirements gathering and documentation
