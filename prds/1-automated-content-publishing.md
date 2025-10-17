@@ -134,15 +134,80 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 ## Implementation Milestones
 
 ### Milestone 1: Google Sheets API Setup & Local Testing
-**Estimated Time**: ~2 hours
+**Estimated Time**: ~2 hours total (broken into 6 small steps)
 
-- [ ] Set up Google Cloud service account with Sheets API access
-- [ ] Create Node.js script that reads the spreadsheet using `googleapis` npm package
-- [ ] Parse and validate all columns (Name, Type, Show, Date, Location, Confirmed, Link)
-- [ ] Test locally with service account credentials
-- [ ] Add structured logging for parsed data
+**Working Approach**: Complete one sub-step at a time before moving to the next.
 
-**Success Criteria**: Can run a local Node.js script that logs all spreadsheet data correctly
+#### Step 1.1: Environment Setup
+**Estimated Time**: 5-10 minutes
+**Related Decisions**: Decision 1 (JavaScript/Node.js implementation)
+
+- [ ] Install `googleapis` npm package
+- [ ] Install `dotenv` npm package
+- [ ] Create basic project structure (`src/` folder)
+- [ ] Create simple test script that prints "Hello from content-manager!"
+
+**Success Criteria**: Can run `npm install` and `node src/test.js` successfully
+
+#### Step 1.2: "Hello World" with Google API
+**Estimated Time**: 10-15 minutes
+**Related Decisions**: Decision 2 (Hybrid secret management), Decision 4 (Dedicated service account with minimal permissions)
+
+- [ ] Create service account in Google Cloud Console (existing GCP project)
+- [ ] Grant only Google Sheets API read access
+- [ ] Download service account credentials JSON file
+- [ ] Store credentials locally in `credentials/service-account.json` (gitignored)
+- [ ] Create script that authenticates with Google Sheets API
+- [ ] Print "Successfully authenticated!" to console
+
+**Success Criteria**: Script runs without authentication errors
+
+#### Step 1.3: Read Raw Spreadsheet Data
+**Estimated Time**: 10-15 minutes
+**Related Decisions**: Decision 4 (Service account access to spreadsheet)
+
+- [ ] Share spreadsheet (https://docs.google.com/spreadsheets/d/1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs/edit) with service account email
+- [ ] Connect to Whitney's spreadsheet using googleapis
+- [ ] Read the first sheet (no parsing, just raw data)
+- [ ] Print raw data arrays to console
+
+**Success Criteria**: Can see the actual spreadsheet data in terminal
+
+#### Step 1.4: Parse into Basic Objects
+**Estimated Time**: 15-20 minutes
+**Related Decisions**: Decision 5 (Standardized Type values), Decision 6 (Flexible data validation)
+
+- [ ] Convert row arrays into objects with named fields (Name, Type, Show, Date, Location, Confirmed, Link)
+- [ ] Handle header row detection
+- [ ] Map to simplified Type values (Podcast, Video, Blog, Presentation, Guest)
+- [ ] Print structured objects instead of arrays
+
+**Success Criteria**: Output shows `{ name: "...", type: "...", date: "..." }` format
+
+#### Step 1.5: Add Simple Validation
+**Estimated Time**: 15-20 minutes
+**Related Decisions**: Decision 6 (Flexible data validation with month header handling)
+
+- [ ] Check for required fields (Name, Type, Date, Link)
+- [ ] Allow optional fields to be empty (Show, Location, Confirmed)
+- [ ] Skip month header rows (rows with only Name filled, other required fields empty)
+- [ ] Count valid vs invalid rows
+- [ ] Log validation results
+
+**Success Criteria**: Script reports "Found X valid rows, skipped Y rows"
+
+#### Step 1.6: Add Pretty Logging
+**Estimated Time**: 10-15 minutes
+**Related Decisions**: Decision 7 (Pretty formatted logging for development)
+
+- [ ] Format output with visual hierarchy and indentation
+- [ ] Add timestamps to logs (format: `[YYYY-MM-DD HH:MM:SS]`)
+- [ ] Add visual indicators (✓ for valid, ✗ for skipped)
+- [ ] Create summary statistics (total rows, valid by type, skipped count)
+
+**Success Criteria**: Nice, readable output when script runs (see Decision 7 for example format)
+
+**Milestone 1 Complete**: Can run a local Node.js script that logs all spreadsheet data correctly with pretty formatting
 
 ### Milestone 2: GitHub Actions Integration
 **Estimated Time**: ~1-2 hours
@@ -252,25 +317,29 @@ The feature is complete when:
 - Can leverage existing Node.js knowledge and patterns
 - Faster setup time since infrastructure already exists
 
-### Decision 2: Use GitHub Secrets Instead of External Secret Management
-**Date**: 2025-10-04
+### Decision 2: Hybrid Secret Management Strategy (Local + CI)
+**Date**: 2025-10-04 (Updated: 2025-10-17)
 **Rationale**:
-- This is a single scheduled GitHub Actions job with minimal secret needs
-- GitHub Secrets provides everything needed: encryption, access control, injection into workflows
-- External solutions (GCP Secret Manager + teller) add unnecessary complexity:
-  - Additional API calls that can fail
-  - Extra dependencies to install in CI
-  - More IAM permissions to manage
-  - Workload Identity Federation setup
-- Keep it simple: use the right tool for the job size
+- Whitney already uses Teller + Google Secret Manager for other projects
+  - Example config: `platform-vibez/.teller.yml`
+  - Using existing GCP project for consistency
+- Local development benefits from consistent secret management patterns
+- GitHub Actions CI benefits from simpler, built-in GitHub Secrets
+- Best of both worlds: use the right tool for each environment
+
+**Implementation**:
+- **Local Development**: Use Teller + Google Secret Manager (consistent with existing patterns)
+- **GitHub Actions CI**: Use GitHub Secrets (simpler for automated workflows)
+- Service account credentials stored in both locations
+- Create `.teller.yml` in this repo (similar to platform-vibez pattern)
 
 **Impact**:
-- Milestone 2 will use GitHub Secrets for service account credentials
-- Simpler workflow configuration
-- Fewer external dependencies and failure points
-- Faster development iteration
+- Milestone 1 will set up both Teller config and service account credentials
+- Milestone 2 will configure GitHub Secrets for CI
+- Developers use familiar Teller workflow locally: `teller run node src/sync-content.js`
+- CI remains simple with GitHub Secrets
 
-**When to Reconsider**: If secrets need to be shared across multiple systems (multiple CIs, local dev, production), or if compliance requires centralized secret rotation, revisit external secret management.
+**When to Reconsider**: If secret management becomes more complex or requires centralized rotation/auditing across multiple systems.
 
 ### Decision 3: Break Foundation Setup Into Separate Milestones
 **Date**: 2025-10-04 (Updated: 2025-10-17)
@@ -288,12 +357,159 @@ The feature is complete when:
 - Clearer success criteria for each stage
 - Total milestone count increased from 6 to 8
 
+### Decision 4: Create Dedicated Service Account with Minimal Permissions
+**Date**: 2025-10-17
+**Rationale**:
+- Existing default service accounts have excessive permissions (Editor role)
+- Principle of least privilege requires scoping access to only Google Sheets API read
+- Dedicated service account provides clear naming and purpose
+- Easier to audit, manage, and revoke if needed
+
+**Implementation**:
+- Create new service account in existing GCP project
+- Name with descriptive prefix (e.g., `content-manager-sheets@...`)
+- Grant only: Google Sheets API read access
+- Share spreadsheet (https://docs.google.com/spreadsheets/d/1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs/edit) with service account email
+- Download JSON key for use in Teller and GitHub Secrets
+
+**Impact**:
+- Enhanced security posture with minimal permissions
+- Clear ownership and purpose of service account
+- Easier to track API usage and audit access
+- No risk of accidental changes to other GCP resources
+
+### Decision 5: Standardize Spreadsheet Type Values with Dropdown
+**Date**: 2025-10-17
+**Rationale**:
+- Current spreadsheet has inconsistent Type values: "SDI Podcast", "Video - Livestream You Choose!", "Blog Post - CNCF Blog", "Guest - Podcast", etc.
+- Original PRD specified multiple variations per category, leading to complex parsing logic
+- Simpler to standardize data at source (spreadsheet) than write flexible code
+- Dropdown prevents future typos and ensures data consistency
+
+**Implementation**:
+- Spreadsheet location: https://docs.google.com/spreadsheets/d/1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs/edit
+- Add data validation dropdown to Type column (Column B) with exactly 5 values:
+  - `Podcast`
+  - `Video`
+  - `Blog`
+  - `Presentation`
+  - `Guest`
+- Update existing rows to use standardized values
+- Set dropdown to "Reject input" to prevent invalid entries
+
+**Impact**:
+- Simpler parsing code with exact string matching
+- No need for complex pattern matching or variations
+- Reduced risk of mapping errors
+- Clearer user experience when adding content
+- **Updates Content Type Mapping** (see table below)
+
+**Updated Content Type Mapping**:
+| Spreadsheet Type | Micro.blog Page | URL |
+|------------------|----------------|-----|
+| Podcast | Podcast | whitneylee.com/podcast |
+| Video | Video | whitneylee.com/video |
+| Blog | Blog | whitneylee.com/blog |
+| Presentation | Present | whitneylee.com/present |
+| Guest | Guest | whitneylee.com/guest |
+
+### Decision 6: Flexible Data Validation with Month Header Handling
+**Date**: 2025-10-17
+**Rationale**:
+- Spreadsheet contains month header rows ("January", "February", etc.) for organization
+- These headers are useful for Whitney but need to be ignored by the system
+- Month headers naturally fail validation (missing Type, Date, Link)
+- Better to handle gracefully than require spreadsheet restructuring
+
+**Implementation**:
+- **Required fields** for valid content row:
+  - Name (Column A)
+  - Type (Column B)
+  - Date (Column D) - flexible date parsing (handles both `1/9/2025` and `01/09/2025`)
+  - Link (Column G) - must be valid URL
+- **Optional fields** (can be empty):
+  - Show (Column C)
+  - Location (Column E)
+  - Confirmed (Column F) - currently unused, will be ignored
+- **Month header detection**: Rows with only Name filled and other required fields empty → skip silently
+- **Invalid rows**: Log warning, skip row, continue processing other rows
+
+**Impact**:
+- No need to modify spreadsheet structure
+- Graceful handling of organizational elements
+- Clear logging distinguishes between month headers and invalid data
+- System is resilient to data quality issues
+
+### Decision 7: Pretty Formatted Logging for Development, JSON for Production
+**Date**: 2025-10-17
+**Rationale**:
+- Milestone 1 is local development where human-readable logs are valuable
+- Pretty formatted logs provide visual hierarchy and easy debugging
+- JSON logs better suited for automated systems and log aggregation
+- Different environments have different logging needs
+
+**Implementation**:
+- **Milestone 1 (local dev)**: Pretty formatted logs with timestamps, indentation, and visual indicators (✓/✗)
+  ```
+  [2025-10-17 14:30:17] INFO: Processing row 1/42
+    Title: Learning to learn, with Sasha Czarkowski
+    Type:  Podcast → /podcast
+    Date:  January 9, 2025
+    Link:  https://www.softwaredefinedinterviews.com/91
+    ✓ Valid
+  ```
+- **Milestone 2+ (GitHub Actions)**: Structured JSON logs for machine parsing
+  ```json
+  {"timestamp":"2025-10-17T14:30:17Z","level":"info","row":1,"title":"Learning to learn","type":"Podcast","valid":true}
+  ```
+
+**Impact**:
+- Better developer experience during local testing
+- Production-ready logging for CI/CD monitoring
+- Easy to grep/filter logs in automated environments
+- Clear separation of concerns by environment
+
+### Decision 8: GitHub Actions First, Azure Migration Later
+**Date**: 2025-10-17
+**Rationale**:
+- Whitney is Microsoft MVP with free Azure credits
+- Learning Azure is valuable for MVP activities
+- However, GitHub Actions provides faster path to working system
+- Core Node.js code will be identical regardless of deployment platform
+- Better to get system working first, then migrate as learning exercise
+
+**Implementation**:
+- **Phase 1 (Milestones 1-8)**: Build and deploy on GitHub Actions as planned
+- **Phase 2 (Future)**: Migrate to Azure Functions as learning opportunity
+  - Azure Function with timer trigger (hourly)
+  - Azure Key Vault for secret management
+  - Same Node.js codebase, different deployment
+  - Document learning experience for MVP activities
+
+**Impact**:
+- Faster time to working system (original PRD plan)
+- Future migration path documented and planned
+- Opportunity to learn Azure with real, working project
+- Azure MVP credits available when ready to migrate
+- No changes to Milestones 1-8
+
 ## Progress Log
 
 ### 2025-10-17
 - **PRD Structure Update**: Restructured implementation milestones - broke Foundation Setup into 3 separate milestones for better progress tracking
 - **Milestone Count**: Increased from 6 to 8 total milestones
-- **Next Steps**: Begin Milestone 1 (Google Sheets API Setup & Local Testing)
+- **Milestone 1 Breakdown**: Further broke Milestone 1 into 6 small sub-steps (1.1-1.6) to reduce complexity and enable incremental progress
+  - Working approach: Complete one sub-step at a time
+  - Each step is 5-20 minutes with clear success criteria
+- **Design Decisions**: Added 5 new design decisions (Decisions 4-8) based on Milestone 1 planning discussions:
+  - Decision 4: Dedicated service account with minimal permissions
+  - Decision 5: Standardized spreadsheet Type values with dropdown validation
+  - Decision 6: Flexible data validation approach with graceful month header handling
+  - Decision 7: Environment-specific logging strategy (pretty for dev, JSON for prod)
+  - Decision 8: GitHub Actions first, Azure migration path for future learning
+- **Updated Decision 2**: Revised secret management to hybrid approach (Teller for local, GitHub Secrets for CI)
+- **Spreadsheet Analysis**: Analyzed actual data structure and identified standardization needs
+- **Next Steps**: Begin Step 1.1 (Environment Setup) - install packages and create hello world script
 
 ### 2025-10-04
 - **Design Decisions**: Finalized JavaScript/Node.js, GitHub Secrets, and task breakdown
