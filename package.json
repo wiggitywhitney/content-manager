@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "auth-test": "teller run -- /opt/homebrew/bin/node src/auth-test.js"
+    "auth-test": "teller run -- /opt/homebrew/bin/node src/auth-test.js",
+    "sync": "teller run -- /opt/homebrew/bin/node src/sync-content.js"
   },
   "keywords": [],
   "author": "",
