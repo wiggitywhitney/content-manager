@@ -1,0 +1,9 @@
+project: content-manager
+providers:
+  google_secrets_manager:
+    kind: google_secretmanager
+    maps:
+      - id: secrets
+        path: projects/demoo-ooclock
+        keys:
+          content_manager_service_account: GOOGLE_SERVICE_ACCOUNT_JSON

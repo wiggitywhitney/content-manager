@@ -149,18 +149,21 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Success Criteria**: Can run `npm install` and `node src/test.js` successfully ✅
 
-#### Step 1.2: "Hello World" with Google API
+#### Step 1.2: "Hello World" with Google API ✅
 **Estimated Time**: 10-15 minutes
 **Related Decisions**: Decision 2 (Hybrid secret management), Decision 4 (Dedicated service account with minimal permissions)
 
-- [ ] Create service account in Google Cloud Console (existing GCP project)
-- [ ] Grant only Google Sheets API read access
-- [ ] Download service account credentials JSON file
-- [ ] Store credentials locally in `credentials/service-account.json` (gitignored)
-- [ ] Create script that authenticates with Google Sheets API
-- [ ] Print "Successfully authenticated!" to console
+- [x] Create service account in Google Cloud Console (existing GCP project)
+- [x] Upload service account JSON to Google Secret Manager
+- [x] Create `.teller.yml` configuration for local secret management
+- [x] Share spreadsheet with service account email
+- [x] Create script that authenticates with Google Sheets API
+- [x] Print "Successfully authenticated!" to console
 
-**Success Criteria**: Script runs without authentication errors
+**Success Criteria**: Script runs without authentication errors ✅
+**Run with**: `npm run auth-test`
+
+**Implementation Note**: Used Teller + Secret Manager approach (Decision 2) rather than local file storage for security best practices.
 
 #### Step 1.3: Read Raw Spreadsheet Data
 **Estimated Time**: 10-15 minutes
@@ -495,7 +498,36 @@ The feature is complete when:
 
 ## Progress Log
 
-### 2025-10-17 (Implementation Session)
+### 2025-10-17 (Implementation Session 2)
+**Duration**: ~20 minutes
+**Focus**: Milestone 1, Step 1.2 - "Hello World" with Google API
+
+**Completed PRD Items**:
+- [x] Create service account in Google Cloud Console - Evidence: `content-manager-sheets@demoo-ooclock.iam.gserviceaccount.com` created
+- [x] Upload service account JSON to Google Secret Manager - Evidence: Secret `content_manager_service_account` created (version 1)
+- [x] Create `.teller.yml` configuration - Evidence: `.teller.yml` file with proper google_secretmanager mapping
+- [x] Share spreadsheet with service account - Evidence: Spreadsheet shared with Viewer permission
+- [x] Create authentication script - Evidence: `src/auth-test.js` created with full error handling
+- [x] Verify authentication works - Evidence: Successfully ran `npm run auth-test`, obtained access token
+
+**Files Created/Modified**:
+- `.teller.yml` - Teller configuration for local secret management
+- `src/auth-test.js` - Google Sheets API authentication test script
+- `package.json` - Added `auth-test` npm script with proper Teller command
+
+**Verification**:
+- Successfully ran `gcloud secrets create content_manager_service_account`
+- Successfully ran `npm run auth-test` (authentication confirmed with ✅ output)
+- Verified service account email: `content-manager-sheets@demoo-ooclock.iam.gserviceaccount.com`
+- Cleaned up local credentials file for security
+
+**Implementation Divergence**:
+- Original plan specified local file storage (`credentials/service-account.json`)
+- Implemented Teller + Secret Manager approach per Decision 2 (better security, consistent with existing patterns)
+
+**Next Session Priority**: Step 1.3 - Read Raw Spreadsheet Data (connect to actual spreadsheet and read data)
+
+### 2025-10-17 (Implementation Session 1)
 **Duration**: ~10 minutes
 **Focus**: Milestone 1, Step 1.1 - Environment Setup
 
