@@ -5,12 +5,229 @@ const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = 'Sheet1';
 const RANGE = `${SHEET_NAME}!A:G`; // Name, Type, Show, Date, Location, Confirmed, Link
 
+// ============================================================================
+// Error Classification & Recovery
+// ============================================================================
+//
+// ERROR HANDLING & RECOVERY BEHAVIOR:
+//
+// 1. AUTHENTICATION ERRORS (AUTH):
+//    - Causes: Missing/invalid GOOGLE_SERVICE_ACCOUNT_JSON, wrong permissions
+//    - Behavior: Log error, NO RETRY, exit immediately
+//    - Recovery: Fix credentials/permissions, run script again
+//
+// 2. NETWORK ERRORS (NETWORK):
+//    - Causes: DNS failure, connection timeout, connection refused
+//    - Behavior: Retry up to 3 times with exponential backoff (1s → 2s → 4s)
+//    - Recovery: Automatic retry, waits for network to recover
+//
+// 3. API RATE LIMIT (API_RATE_LIMIT):
+//    - Causes: Google API quota exceeded (rare with hourly schedule)
+//    - Behavior: Retry up to 3 times with exponential backoff
+//    - Recovery: Automatic retry, waits for quota to reset
+//
+// 4. DATA ERRORS (DATA):
+//    - Causes: Invalid JSON, unexpected spreadsheet format
+//    - Behavior: Log error, NO RETRY, exit immediately
+//    - Recovery: Fix data format issue, run script again
+//
+// 5. UNKNOWN ERRORS:
+//    - Causes: Unexpected/unclassified errors
+//    - Behavior: Log error with details, NO RETRY, exit immediately
+//    - Recovery: Investigate logs, fix root cause, run script again
+//
+// ============================================================================
+
+/**
+ * Error types for classification
+ */
+const ErrorType = {
+  AUTH: 'AUTH',           // Authentication/credentials issues
+  NETWORK: 'NETWORK',     // Network connectivity problems
+  API_RATE_LIMIT: 'API_RATE_LIMIT',  // API quota/rate limit exceeded
+  DATA: 'DATA',           // Unexpected data format or parsing issues
+  UNKNOWN: 'UNKNOWN'      // Unclassified errors
+};
+
+/**
+ * Classify an error by type
+ * @param {Error} error - The error to classify
+ * @returns {Object} - { type: ErrorType, message: string, shouldRetry: boolean }
+ */
+function classifyError(error) {
+  const errorMessage = error.message || '';
+  const errorCode = error.code;
+
+  // Authentication errors
+  if (errorMessage.includes('GOOGLE_SERVICE_ACCOUNT_JSON') ||
+      errorMessage.includes('invalid_grant') ||
+      errorMessage.includes('Invalid Credentials') ||
+      errorCode === 'EAUTH') {
+    return {
+      type: ErrorType.AUTH,
+      message: 'Authentication failed. Check GOOGLE_SERVICE_ACCOUNT_JSON environment variable and service account permissions.',
+      shouldRetry: false  // No point retrying auth errors
+    };
+  }
+
+  // Network errors
+  if (errorCode === 'ENOTFOUND' ||
+      errorCode === 'ECONNREFUSED' ||
+      errorCode === 'ETIMEDOUT' ||
+      errorCode === 'ECONNRESET' ||
+      errorMessage.includes('network') ||
+      errorMessage.includes('timeout')) {
+    return {
+      type: ErrorType.NETWORK,
+      message: 'Network error occurred. Will retry with exponential backoff.',
+      shouldRetry: true
+    };
+  }
+
+  // API rate limit errors
+  if (error.response?.status === 429 ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('quota exceeded')) {
+    return {
+      type: ErrorType.API_RATE_LIMIT,
+      message: 'API rate limit exceeded. Will retry with longer delay.',
+      shouldRetry: true
+    };
+  }
+
+  // Data/parsing errors
+  if (errorMessage.includes('JSON') ||
+      errorMessage.includes('parse') ||
+      errorMessage.includes('Unexpected token')) {
+    return {
+      type: ErrorType.DATA,
+      message: 'Data parsing error. Check spreadsheet format and service account response.',
+      shouldRetry: false
+    };
+  }
+
+  // Unknown error
+  return {
+    type: ErrorType.UNKNOWN,
+    message: `Unexpected error: ${errorMessage}`,
+    shouldRetry: false
+  };
+}
+
+// ============================================================================
+// Retry Logic
+// ============================================================================
+
+/**
+ * Retry configuration
+ */
+const retryConfig = {
+  maxRetries: 3,
+  initialDelayMs: 1000,  // Start with 1 second
+  maxDelayMs: 30000,     // Cap at 30 seconds
+  backoffMultiplier: 2   // Double the delay each time
+};
+
+/**
+ * Sleep for specified milliseconds
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise} - Resolves after delay
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Execute a function with retry logic and exponential backoff
+ * @param {Function} fn - Async function to execute
+ * @param {string} operationName - Name of operation for logging
+ * @returns {Promise} - Result of function or throws after max retries
+ */
+async function withRetry(fn, operationName) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= retryConfig.maxRetries; attempt++) {
+    try {
+      log(`${operationName}: Attempt ${attempt}/${retryConfig.maxRetries}`, 'DEBUG');
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const errorInfo = classifyError(error);
+
+      // Don't retry if error type shouldn't be retried
+      if (!errorInfo.shouldRetry) {
+        log(`${operationName}: Error not retryable [${errorInfo.type}]`, 'ERROR');
+        throw error;
+      }
+
+      // Don't retry if we've exhausted attempts
+      if (attempt === retryConfig.maxRetries) {
+        log(`${operationName}: Max retries (${retryConfig.maxRetries}) exceeded`, 'ERROR');
+        throw error;
+      }
+
+      // Calculate delay with exponential backoff
+      const delay = Math.min(
+        retryConfig.initialDelayMs * Math.pow(retryConfig.backoffMultiplier, attempt - 1),
+        retryConfig.maxDelayMs
+      );
+
+      log(
+        `${operationName}: Attempt ${attempt} failed [${errorInfo.type}]. Retrying in ${delay}ms...`,
+        'WARN',
+        {
+          attempt,
+          maxRetries: retryConfig.maxRetries,
+          errorType: errorInfo.type,
+          retryDelayMs: delay
+        }
+      );
+
+      await sleep(delay);
+    }
+  }
+
+  // Should never reach here, but just in case
+  throw lastError;
+}
+
+// ============================================================================
+// Logging System
+// ============================================================================
+
+/**
+ * Log levels (numeric for comparison)
+ */
+const LogLevel = {
+  DEBUG: 0,
+  INFO: 1,
+  WARN: 2,
+  ERROR: 3
+};
+
+/**
+ * Logger configuration
+ */
+const logConfig = {
+  // Minimum level to display (from env var or default to INFO)
+  // Note: Must check for undefined explicitly since DEBUG = 0 is falsy
+  minLevel: process.env.LOG_LEVEL && LogLevel[process.env.LOG_LEVEL] !== undefined
+    ? LogLevel[process.env.LOG_LEVEL]
+    : LogLevel.INFO,
+  // Output format: 'pretty' or 'json'
+  format: process.env.LOG_FORMAT || 'pretty'
+};
+
 /**
  * Format timestamp for logging
- * @returns {string} - Formatted timestamp [YYYY-MM-DD HH:MM:SS]
+ * @returns {string} - ISO 8601 timestamp for JSON, formatted for pretty
  */
-function formatTimestamp() {
+function formatTimestamp(format = 'pretty') {
   const now = new Date();
+  if (format === 'json') {
+    return now.toISOString();
+  }
+  // Pretty format: [YYYY-MM-DD HH:MM:SS]
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
@@ -21,12 +238,42 @@ function formatTimestamp() {
 }
 
 /**
- * Log with timestamp and formatting
+ * Enhanced logging function with level filtering and structured data support
  * @param {string} message - Log message
- * @param {string} level - Log level (INFO, WARN, ERROR)
+ * @param {string} level - Log level (DEBUG, INFO, WARN, ERROR)
+ * @param {Object} data - Optional structured data to include
  */
-function log(message, level = 'INFO') {
-  console.log(`${formatTimestamp()} ${level}: ${message}`);
+function log(message, level = 'INFO', data = null) {
+  const levelValue = LogLevel[level];
+
+  // Filter out logs below minimum level
+  if (levelValue < logConfig.minLevel) {
+    return;
+  }
+
+  if (logConfig.format === 'json') {
+    // Structured JSON logging for CI/production
+    const logEntry = {
+      timestamp: formatTimestamp('json'),
+      level: level,
+      message: message
+    };
+
+    // Include any additional structured data
+    if (data) {
+      logEntry.data = data;
+    }
+
+    console.log(JSON.stringify(logEntry));
+  } else {
+    // Pretty formatted logging for local development
+    console.log(`${formatTimestamp('pretty')} ${level}: ${message}`);
+
+    // If structured data provided, pretty print it
+    if (data) {
+      console.log('  Data:', JSON.stringify(data, null, 2));
+    }
+  }
 }
 
 /**
@@ -116,12 +363,15 @@ async function syncContent() {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Read spreadsheet data
+    // Read spreadsheet data with retry logic
     log(`Reading spreadsheet: ${SPREADSHEET_ID}`);
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: RANGE,
-    });
+    const response = await withRetry(
+      () => sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: RANGE,
+      }),
+      'Read spreadsheet'
+    );
 
     const rows = response.data.values || [];
     log(`Found ${rows.length} total rows (including header)\n`);
@@ -162,13 +412,26 @@ async function syncContent() {
         stats.valid++;
         stats.byType[parsed.type]++;
 
-        // Pretty formatted valid content (Step 1.6)
-        log(`Processing row ${parsed.rowIndex}/${stats.total}`);
-        console.log(`  Title: ${parsed.name}`);
-        console.log(`  Type:  ${parsed.type} → /${parsed.type.toLowerCase()}`);
-        console.log(`  Date:  ${parsed.date}`);
-        console.log(`  Link:  ${parsed.link}`);
-        console.log(`  ✓ Valid\n`);
+        // Log valid content row with format-aware output
+        if (logConfig.format === 'json') {
+          // Structured JSON logging
+          log(`Processing row ${parsed.rowIndex}/${stats.total}`, 'DEBUG', {
+            rowIndex: parsed.rowIndex,
+            title: parsed.name,
+            type: parsed.type,
+            date: parsed.date,
+            link: parsed.link,
+            valid: true
+          });
+        } else {
+          // Pretty formatted output for local dev
+          log(`Processing row ${parsed.rowIndex}/${stats.total}`);
+          console.log(`  Title: ${parsed.name}`);
+          console.log(`  Type:  ${parsed.type} → /${parsed.type.toLowerCase()}`);
+          console.log(`  Date:  ${parsed.date}`);
+          console.log(`  Link:  ${parsed.link}`);
+          console.log(`  ✓ Valid\n`);
+        }
       } else {
         // Track skip reasons
         if (validation.isMonthHeader) {
@@ -185,36 +448,67 @@ async function syncContent() {
       }
     }
 
-    // Print pretty summary (Step 1.6)
-    console.log('\n' + '='.repeat(60));
-    log('SUMMARY STATISTICS');
-    console.log('='.repeat(60));
-    console.log('\n📊 Processing Overview:');
-    console.log(`  Total rows processed:     ${stats.total}`);
-    console.log(`  ✓ Valid content rows:     ${stats.valid}`);
-    console.log(`  ✗ Skipped rows:           ${stats.total - stats.valid}`);
+    // Print summary with format-aware output
+    if (logConfig.format === 'json') {
+      // Structured JSON summary
+      log('Processing complete', 'INFO', {
+        summary: {
+          totalRows: stats.total,
+          validRows: stats.valid,
+          skippedRows: stats.total - stats.valid,
+          byType: stats.byType,
+          skippedBreakdown: {
+            monthHeaders: stats.monthHeaders,
+            emptyRows: stats.emptyRows,
+            invalidType: stats.invalidType,
+            missingFields: stats.missingFields
+          }
+        }
+      });
+    } else {
+      // Pretty formatted summary for local dev
+      console.log('\n' + '='.repeat(60));
+      log('SUMMARY STATISTICS');
+      console.log('='.repeat(60));
+      console.log('\n📊 Processing Overview:');
+      console.log(`  Total rows processed:     ${stats.total}`);
+      console.log(`  ✓ Valid content rows:     ${stats.valid}`);
+      console.log(`  ✗ Skipped rows:           ${stats.total - stats.valid}`);
 
-    console.log('\n📝 Valid Content by Type:');
-    Object.entries(stats.byType).forEach(([type, count]) => {
-      const url = `/${type.toLowerCase()}`;
-      console.log(`  ${type.padEnd(15)} ${String(count).padStart(2)} → ${url}`);
-    });
+      console.log('\n📝 Valid Content by Type:');
+      Object.entries(stats.byType).forEach(([type, count]) => {
+        const url = `/${type.toLowerCase()}`;
+        console.log(`  ${type.padEnd(15)} ${String(count).padStart(2)} → ${url}`);
+      });
 
-    console.log('\n🚫 Skipped Rows Breakdown:');
-    console.log(`  Month headers:            ${stats.monthHeaders}`);
-    console.log(`  Empty rows:               ${stats.emptyRows}`);
-    console.log(`  Invalid type:             ${stats.invalidType}`);
-    console.log(`  Missing required fields:  ${stats.missingFields}`);
+      console.log('\n🚫 Skipped Rows Breakdown:');
+      console.log(`  Month headers:            ${stats.monthHeaders}`);
+      console.log(`  Empty rows:               ${stats.emptyRows}`);
+      console.log(`  Invalid type:             ${stats.invalidType}`);
+      console.log(`  Missing required fields:  ${stats.missingFields}`);
 
-    console.log('\n' + '='.repeat(60));
-    log(`✅ Processing complete: ${stats.valid} valid rows ready for sync`);
-    console.log('='.repeat(60) + '\n');
+      console.log('\n' + '='.repeat(60));
+      log(`✅ Processing complete: ${stats.valid} valid rows ready for sync`);
+      console.log('='.repeat(60) + '\n');
+    }
 
   } catch (error) {
-    log(`❌ Error syncing content: ${error.message}`, 'ERROR');
-    if (error.stack) {
-      console.error(error.stack);
+    // Classify the error
+    const errorInfo = classifyError(error);
+
+    // Log error with classification
+    log(`❌ Error syncing content [${errorInfo.type}]: ${errorInfo.message}`, 'ERROR', {
+      errorType: errorInfo.type,
+      originalError: error.message,
+      shouldRetry: errorInfo.shouldRetry
+    });
+
+    // Include stack trace in DEBUG mode
+    if (logConfig.minLevel === LogLevel.DEBUG && error.stack) {
+      log('Stack trace:', 'DEBUG', { stack: error.stack });
     }
+
+    // Exit with error code (will be enhanced with retry logic in Step 3)
     process.exit(1);
   }
 }
