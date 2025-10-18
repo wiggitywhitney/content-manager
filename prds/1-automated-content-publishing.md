@@ -47,7 +47,9 @@ Build an automated system that syncs Whitney's Google Sheets content tracking sp
 - **Authentication**: Google Sheets API with service account
 - **Frequency**: Hourly checks for changes
 
-### Content Type Mapping
+### Content Type Mapping (Original Requirement)
+**⚠️ Deprecated**: This original requirement with multiple type variations was simplified during implementation. See **Decision 5: Standardize Spreadsheet Type Values** for rationale and **Updated Content Type Mapping** for current implementation.
+
 | Spreadsheet Type | Micro.blog Page | URL |
 |------------------|----------------|-----|
 | SDI Podcast | Podcast | whitneylee.com/podcast |

@@ -70,13 +70,17 @@ function classifyError(error) {
     };
   }
 
-  // Network errors
+  // Network errors (including transient server errors)
+  const httpStatus = error.response?.status;
   if (errorCode === 'ENOTFOUND' ||
       errorCode === 'ECONNREFUSED' ||
       errorCode === 'ETIMEDOUT' ||
       errorCode === 'ECONNRESET' ||
       errorMessage.includes('network') ||
-      errorMessage.includes('timeout')) {
+      errorMessage.includes('timeout') ||
+      httpStatus === 500 ||  // Internal Server Error (transient)
+      httpStatus === 503 ||  // Service Unavailable (transient)
+      httpStatus === 504) {  // Gateway Timeout (transient)
     return {
       type: ErrorType.NETWORK,
       message: 'Network error occurred. Will retry with exponential backoff.',
@@ -166,11 +170,20 @@ async function withRetry(fn, operationName) {
         throw error;
       }
 
-      // Calculate delay with exponential backoff
-      const delay = Math.min(
-        retryConfig.initialDelayMs * Math.pow(retryConfig.backoffMultiplier, attempt - 1),
-        retryConfig.maxDelayMs
-      );
+      // Calculate delay with exponential backoff, Retry-After header support, and jitter
+      const baseDelay = retryConfig.initialDelayMs * Math.pow(retryConfig.backoffMultiplier, attempt - 1);
+
+      // Check for server-provided Retry-After header (in seconds)
+      const retryAfterHeader = error.response?.headers?.['retry-after'] ||
+                               error.response?.headers?.['Retry-After'];
+      const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : null;
+
+      // Use the larger of exponential backoff or server hint
+      const candidateDelay = retryAfterMs ? Math.max(baseDelay, retryAfterMs) : baseDelay;
+
+      // Add jitter (up to 10% random variance) to avoid thundering herd
+      const jitter = Math.floor(candidateDelay * 0.1 * Math.random());
+      const delay = Math.min(candidateDelay + jitter, retryConfig.maxDelayMs);
 
       log(
         `${operationName}: Attempt ${attempt} failed [${errorInfo.type}]. Retrying in ${delay}ms...`,
@@ -179,7 +192,8 @@ async function withRetry(fn, operationName) {
           attempt,
           maxRetries: retryConfig.maxRetries,
           errorType: errorInfo.type,
-          retryDelayMs: delay
+          retryDelayMs: delay,
+          retryAfterMs: retryAfterMs || undefined
         }
       );
 
@@ -214,8 +228,8 @@ const logConfig = {
   minLevel: process.env.LOG_LEVEL && LogLevel[process.env.LOG_LEVEL] !== undefined
     ? LogLevel[process.env.LOG_LEVEL]
     : LogLevel.INFO,
-  // Output format: 'pretty' or 'json'
-  format: process.env.LOG_FORMAT || 'pretty'
+  // Output format: 'pretty' or 'json' (normalized to lowercase)
+  format: (process.env.LOG_FORMAT || 'pretty').toLowerCase()
 };
 
 /**
@@ -251,6 +265,9 @@ function log(message, level = 'INFO', data = null) {
     return;
   }
 
+  // Route WARN/ERROR to stderr, INFO/DEBUG to stdout
+  const output = (levelValue >= LogLevel.WARN) ? console.error : console.log;
+
   if (logConfig.format === 'json') {
     // Structured JSON logging for CI/production
     const logEntry = {
@@ -264,14 +281,14 @@ function log(message, level = 'INFO', data = null) {
       logEntry.data = data;
     }
 
-    console.log(JSON.stringify(logEntry));
+    output(JSON.stringify(logEntry));
   } else {
     // Pretty formatted logging for local development
-    console.log(`${formatTimestamp('pretty')} ${level}: ${message}`);
+    output(`${formatTimestamp('pretty')} ${level}: ${message}`);
 
     // If structured data provided, pretty print it
     if (data) {
-      console.log('  Data:', JSON.stringify(data, null, 2));
+      output('  Data:', JSON.stringify(data, null, 2));
     }
   }
 }
@@ -466,30 +483,32 @@ async function syncContent() {
         }
       });
     } else {
-      // Pretty formatted summary for local dev
-      console.log('\n' + '='.repeat(60));
-      log('SUMMARY STATISTICS');
-      console.log('='.repeat(60));
-      console.log('\n📊 Processing Overview:');
-      console.log(`  Total rows processed:     ${stats.total}`);
-      console.log(`  ✓ Valid content rows:     ${stats.valid}`);
-      console.log(`  ✗ Skipped rows:           ${stats.total - stats.valid}`);
+      // Pretty formatted summary for local dev (only at INFO level and above)
+      if (logConfig.minLevel <= LogLevel.INFO) {
+        console.log('\n' + '='.repeat(60));
+        log('SUMMARY STATISTICS');
+        console.log('='.repeat(60));
+        console.log('\n📊 Processing Overview:');
+        console.log(`  Total rows processed:     ${stats.total}`);
+        console.log(`  ✓ Valid content rows:     ${stats.valid}`);
+        console.log(`  ✗ Skipped rows:           ${stats.total - stats.valid}`);
 
-      console.log('\n📝 Valid Content by Type:');
-      Object.entries(stats.byType).forEach(([type, count]) => {
-        const url = `/${type.toLowerCase()}`;
-        console.log(`  ${type.padEnd(15)} ${String(count).padStart(2)} → ${url}`);
-      });
+        console.log('\n📝 Valid Content by Type:');
+        Object.entries(stats.byType).forEach(([type, count]) => {
+          const url = `/${type.toLowerCase()}`;
+          console.log(`  ${type.padEnd(15)} ${String(count).padStart(2)} → ${url}`);
+        });
 
-      console.log('\n🚫 Skipped Rows Breakdown:');
-      console.log(`  Month headers:            ${stats.monthHeaders}`);
-      console.log(`  Empty rows:               ${stats.emptyRows}`);
-      console.log(`  Invalid type:             ${stats.invalidType}`);
-      console.log(`  Missing required fields:  ${stats.missingFields}`);
+        console.log('\n🚫 Skipped Rows Breakdown:');
+        console.log(`  Month headers:            ${stats.monthHeaders}`);
+        console.log(`  Empty rows:               ${stats.emptyRows}`);
+        console.log(`  Invalid type:             ${stats.invalidType}`);
+        console.log(`  Missing required fields:  ${stats.missingFields}`);
 
-      console.log('\n' + '='.repeat(60));
-      log(`✅ Processing complete: ${stats.valid} valid rows ready for sync`);
-      console.log('='.repeat(60) + '\n');
+        console.log('\n' + '='.repeat(60));
+        log(`✅ Processing complete: ${stats.valid} valid rows ready for sync`);
+        console.log('='.repeat(60) + '\n');
+      }
     }
 
   } catch (error) {
@@ -513,5 +532,10 @@ async function syncContent() {
   }
 }
 
-// Run the sync
-syncContent();
+// Run the sync if invoked directly (not imported as module)
+if (require.main === module) {
+  syncContent();
+}
+
+// Export for testing and programmatic use
+module.exports = { syncContent };
