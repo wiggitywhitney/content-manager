@@ -5,6 +5,13 @@
       "command": "node",
       "args": ["node_modules/commit-story/src/mcp/server.js"],
       "env": {}
+    },
+    "coderabbitai": {
+      "command": "npx",
+      "args": ["coderabbitai-mcp@latest"],
+      "env": {
+        "GITHUB_PAT": "${GITHUB_TOKEN}"
+      }
     }
   }
 }
