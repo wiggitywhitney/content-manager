@@ -1,0 +1,31 @@
+name: Sync Content to Micro.blog
+
+on:
+  # Manual trigger for testing
+  workflow_dispatch:
+
+  # Scheduled run (hourly) - will enable after testing
+  # schedule:
+  #   - cron: '0 * * * *'  # Run at the start of every hour (UTC)
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run content sync
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node src/sync-content.js
