@@ -59,10 +59,17 @@ Build an automated system that syncs Whitney's Google Sheets content tracking sp
 | Guest - Podcast, Podcast guest | Guest | whitneylee.com/guest |
 
 ### Micro.blog Integration
+**API Reference**: [Micro.blog API Capabilities](../docs/microblog-api-capabilities.md)
+
 - **API**: Micropub API for post management
 - **Authentication**: App token from micro.blog account
 - **Operations**: Create, update, delete posts
-- **Page Management**: Create pages, manage visibility
+- **Content Organization**: Categories (not pages) - posts are assigned to categories which create URLs like `/categories/podcast/`
+
+**Important Clarification**: This PRD originally used the term "pages" to describe content organization (e.g., "Podcast page", "Video page"). After API research, we determined that Micro.blog **categories** are the appropriate mechanism:
+- **Categories** = Content organization tags that create automatic URLs and RSS feeds
+- **Pages** = Static content like About/Contact (not what we need)
+- See [Categories vs Pages](../docs/microblog-api-capabilities.md#key-architectural-concepts) for details
 
 ### Post Format
 Each micro.blog post will include:
@@ -263,29 +270,206 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 **Milestone 3 Complete**: ✅ All error handling, logging, retry logic, and documentation implemented
 
 ### Milestone 4: Micro.blog Integration
-- [ ] Micro.blog API authentication working
-- [ ] Can create the 5 required pages (Podcast, Video, Blog, Present, Guest)
-- [ ] Basic post creation functionality
-- [ ] Content type mapping logic implemented
+**Estimated Time**: ~2-3 hours
+**API Reference**: [Micro.blog API Capabilities](../docs/microblog-api-capabilities.md)
 
-**Success Criteria**: Can create posts on correct micro.blog pages
+**Important Architectural Note**: Micro.blog uses **categories** (not pages) for content organization. Categories automatically create URLs like `/categories/podcast/` with individual RSS feeds. This is the correct approach for our use case.
+
+#### Step 4.1: Authentication Setup (~15-20 min)
+**API Reference**: [Authentication Methods](../docs/microblog-api-capabilities.md#authentication)
+
+- [ ] Generate app token from micro.blog account (Account → Edit Apps)
+- [ ] Add `MICROBLOG_APP_TOKEN` to GitHub Secrets
+- [ ] Test authentication with Micropub config query
+- [ ] Verify token has full account access
+
+**API Details**:
+- Endpoint: `GET https://micro.blog/micropub?q=config`
+- Header: `Authorization: Bearer YOUR_TOKEN`
+- Success: Returns JSON with channels and media endpoint
+
+#### Step 4.2: Category Strategy (~30 min)
+- [ ] Create 5 categories via Micro.blog web UI: podcast, video, blog, presentation, guest
+- [ ] (Optional) Create navigation pages linking to each category
+- [ ] Document category URLs (e.g., `https://whitneylee.com/categories/podcast/`)
+- [ ] Test category assignment via API
+
+**API Details**:
+- List categories: `GET /micropub?q=category`
+- Categories are created automatically when first post uses them
+- Assign category: `category=podcast` parameter in POST request
+
+#### Step 4.3: Post Creation Logic (~45-60 min)
+**API Reference**: [Micropub Create Posts](../docs/microblog-api-capabilities.md#supported-operations)
+
+- [ ] Implement Micropub POST request (form-encoded format recommended)
+- [ ] Map spreadsheet types to categories (Podcast → "podcast", Video → "video", etc.)
+- [ ] Format post content per PRD: `[Title](URL)\nDate`
+- [ ] Handle API responses (201/202 status, Location header)
+- [ ] Add error handling for auth failures, rate limits
+
+**API Details**:
+- Endpoint: `POST https://micro.blog/micropub`
+- Required params: `h=entry`, `content=...`, `category=...`
+- Optional: `published=...` (ISO 8601 timestamp)
+- Response: Location header contains new post URL (save for updates/deletes)
+
+#### Step 4.4: Testing (~20-30 min)
+- [ ] Create test post in each category
+- [ ] Verify posts appear at category URLs
+- [ ] Verify post format matches requirements
+- [ ] Test draft posts with `post-status=draft`
+- [ ] Verify error handling with invalid token
+
+**Success Criteria**: Can authenticate and create posts in all 5 categories with correct formatting
 
 ### Milestone 5: Full CRUD Operations
-- [ ] New row detection and posting
-- [ ] Row update detection and post editing
-- [ ] Row deletion detection and post removal
-- [ ] State tracking to prevent duplicates
-- [ ] Post format matching requirements
+**Estimated Time**: ~3-4 hours
+**API Reference**: [Micro.blog API Capabilities](../docs/microblog-api-capabilities.md)
 
-**Success Criteria**: Complete bidirectional sync between spreadsheet and micro.blog
+#### Step 5.1: State Tracking System (~45-60 min)
+- [ ] Design state file format (JSON: row_id → post_url mapping)
+- [ ] Implement state file read/write functions
+- [ ] Store post URLs from Milestone 4 Location headers
+- [ ] Handle missing state file (first run)
+- [ ] Commit state file to repository after each sync
+
+**State File Format**:
+```json
+{
+  "posts": {
+    "row_42": {
+      "url": "https://whitneylee.com/2025/01/09/post-slug.html",
+      "title": "Learning to learn",
+      "category": "podcast",
+      "lastSynced": "2025-01-09T10:30:00Z"
+    }
+  }
+}
+```
+
+#### Step 5.2: New Row Detection (~30-45 min)
+- [ ] Compare current spreadsheet rows to state file
+- [ ] Identify rows without post URLs (new content)
+- [ ] Create posts via Micropub (reuse Milestone 4 logic)
+- [ ] Save returned post URLs to state file
+- [ ] Log creation statistics
+
+#### Step 5.3: Update Detection and Editing (~60-90 min)
+**API Reference**: [Micropub Update Operations](../docs/microblog-api-capabilities.md#supported-operations)
+
+- [ ] Compare spreadsheet row data to state file cached data
+- [ ] Detect changes in Name, Date, Link fields
+- [ ] Implement Micropub update operation
+- [ ] Update state file with new data
+- [ ] Log update statistics
+
+**API Details for Updates**:
+- Endpoint: `POST https://micro.blog/micropub` (same endpoint, different payload)
+- Payload format:
+```json
+{
+  "action": "update",
+  "url": "https://whitneylee.com/2025/01/09/post-slug.html",
+  "replace": {
+    "content": ["[New Title](https://new-url.com)\nJanuary 10, 2025"]
+  }
+}
+```
+- Response: 200 OK or 204 No Content on success
+
+#### Step 5.4: Delete Detection and Removal (~30-45 min)
+**API Reference**: [Micropub Delete Operations](../docs/microblog-api-capabilities.md#supported-operations)
+
+- [ ] Identify state file entries not in current spreadsheet (deleted rows)
+- [ ] Implement Micropub delete operation
+- [ ] Remove entries from state file
+- [ ] Log deletion statistics
+- [ ] Handle "already deleted" errors gracefully
+
+**API Details for Deletes**:
+- Endpoint: `POST https://micro.blog/micropub`
+- Payload format:
+```json
+{
+  "action": "delete",
+  "url": "https://whitneylee.com/2025/01/09/post-slug.html"
+}
+```
+- Response: 200 OK or 204 No Content on success
+- Error handling: 404 if post already deleted (treat as success)
+
+#### Step 5.5: Testing Full Sync (~30-45 min)
+- [ ] Test create: Add new row to spreadsheet, verify post created
+- [ ] Test update: Edit existing row, verify post updated
+- [ ] Test delete: Remove row from spreadsheet, verify post deleted
+- [ ] Test duplicate prevention: Run sync twice, verify no duplicate posts
+- [ ] Test state file persistence: Verify state survives between runs
+
+**Success Criteria**: Complete CRUD operations working - spreadsheet changes automatically sync to micro.blog
 
 ### Milestone 6: Page Visibility Management
-- [ ] Activity tracking for each page
-- [ ] Auto-hide logic for inactive pages (4+ months)
-- [ ] Auto-show logic when content added to hidden pages
-- [ ] Page visibility API integration with micro.blog
+**Estimated Time**: ~2-3 hours (or may be simplified based on API constraints)
+**API Reference**: [XML-RPC Page Management](../docs/microblog-api-capabilities.md#xml-rpc-api)
 
-**Success Criteria**: Pages automatically hide/show based on activity
+**Important Note**: Original PRD assumed managing "page" visibility, but we're using **categories** for content organization. Category navigation is managed differently - see implementation options below.
+
+#### Step 6.1: Activity Tracking (~30-45 min)
+- [ ] Track last post date for each category in state file
+- [ ] Calculate days since last post for each category
+- [ ] Identify categories inactive for 4+ months
+- [ ] Log activity status for all categories
+
+**State File Addition**:
+```json
+{
+  "categories": {
+    "podcast": { "lastPostDate": "2025-01-15", "daysSincePost": 3 },
+    "video": { "lastPostDate": "2024-08-10", "daysSincePost": 160 }
+  }
+}
+```
+
+#### Step 6.2: Navigation Management Strategy (~60-90 min)
+**API Reference**: [Navigation Limitations](../docs/microblog-api-capabilities.md#limitations--constraints)
+
+Choose implementation approach:
+
+**Option A: Manual Setup (Simplest)** ✅ Recommended
+- [ ] Create navigation pages once via Micro.blog web UI
+- [ ] Link each page to category URL (e.g., `/categories/podcast/`)
+- [ ] Log warnings when categories become inactive (no auto-hide)
+- [ ] Whitney manually hides/shows pages based on logs
+
+**Option B: XML-RPC Page Management** (More complex)
+**API Reference**: [XML-RPC Page Methods](../docs/microblog-api-capabilities.md#page-management-methods)
+
+- [ ] Create navigation pages via `microblog.newPage` with links to categories
+- [ ] Implement `microblog.editPage` to toggle `is_navigation` parameter
+- [ ] Auto-hide pages when category inactive 4+ months
+- [ ] Auto-show pages when category receives new content
+- [ ] Handle page ID tracking in state file
+
+**API Details for XML-RPC**:
+- Endpoint: `https://micro.blog/xmlrpc`
+- Method: `microblog.editPage`
+- Parameters: `page_id`, `is_navigation` (boolean)
+- Authentication: Username + app token as password
+- Limitation: Manages pages, not direct category navigation
+
+**Option C: Skip Auto-Management** (Pragmatic)
+- [ ] Categories remain visible at all times
+- [ ] No navigation hiding (categories without content show empty)
+- [ ] Focus effort on core posting functionality
+
+#### Step 6.3: Implementation Decision and Testing (~30-45 min)
+- [ ] Choose approach (A, B, or C) based on effort vs value
+- [ ] Implement chosen approach
+- [ ] Test inactive category detection
+- [ ] Test navigation visibility changes (if Option B)
+- [ ] Document approach in Progress Log
+
+**Success Criteria**: Activity tracking works and navigation management approach is documented/implemented (may not include auto-hide if API limitations make it impractical)
 
 ### Milestone 7: Error Notifications & Monitoring
 - [ ] Comprehensive error catching and logging
@@ -447,13 +631,15 @@ The feature is complete when:
 - **Updates Content Type Mapping** (see table below)
 
 **Updated Content Type Mapping**:
-| Spreadsheet Type | Micro.blog Page | URL |
-|------------------|----------------|-----|
-| Podcast | Podcast | whitneylee.com/podcast |
-| Video | Video | whitneylee.com/video |
-| Blog | Blog | whitneylee.com/blog |
-| Presentation | Present | whitneylee.com/present |
-| Guest | Guest | whitneylee.com/guest |
+| Spreadsheet Type | Micro.blog Category | Category URL |
+|------------------|---------------------|--------------|
+| Podcast | podcast | whitneylee.com/categories/podcast/ |
+| Video | video | whitneylee.com/categories/video/ |
+| Blog | blog | whitneylee.com/categories/blog/ |
+| Presentation | presentation | whitneylee.com/categories/presentation/ |
+| Guest | guest | whitneylee.com/categories/guest/ |
+
+**Note**: Categories (not pages) are used per [API research findings](../docs/microblog-api-capabilities.md#categories)
 
 ### Decision 6: Flexible Data Validation with Month Header Handling
 **Date**: 2025-10-17
