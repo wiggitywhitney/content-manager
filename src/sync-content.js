@@ -431,7 +431,11 @@ function formatPostContent(content) {
   }
 
   // Escape special Markdown characters in title to prevent broken links
-  const safeTitle = String(name).replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+  const safeTitle = String(name)
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
 
   // Add title (with or without link)
   if (link) {
