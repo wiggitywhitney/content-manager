@@ -7,3 +7,6 @@ node_modules/
 
 # macOS system files
 .DS_Store
+
+# Journal entries (managed by commit-story MCP)
+journal/
