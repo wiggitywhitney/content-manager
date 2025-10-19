@@ -3,7 +3,7 @@ const { google } = require('googleapis');
 // Spreadsheet configuration
 const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = 'Sheet1';
-const RANGE = `${SHEET_NAME}!A:G`; // Name, Type, Show, Date, Location, Confirmed, Link
+const RANGE = `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // ============================================================================
 // Error Classification & Recovery
@@ -294,6 +294,34 @@ function log(message, level = 'INFO', data = null) {
 }
 
 /**
+ * Writes Micro.blog URL back to spreadsheet Column H
+ * @param {Object} sheets - Google Sheets API client
+ * @param {string} spreadsheetId - Spreadsheet ID
+ * @param {number} rowIndex - 1-based row index (matches spreadsheet row numbers)
+ * @param {string} url - Micro.blog post URL from Location header
+ * @returns {Promise<boolean>} - True if successful, false otherwise
+ */
+async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
+  try {
+    const range = `${SHEET_NAME}!H${rowIndex}`;  // e.g., "Sheet1!H15"
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: 'RAW',
+      resource: {
+        values: [[url]]
+      }
+    });
+    log(`Wrote URL to row ${rowIndex}: ${url}`, 'DEBUG');
+    return true;
+  } catch (error) {
+    // Don't fail entire sync if write fails
+    log(`Failed to write URL to row ${rowIndex}: ${error.message}`, 'WARN');
+    return false;
+  }
+}
+
+/**
  * Parse a raw spreadsheet row into a structured content object
  * @param {Array} row - Raw row data from Google Sheets
  * @param {number} rowIndex - Original row index (for debugging)
@@ -305,8 +333,8 @@ function parseRow(row, rowIndex) {
     return null;
   }
 
-  // Extract fields by column position
-  const [name, type, show, date, location, confirmed, link] = row;
+  // Extract fields by column position (A-H)
+  const [name, type, show, date, location, confirmed, link, microblogUrl] = row;
 
   // Return structured object
   return {
@@ -317,7 +345,8 @@ function parseRow(row, rowIndex) {
     location: (location || '').trim(),
     confirmed: (confirmed || '').trim(),
     link: (link || '').trim(),
-    rowIndex: rowIndex + 1 // Convert to 1-based for readability
+    microblogUrl: (microblogUrl || '').trim(),  // Column H
+    rowIndex: rowIndex + 1 // Convert to 1-based for readability (matches spreadsheet row numbers)
   };
 }
 
@@ -375,7 +404,7 @@ async function syncContent() {
     const credentials = JSON.parse(serviceAccountJson);
     const auth = new google.auth.GoogleAuth({
       credentials: credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],  // Full access for Column H writes
     });
 
     const sheets = google.sheets({ version: 'v4', auth });

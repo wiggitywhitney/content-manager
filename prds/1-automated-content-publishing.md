@@ -338,12 +338,12 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Important Design Decision**: Using spreadsheet Column H ("Micro.blog URL") as sync state instead of separate state file. Spreadsheet is single source of truth - script ensures Micro.blog matches spreadsheet exactly.
 
-#### Step 5.1: Spreadsheet Update Capability (~30-45 min)
-- [ ] Grant service account Editor permission (temporarily for Column H writes)
-- [ ] Add Column H: "Micro.blog URL" to spreadsheet
-- [ ] Test writing URLs back to spreadsheet after post creation
-- [ ] Implement Google Sheets write operations in sync script
-- [ ] Handle write errors gracefully (don't fail sync if write fails)
+#### Step 5.1: Spreadsheet Update Capability (~30-45 min) ✅
+- [x] Grant service account Editor permission (temporarily for Column H writes)
+- [x] Add Column H: "Micro.blog URL" to spreadsheet
+- [x] Test writing URLs back to spreadsheet after post creation
+- [x] Implement Google Sheets write operations in sync script
+- [x] Handle write errors gracefully (don't fail sync if write fails)
 
 **Spreadsheet Columns** (after this step):
 | A | B | C | D | E | F | G | H |
@@ -835,6 +835,43 @@ The feature is complete when:
 - Simplifies implementation (no need to sort by date first)
 
 ## Progress Log
+
+### 2025-10-19 (Implementation Session 8 - Step 5.1 Complete)
+**Duration**: ~45 minutes
+**Focus**: Spreadsheet Update Capability (Column H integration)
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.1: All 5 items - Spreadsheet Update Capability
+  - Service account upgraded to Editor permission
+  - Column H "Micro.blog URL" header added
+  - `writeUrlToSpreadsheet()` function implemented with error handling
+  - `parseRow()` updated to extract `microblogUrl` from Column H
+  - Auth scope changed from readonly to full spreadsheets access
+  - Write functionality tested and verified
+
+**Files Modified**:
+- `src/sync-content.js` - Added Column H support and write capability
+  - Line 6: Updated RANGE to include Column H
+  - Lines 304-322: New `writeUrlToSpreadsheet()` function
+  - Line 336: Updated `parseRow()` to extract microblogUrl
+  - Line 407: Changed auth scope for write access
+
+**Implementation Features**:
+- **Column H Integration**: Spreadsheet now tracks sync state with "Micro.blog URL" column
+- **Write Function**: `writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url)` safely writes URLs
+- **Error Handling**: Write failures don't crash sync (graceful degradation with WARN logging)
+- **Testing**: Created automated test that wrote/verified/cleared test URL in row 3
+
+**Technical Decisions**:
+- Used Google Sheets API `values.update()` for writing individual cells
+- Kept write operations simple (RAW valueInputOption, single-cell updates)
+- Error handling logs warnings but continues sync (resilience over strict consistency)
+- Sheet name confirmed as "Sheet1" (not file name "2025_Content_Created")
+
+**Next Session Priority**: Step 5.2 - New Row Detection & Post Creation (integrate Column H with Micropub posting)
+
+═══════════════════════════════════════
 
 ### 2025-10-18 (Implementation Session 7 - Milestone 4 Complete)
 **Duration**: ~2 hours
