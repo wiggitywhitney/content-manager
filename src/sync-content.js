@@ -374,20 +374,169 @@ function validateContent(content) {
   if (!name) missingFields.push('Name');
   if (!type) missingFields.push('Type');
   if (!date) missingFields.push('Date');
-  if (!link) missingFields.push('Link');
+
+  // Link is required for all types EXCEPT Presentations (which can be listed without links)
+  if (!link && type !== 'Presentations') {
+    missingFields.push('Link');
+  }
 
   if (missingFields.length > 0) {
     return { valid: false, reason: `Missing required fields: ${missingFields.join(', ')}` };
   }
 
   // Validate Type is one of the standard values
-  const validTypes = ['Podcast', 'Video', 'Blog', 'Presentation', 'Guest'];
+  const validTypes = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
   if (!validTypes.includes(type)) {
     return { valid: false, reason: `Invalid Type: "${type}" (not in standard list)` };
   }
 
   // All validation passed
   return { valid: true };
+}
+
+/**
+ * Format post content with keynote prefix and show name
+ * Format: `[Keynote] Show Name: [Title](url)` or `Show Name: [Title](url)`
+ * @param {Object} content - Parsed content object
+ * @returns {string} - Formatted post content
+ */
+function formatPostContent(content) {
+  const { name, type, show, link, confirmed } = content;
+
+  // Determine show name
+  let showName = '';
+  if (type === 'Podcast') {
+    // Podcasts are always "Software Defined Interviews"
+    showName = 'Software Defined Interviews';
+  } else if (show) {
+    // Use Column C (Show) for other types if available
+    showName = show;
+  }
+
+  // Check if this is a keynote (Column F contains "KEYNOTE", case-insensitive)
+  const isKeynote = confirmed && confirmed.toUpperCase().includes('KEYNOTE');
+
+  // Build the formatted content
+  let content_text = '';
+
+  // Add keynote prefix if applicable
+  if (isKeynote) {
+    content_text = '[Keynote] ';
+  }
+
+  // Add show name if available
+  if (showName) {
+    content_text += `${showName}: `;
+  }
+
+  // Add title (with or without link)
+  if (link) {
+    content_text += `[${name}](${link})`;
+  } else {
+    // No link - just show title (for Presentations without URLs)
+    content_text += `${name}`;
+  }
+
+  return content_text;
+}
+
+/**
+ * Create a post on Micro.blog via Micropub API
+ * @param {Object} content - Content object with name, type, date, link, etc.
+ * @param {string} postContent - Formatted post content
+ * @param {string} publishedDate - ISO 8601 published date
+ * @returns {Promise<string>} - Post URL from Location header
+ */
+async function createMicroblogPost(content, postContent, publishedDate) {
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  // Map content type to Micro.blog category
+  const categoryMap = {
+    'Podcast': 'Podcast',
+    'Video': 'Video',
+    'Blog': 'Blog',
+    'Presentation': 'Presentations',
+    'Guest': 'Guest'
+  };
+  const category = categoryMap[content.type];
+
+  // Build form-encoded request body
+  const params = new URLSearchParams();
+  params.append('h', 'entry');
+  params.append('content', postContent);
+  params.append('category', category);
+  params.append('published', publishedDate);
+
+  // Make POST request to Micropub endpoint
+  const response = await fetch('https://micro.blog/micropub', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString()
+  });
+
+  // Check for success (201 or 202)
+  if (response.status !== 201 && response.status !== 202) {
+    const errorText = await response.text();
+    throw new Error(`Micropub API error (${response.status}): ${errorText}`);
+  }
+
+  // Extract post URL from Location header
+  const postUrl = response.headers.get('Location');
+  if (!postUrl) {
+    throw new Error('Micropub API did not return Location header');
+  }
+
+  return postUrl;
+}
+
+/**
+ * Parse spreadsheet date to ISO 8601 format (UTC noon)
+ * Handles formats like "1/9/2025", "01/09/2025", "January 9, 2025"
+ * @param {string} dateString - Date string from spreadsheet Column D
+ * @returns {string|null} - ISO 8601 timestamp (UTC noon) or null if invalid
+ */
+function parseDateToISO(dateString) {
+  if (!dateString || !dateString.trim()) {
+    return null;
+  }
+
+  const trimmed = dateString.trim();
+
+  // Try MM/DD/YYYY or M/D/YYYY format first (e.g., "1/9/2025", "01/09/2025")
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, month, day, year] = slashMatch;
+    // Use UTC noon to avoid timezone shifts (Decision 12)
+    const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`;
+    return isoDate;
+  }
+
+  // Try "Month Day, Year" format (e.g., "January 9, 2025")
+  const monthNames = {
+    'january': '01', 'february': '02', 'march': '03', 'april': '04',
+    'may': '05', 'june': '06', 'july': '07', 'august': '08',
+    'september': '09', 'october': '10', 'november': '11', 'december': '12'
+  };
+
+  const textMatch = trimmed.match(/^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$/i);
+  if (textMatch) {
+    const [, monthName, day, year] = textMatch;
+    const month = monthNames[monthName.toLowerCase()];
+    if (month) {
+      const isoDate = `${year}-${month}-${day.padStart(2, '0')}T12:00:00Z`;
+      return isoDate;
+    }
+  }
+
+  // Invalid format
+  log(`Invalid date format: "${dateString}"`, 'WARN');
+  return null;
 }
 
 /**
@@ -435,7 +584,7 @@ async function syncContent() {
         'Podcast': 0,
         'Video': 0,
         'Blog': 0,
-        'Presentation': 0,
+        'Presentations': 0,
         'Guest': 0
       }
     };
@@ -494,20 +643,108 @@ async function syncContent() {
       }
     }
 
+    // ========================================================================
+    // Step 5.2: New Row Detection & Post Creation
+    // ========================================================================
+
+    // Filter rows that need to be posted (empty Column H)
+    const rowsToPost = validRows.filter(row => !row.microblogUrl);
+
+    log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
+
+    // Track post creation statistics
+    const postStats = {
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Create posts for rows with empty Column H
+    for (const row of rowsToPost) {
+      postStats.attempted++;
+
+      try {
+        // Parse date to ISO 8601
+        const publishedDate = parseDateToISO(row.date);
+        if (!publishedDate) {
+          postStats.failed++;
+          postStats.errors.push({
+            row: row.rowIndex,
+            title: row.name,
+            error: 'Invalid date format'
+          });
+          log(`Row ${row.rowIndex}: Failed to parse date "${row.date}"`, 'ERROR');
+          continue;
+        }
+
+        // Format post content
+        const postContent = formatPostContent(row);
+
+        log(`Creating post for row ${row.rowIndex}: ${row.name}`, 'INFO');
+        log(`  Content: ${postContent}`, 'DEBUG');
+        log(`  Category: ${row.type.toLowerCase()}`, 'DEBUG');
+        log(`  Published: ${publishedDate}`, 'DEBUG');
+
+        // Create post on Micro.blog with retry logic
+        const postUrl = await withRetry(
+          () => createMicroblogPost(row, postContent, publishedDate),
+          `Create post for row ${row.rowIndex}`
+        );
+
+        log(`✅ Post created: ${postUrl}`, 'INFO');
+
+        // Write URL back to spreadsheet Column H
+        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.rowIndex, postUrl);
+
+        if (writeSuccess) {
+          postStats.successful++;
+          log(`✅ URL written to row ${row.rowIndex}`, 'DEBUG');
+        } else {
+          // Post created but URL write failed (non-fatal)
+          postStats.successful++;
+          log(`⚠️  Post created but failed to write URL to row ${row.rowIndex}`, 'WARN');
+        }
+
+      } catch (error) {
+        postStats.failed++;
+        postStats.errors.push({
+          row: row.rowIndex,
+          title: row.name,
+          error: error.message
+        });
+        log(`❌ Failed to create post for row ${row.rowIndex}: ${error.message}`, 'ERROR');
+        // Continue with next row (partial failure handling)
+      }
+    }
+
+    // ========================================================================
+    // Summary Statistics
+    // ========================================================================
+
     // Print summary with format-aware output
     if (logConfig.format === 'json') {
       // Structured JSON summary
       log('Processing complete', 'INFO', {
         summary: {
-          totalRows: stats.total,
-          validRows: stats.valid,
-          skippedRows: stats.total - stats.valid,
-          byType: stats.byType,
-          skippedBreakdown: {
-            monthHeaders: stats.monthHeaders,
-            emptyRows: stats.emptyRows,
-            invalidType: stats.invalidType,
-            missingFields: stats.missingFields
+          parsing: {
+            totalRows: stats.total,
+            validRows: stats.valid,
+            skippedRows: stats.total - stats.valid,
+            byType: stats.byType,
+            skippedBreakdown: {
+              monthHeaders: stats.monthHeaders,
+              emptyRows: stats.emptyRows,
+              invalidType: stats.invalidType,
+              missingFields: stats.missingFields
+            }
+          },
+          posting: {
+            rowsToPost: rowsToPost.length,
+            attempted: postStats.attempted,
+            successful: postStats.successful,
+            failed: postStats.failed,
+            errors: postStats.errors
           }
         }
       });
@@ -534,8 +771,30 @@ async function syncContent() {
         console.log(`  Invalid type:             ${stats.invalidType}`);
         console.log(`  Missing required fields:  ${stats.missingFields}`);
 
+        // Post creation summary
+        if (rowsToPost.length > 0) {
+          console.log('\n📤 Post Creation Results:');
+          console.log(`  Rows needing posts:       ${rowsToPost.length}`);
+          console.log(`  Posts attempted:          ${postStats.attempted}`);
+          console.log(`  ✅ Successfully created:  ${postStats.successful}`);
+          console.log(`  ❌ Failed:                ${postStats.failed}`);
+
+          if (postStats.errors.length > 0) {
+            console.log('\n  Errors:');
+            postStats.errors.forEach(err => {
+              console.log(`    Row ${err.row} (${err.title}): ${err.error}`);
+            });
+          }
+        }
+
         console.log('\n' + '='.repeat(60));
-        log(`✅ Processing complete: ${stats.valid} valid rows ready for sync`);
+        if (postStats.successful > 0) {
+          log(`✅ Sync complete: ${postStats.successful} posts created`);
+        } else if (rowsToPost.length === 0) {
+          log(`✅ Sync complete: All content already posted (no new rows)`);
+        } else {
+          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created`);
+        }
         console.log('='.repeat(60) + '\n');
       }
     }

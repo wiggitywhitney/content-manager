@@ -366,13 +366,21 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 - Empty Column H = post needs to be created
 - Filled Column H = post exists (check for updates/deletes)
 
-#### Step 5.2: New Row Detection & Post Creation (~45-60 min)
-- [ ] Read spreadsheet including Column H
-- [ ] Identify rows with empty Column H (new content to post)
-- [ ] Create posts via Micropub with `published` date from Date column
-- [ ] Write returned post URLs back to Column H
-- [ ] Handle partial failures (some posts succeed, some fail)
-- [ ] Log creation statistics
+#### Step 5.2: New Row Detection & Post Creation (~45-60 min) ✅
+- [x] Read spreadsheet including Column H
+- [x] Identify rows with empty Column H (new content to post)
+- [x] Create posts via Micropub with `published` date from Date column
+- [x] Write returned post URLs back to Column H
+- [x] Handle partial failures (some posts succeed, some fail)
+- [x] Log creation statistics
+
+**Completed 2025-10-19**: Successfully created 61 posts from spreadsheet. Implementation includes:
+- Date parsing to ISO 8601 (UTC noon) - handles MM/DD/YYYY and "Month Day, Year" formats
+- Post content formatting with keynote support: `[Keynote] Show Name: [Title](url)`
+- Category mapping: Podcast, Video, Blog, Presentations, Guest (title case)
+- Support for presentations without URLs (plain text titles)
+- Comprehensive error handling and statistics logging
+- 100% success rate (61/61 posts created)
 
 **API Details for Creation**:
 - Parse Date column (e.g., "January 9, 2025") → ISO 8601 (`2025-01-09T00:00:00Z`)
@@ -390,10 +398,16 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 **API Reference**: [Micropub Update Operations](../docs/microblog-api-capabilities.md#supported-operations)
 
 - [ ] For rows with filled Column H, compare current data vs last sync
-- [ ] Detect changes in Name, Date, or Link columns
+- [ ] Detect changes in Name, Date, Link, Type (category), Show, or Confirmed (keynote) columns
 - [ ] Implement Micropub update operation
 - [ ] Update Column H if URL changes (unlikely but possible)
 - [ ] Log update statistics
+
+**Test Case for Step 5.3**:
+- **AI Tools Lab video** (Row 48, created 2025-10-19): Spreadsheet Type changed from "Video" to "Guest" after post creation
+- URL: `https://whitneylee.com/2025/05/22/ai-tools-lab-vibe-coding.html`
+- Expected behavior: Update detection should identify Type change and update post category from "Video" to "Guest"
+- This is an intentional test case - do not manually fix before implementing Step 5.3
 
 **Change Detection Strategy**:
 - **Option A**: Compare with in-memory snapshot from script start
@@ -908,6 +922,101 @@ Conf42 DevOps 2025: [Kubernetes is a Social Construct](https://www.youtube.com/w
 - If user wants show names on separate line (requires Micro.blog theme customization)
 - If date needs to be in post content for some reason (would need to suppress Micro.blog auto-date)
 
+### Decision 13: Category Naming - Plural and Title Case
+**Date**: 2025-10-19
+**Status**: ✅ Implemented
+
+**Rationale**:
+- Micro.blog UI uses title case categories: "Podcast", "Video", "Blog", "Guest"
+- User configured "Presentations" (plural) in Micro.blog settings
+- Initial implementation used "presentation" (lowercase, singular)
+- Caused category mismatch - posts went to wrong category
+- Standardizing on title case and plural for consistency with UI
+
+**Implementation**:
+```javascript
+const categoryMap = {
+  'Podcast': 'Podcast',
+  'Video': 'Video',
+  'Blog': 'Blog',
+  'Presentation': 'Presentations',  // Note: plural
+  'Guest': 'Guest'
+};
+```
+
+**Impact**:
+- Updated spreadsheet Type dropdown from "Presentation" to "Presentations"
+- Updated 9 spreadsheet rows to use "Presentations"
+- Migrated 3 existing posts from "presentation" to "Presentations" category
+- All categories now match Micro.blog UI exactly
+
+**When to Reconsider**:
+- If Micro.blog changes category naming conventions
+- If additional categories need different singular/plural handling
+
+### Decision 14: Allow Presentations Without URLs
+**Date**: 2025-10-19
+**Status**: ✅ Implemented
+
+**Rationale**:
+- Some presentations don't have recordings yet (talks scheduled but not delivered, or not recorded)
+- User wants to track all presentations in one place, even without video links
+- Micro.blog supports posts with plain text (no hyperlink required)
+- Better UX: complete list with "coming soon" placeholders than missing entries
+
+**Implementation**:
+- Removed Link (Column G) validation requirement for Presentations type only
+- Post format when no URL: `Show Name: Title` (plain text, no hyperlink)
+- Post format with URL: `Show Name: [Title](url)` (hyperlinked as normal)
+- Spreadsheet validation still requires Link for all other content types
+
+**Example Posts**:
+```markdown
+# With link
+[Keynote] KCD Costa Rica: [Choose Your Own Adventure](https://youtu.be/xyz)
+
+# Without link (plain text)
+University Talk: Cloud computing presentation to university students
+```
+
+**Impact**:
+- 2 presentations posted without URLs (rows 44, 84)
+- All 9 presentations visible at /presentations/ including linkless ones
+- Users can see complete presentation history even for unrecorded talks
+
+**When to Reconsider**:
+- If user prefers to omit unrecorded presentations from public list
+- If other content types also need linkless support
+
+### Decision 15: UTC Noon for Date Parsing
+**Date**: 2025-10-19
+**Status**: ✅ Implemented (revised from Decision 12)
+
+**Rationale**:
+- Spreadsheet dates are in MM/DD/YYYY format (e.g., "1/9/2025")
+- JavaScript Date parsing interprets as local timezone, causing off-by-one errors
+- Example: "1/9/2025" → `2025-01-08T08:00:00Z` (PST) → displays as Jan 8
+- UTC noon (`12:00:00Z`) is safe middle ground - won't shift into previous/next day regardless of timezone
+- Avoids need for explicit timezone configuration or guessing user's timezone
+
+**Implementation**:
+```javascript
+function parseDateToISO(dateString) {
+  const [month, day, year] = dateString.split('/');
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`;
+}
+```
+
+**Impact**:
+- All 61 posts created with correct dates matching spreadsheet
+- No timezone-related date shifts
+- Consistent behavior regardless of server or user timezone
+- Manual parsing avoids JavaScript's local timezone interpretation
+
+**When to Reconsider**:
+- If user wants posts to show specific timezone timestamps (not just dates)
+- If Micro.blog adds date-only parameter (no timestamp required)
+
 ## Progress Log
 
 ### 2025-10-19 (Implementation Session 9 - Format Testing & Implementation Learning)
@@ -1241,6 +1350,56 @@ Conf42 DevOps 2025: [Kubernetes is a Social Construct](https://www.youtube.com/w
 - Implemented Teller + Secret Manager approach per Decision 2 (better security, consistent with existing patterns)
 
 **Next Session Priority**: Step 1.3 - Read Raw Spreadsheet Data (connect to actual spreadsheet and read data)
+
+### 2025-10-19 (Implementation Session - Milestone 5, Step 5.2)
+**Duration**: ~3 hours
+**Focus**: Milestone 5, Step 5.2 - New Row Detection & Post Creation
+**Commits**: Multiple implementation and fix commits
+
+**Completed PRD Items**:
+- [x] Step 5.2: New Row Detection & Post Creation - Evidence: sync-content.js lines 641-710, all 6 sub-tasks completed
+  - Date parsing to ISO 8601 (UTC noon) in `parseDateToISO()` function (lines 440-475)
+  - Post content formatting with keynote support in `formatPostContent()` (lines 399-441)
+  - Micropub post creation in `createMicroblogPost()` (lines 443-487)
+  - Column H filtering and write-back integration (lines 641-710)
+  - Partial failure handling with error tracking (lines 700-709)
+  - Creation statistics logging (lines 765-791)
+
+**Implementation Highlights**:
+- **61 posts successfully created** from spreadsheet rows with empty Column H
+- **100% success rate** - all posts created and URLs written back to spreadsheet
+- **Keynote support**: Implemented `[Keynote] Show Name: [Title](url)` format based on Column F marker
+- **Category mapping**: Updated to title case (Podcast, Video, Blog, Presentations, Guest)
+- **Presentations without URLs**: Allowed presentations to be listed with plain text titles (no hyperlink required)
+- **Template string bug fix**: Fixed `name` variable interpolation for linkless content
+
+**Files Created/Modified**:
+- `src/sync-content.js` - Added post creation logic, date parsing, content formatting, Micropub integration
+- Spreadsheet - 61 URLs written to Column H, 9 Presentations rows updated to "Presentations" type
+
+**Bugs Fixed**:
+- Statistics byType initialization missing "Presentations" key
+- Validation rejected "Presentations" type (updated validTypes array)
+- Content formatting missing template string interpolation for linkless titles
+- Category mapping used lowercase/singular (updated to title case/plural)
+
+**Test Data**:
+- **AI Tools Lab test case prepared**: Row 48 Type changed from "Video" to "Guest" for Step 5.3 testing (documented in PRD)
+- **6 duplicate test posts deleted**: Cleaned up from earlier testing sessions
+- **3 old presentation posts migrated**: Updated category from "presentation" to "Presentations"
+
+**Design Decisions Made**:
+- Decision 13: Category naming - "Presentations" (plural, title case) for consistency with Micro.blog UI
+- Decision 14: Presentations without URLs - Allowed for tracking talks that don't have recordings yet
+- Decision 15: Date timezone handling - UTC noon to avoid timezone-related date shifts
+
+**Verification**:
+- All 61 posts visible on whitneylee.com with correct categories
+- All 9 presentations showing at /presentations/ including 2 without URLs
+- Keynote prefix working correctly: `[Keynote] DevOpsDays Rockies: ...`
+- Post content format verified across all 5 content types
+
+**Next Session Priority**: Step 5.3 - Update Detection (AI Tools Lab test case ready for testing)
 
 ### 2025-10-17 (Implementation Session 1)
 **Duration**: ~10 minutes
