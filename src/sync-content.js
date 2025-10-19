@@ -910,6 +910,10 @@ async function syncContent() {
           log(`⚠️  Post created but failed to write URL to row ${row.rowIndex}`, 'WARN');
         }
 
+        // Update in-memory row data regardless of write success
+        // This prevents orphan detection from deleting the post we just created
+        row.microblogUrl = postUrl;
+
       } catch (error) {
         postStats.failed++;
         postStats.errors.push({
