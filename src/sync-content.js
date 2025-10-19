@@ -304,18 +304,19 @@ function log(message, level = 'INFO', data = null) {
 async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
   try {
     const range = `${SHEET_NAME}!H${rowIndex}`;  // e.g., "Sheet1!H15"
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range,
-      valueInputOption: 'RAW',
-      resource: {
-        values: [[url]]
-      }
-    });
+    await withRetry(
+      () => sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [[url]] }
+      }),
+      `Write URL to spreadsheet row ${rowIndex}`
+    );
     log(`Wrote URL to row ${rowIndex}: ${url}`, 'DEBUG');
     return true;
   } catch (error) {
-    // Don't fail entire sync if write fails
+    // Don't fail entire sync if write fails (after retries exhausted)
     log(`Failed to write URL to row ${rowIndex}: ${error.message}`, 'WARN');
     return false;
   }
@@ -429,12 +430,15 @@ function formatPostContent(content) {
     content_text += `${showName}: `;
   }
 
+  // Escape special Markdown characters in title to prevent broken links
+  const safeTitle = String(name).replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+
   // Add title (with or without link)
   if (link) {
-    content_text += `[${name}](${link})`;
+    content_text += `[${safeTitle}](${link})`;
   } else {
     // No link - just show title (for Presentations without URLs)
-    content_text += `${name}`;
+    content_text += safeTitle;
   }
 
   return content_text;
@@ -580,9 +584,12 @@ function normalizeTimestamp(dateString) {
 function detectChanges(row, existingPost) {
   const changes = {};
 
+  // Normalize whitespace for comparison (reduces false positives from formatting differences)
+  const normalizeWhitespace = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+
   // Generate expected content
   const expectedContent = formatPostContent(row);
-  if (expectedContent !== existingPost.content) {
+  if (normalizeWhitespace(expectedContent) !== normalizeWhitespace(existingPost.content)) {
     changes.content = expectedContent;
   }
 
@@ -618,6 +625,12 @@ function detectChanges(row, existingPost) {
 
 /**
  * Update a post on Micro.blog via Micropub API
+ *
+ * Note: This implementation uses a single-category model. When updating the category,
+ * it replaces ALL existing categories with the single managed category from the spreadsheet.
+ * Any additional categories added manually on Micro.blog will be overwritten.
+ * This is intentional for this use case (one category per post).
+ *
  * @param {string} postUrl - URL of the post to update
  * @param {Object} changes - Changes to apply {content?, category?, published?}
  * @returns {Promise<void>}
@@ -635,6 +648,7 @@ async function updateMicroblogPost(postUrl, changes) {
     replace.content = [changes.content];
   }
   if (changes.category !== undefined) {
+    // Single-category model: replaces ALL categories with this one
     replace.category = [changes.category];
   }
   if (changes.published !== undefined) {
@@ -1251,4 +1265,12 @@ if (require.main === module) {
 }
 
 // Export for testing and programmatic use
-module.exports = { syncContent };
+module.exports = {
+  syncContent,
+  // Exported for unit testing
+  queryMicroblogPosts,
+  detectChanges,
+  parseDateToISO,
+  normalizeTimestamp,
+  formatPostContent
+};
