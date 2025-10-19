@@ -663,6 +663,43 @@ async function updateMicroblogPost(postUrl, changes) {
 }
 
 /**
+ * Delete a post from Micro.blog via Micropub API
+ * @param {string} postUrl - URL of the post to delete
+ * @returns {Promise<boolean>} - True if deleted successfully, false otherwise
+ */
+async function deleteMicroblogPost(postUrl) {
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  // Make JSON POST request with delete action
+  const response = await fetch('https://micro.blog/micropub', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'delete',
+      url: postUrl
+    })
+  });
+
+  // Check for success (200, 202, or 404 if already deleted)
+  if (response.status === 200 || response.status === 202) {
+    return true;
+  } else if (response.status === 404) {
+    // Post already deleted - treat as success
+    log(`Post already deleted: ${postUrl}`, 'DEBUG');
+    return true;
+  } else {
+    const errorText = await response.text();
+    throw new Error(`Micropub delete failed (${response.status}): ${errorText}`);
+  }
+}
+
+/**
  * Parse spreadsheet date to ISO 8601 format (UTC noon)
  * Handles formats like "1/9/2025", "01/09/2025", "January 9, 2025"
  * @param {string} dateString - Date string from spreadsheet Column D
@@ -967,6 +1004,79 @@ async function syncContent() {
     }
 
     // ========================================================================
+    // Step 5.4: Delete Detection & Removal
+    // ========================================================================
+
+    const MANAGED_CATEGORIES = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
+
+    // Filter existingPosts to only posts with our managed categories
+    // This prevents deletion of uncategorized personal posts (photos, book mentions, etc.)
+    const categorizedPosts = Array.from(existingPosts.entries()).filter(([url, post]) => {
+      return MANAGED_CATEGORIES.includes(post.category);
+    });
+
+    log(`\nChecking for orphaned posts (exist in Micro.blog but not in spreadsheet)...`);
+    log(`Total posts in Micro.blog: ${existingPosts.size}`, 'DEBUG');
+    log(`Posts with managed categories: ${categorizedPosts.length}`, 'DEBUG');
+    log(`Uncategorized posts (ignored): ${existingPosts.size - categorizedPosts.length}`, 'DEBUG');
+
+    // Build set of all post URLs from spreadsheet
+    const spreadsheetUrls = new Set(
+      validRows
+        .filter(row => row.microblogUrl) // Only rows with Micro.blog URLs
+        .map(row => row.microblogUrl)
+    );
+
+    log(`Posts in spreadsheet: ${spreadsheetUrls.size}`, 'DEBUG');
+
+    // Find orphaned posts: exist in Micro.blog but not in spreadsheet
+    const orphanedPosts = categorizedPosts.filter(([url, post]) => {
+      return !spreadsheetUrls.has(url);
+    });
+
+    log(`Orphaned posts to delete: ${orphanedPosts.length}`, 'INFO');
+
+    // Track deletion statistics
+    const deleteStats = {
+      checked: categorizedPosts.length,
+      orphaned: orphanedPosts.length,
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Delete orphaned posts
+    for (const [postUrl, post] of orphanedPosts) {
+      deleteStats.attempted++;
+
+      try {
+        log(`Deleting orphaned post: ${postUrl}`, 'INFO');
+        log(`  Category: ${post.category}`, 'DEBUG');
+        log(`  Content preview: ${post.content.substring(0, 50)}...`, 'DEBUG');
+
+        // Delete post with retry logic
+        await withRetry(
+          () => deleteMicroblogPost(postUrl),
+          `Delete post ${postUrl}`
+        );
+
+        deleteStats.successful++;
+        log(`✅ Deleted: ${postUrl}`, 'INFO');
+
+      } catch (error) {
+        deleteStats.failed++;
+        deleteStats.errors.push({
+          url: postUrl,
+          category: post.category,
+          error: error.message
+        });
+        log(`❌ Failed to delete post ${postUrl}: ${error.message}`, 'ERROR');
+        // Continue with next post (partial failure handling)
+      }
+    }
+
+    // ========================================================================
     // Summary Statistics
     // ========================================================================
 
@@ -1002,6 +1112,14 @@ async function syncContent() {
             failed: updateStats.failed,
             errors: updateStats.errors,
             changeDetails: updateStats.changeDetails
+          },
+          deleting: {
+            checked: deleteStats.checked,
+            orphaned: deleteStats.orphaned,
+            attempted: deleteStats.attempted,
+            successful: deleteStats.successful,
+            failed: deleteStats.failed,
+            errors: deleteStats.errors
           }
         }
       });
@@ -1068,17 +1186,35 @@ async function syncContent() {
           }
         }
 
+        // Post deletion summary
+        if (deleteStats.checked > 0) {
+          console.log('\n🗑️  Post Deletion Results:');
+          console.log(`  Categorized posts checked:${deleteStats.checked}`);
+          console.log(`  Orphaned posts found:     ${deleteStats.orphaned}`);
+          console.log(`  Deletions attempted:      ${deleteStats.attempted}`);
+          console.log(`  ✅ Successfully deleted:  ${deleteStats.successful}`);
+          console.log(`  ❌ Failed:                ${deleteStats.failed}`);
+
+          if (deleteStats.errors.length > 0) {
+            console.log('\n  Errors:');
+            deleteStats.errors.forEach(err => {
+              console.log(`    ${err.url} (${err.category}): ${err.error}`);
+            });
+          }
+        }
+
         console.log('\n' + '='.repeat(60));
-        const totalChanges = postStats.successful + updateStats.successful;
+        const totalChanges = postStats.successful + updateStats.successful + deleteStats.successful;
         if (totalChanges > 0) {
           const changes = [];
           if (postStats.successful > 0) changes.push(`${postStats.successful} created`);
           if (updateStats.successful > 0) changes.push(`${updateStats.successful} updated`);
+          if (deleteStats.successful > 0) changes.push(`${deleteStats.successful} deleted`);
           log(`✅ Sync complete: ${changes.join(', ')}`);
-        } else if (rowsToPost.length === 0 && updateStats.needsUpdate === 0) {
+        } else if (rowsToPost.length === 0 && updateStats.needsUpdate === 0 && deleteStats.orphaned === 0) {
           log(`✅ Sync complete: All content up to date (no changes needed)`);
         } else {
-          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created, ${updateStats.successful}/${updateStats.attempted} posts updated`);
+          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created, ${updateStats.successful}/${updateStats.attempted} posts updated, ${deleteStats.successful}/${deleteStats.attempted} posts deleted`);
         }
         console.log('='.repeat(60) + '\n');
       }

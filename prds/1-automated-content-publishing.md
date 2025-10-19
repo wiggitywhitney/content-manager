@@ -427,15 +427,16 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 }
 ```
 
-#### Step 5.4: Delete Detection & Removal (~30-45 min)
+#### Step 5.4: Delete Detection & Removal (~30-45 min) ✅
 **API Reference**: [Micropub Delete Operations](../docs/microblog-api-capabilities.md#supported-operations)
+**Completed**: 2025-10-19
 
-- [ ] Query all posts from 5 categories via Micropub (`q=source`)
-- [ ] Build list of all post URLs in Micro.blog
-- [ ] Compare with Column H URLs in spreadsheet
-- [ ] Delete posts that exist in Micro.blog but not in spreadsheet
-- [ ] Handle "already deleted" errors (404) gracefully
-- [ ] Log deletion statistics
+- [x] Query all posts from 5 categories via Micropub (`q=source`)
+- [x] Build list of all post URLs in Micro.blog
+- [x] Compare with Column H URLs in spreadsheet
+- [x] Delete posts that exist in Micro.blog but not in spreadsheet
+- [x] Handle "already deleted" errors (404) gracefully
+- [x] Log deletion statistics
 
 **Deletion Logic**:
 ```
@@ -1019,6 +1020,47 @@ function parseDateToISO(dateString) {
 - If Micro.blog adds date-only parameter (no timestamp required)
 
 ## Progress Log
+
+### 2025-10-19 (Implementation Session 11 - Step 5.4 Complete: Delete Detection & Removal)
+**Duration**: ~45 minutes
+**Focus**: Delete Detection & Removal with client-side category filtering
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.4: Delete Detection & Removal (all 6 items) - Evidence: src/sync-content.js deletion system
+  - `deleteMicroblogPost()` function with 404 handling (lines 665-700)
+  - Client-side category filtering to protect uncategorized posts (lines 1010-1016)
+  - Orphan detection logic comparing Micro.blog vs spreadsheet (lines 1023-1037)
+  - Deletion loop with retry logic and error tracking (lines 1049-1077)
+  - Summary statistics integration for deletions (lines 1116-1123, 1189-1204, 1207-1217)
+
+**Implementation Features**:
+- **Category filtering**: Protects 18 uncategorized personal posts (photos, books, etc.)
+- **Client-side filtering required**: Discovered API quirk where category parameter doesn't actually filter
+- **Graceful 404 handling**: Treats already-deleted posts as success
+- **Comprehensive statistics**: Tracks checked/orphaned/attempted/successful/failed deletions
+- **Partial failure handling**: Continues processing even if some deletions fail
+
+**Testing Results**:
+- ✅ Current state: 0 orphaned posts (all 64 categorized posts in spreadsheet)
+- ✅ Idempotency verified: Running sync twice shows no changes
+- ✅ Statistics display correctly in both JSON and pretty-formatted output
+- ✅ Test scripts cleaned up (check-orphaned-posts.js, test-query.js removed)
+
+**Files Modified**:
+- `src/sync-content.js` - Added ~75 lines for deletion capability
+  - New deleteMicroblogPost() function (lines 665-700)
+  - Step 5.4 section with orphan detection (lines 1006-1077)
+  - Updated summary statistics (lines 1116-1123, 1189-1204, 1207-1217)
+
+**API Implementation**:
+- Delete format: JSON POST with `action: "delete"`, `url` parameters
+- Response codes: 200/202 success, 404 treated as success (already deleted)
+- Query approach: Fetch all posts, filter client-side by managed categories
+
+**Next Session Priority**: Step 5.5 - Manual testing of create/update/delete operations, complete Milestone 5
+
+═══════════════════════════════════════
 
 ### 2025-10-19 (Implementation Session 10 - Step 5.3 Complete: Update Detection)
 **Duration**: ~3 hours
