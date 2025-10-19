@@ -552,6 +552,37 @@ Choose implementation approach:
 
 **Success Criteria**: System running autonomously with minimal maintenance required
 
+### Milestone 9: Content-Based URL Slugs
+**Estimated Time**: ~1-2 hours
+**Problem**: Posts currently get timestamp URLs (`/130000.html`) instead of content-based slugs (`/demo-an-automated.html`)
+**Root Cause**: Script doesn't send `name` parameter, resulting in "untitled posts"
+
+#### Step 9.1: Research & Testing (~30 min)
+- [ ] Document current URL generation behavior (with/without `name` parameter)
+- [ ] Create test post with `name` parameter to verify content-based slug generation
+- [ ] Verify test post displays correctly on category page (no layout/formatting issues)
+- [ ] Check if `name` field affects update detection or other CRUD operations
+- [ ] Delete test post and verify cleanup works correctly
+
+#### Step 9.2: Implementation (~20-30 min)
+- [ ] Update `createMicroblogPost()` to send `name` parameter (Column A value)
+- [ ] Test with one new post creation to verify slug generation
+- [ ] Verify URL is written back to spreadsheet Column H correctly
+- [ ] Run full sync to ensure no regressions
+
+#### Step 9.3: Validation & Documentation (~10-20 min)
+- [ ] Create 2-3 new test posts, verify all get content-based slugs
+- [ ] Document any Micro.blog quirks discovered (slug collision handling, character limits, etc.)
+- [ ] Update PRD Decision log with findings
+- [ ] Optional: Research if existing timestamp-URL posts can be migrated to content slugs
+
+**Success Criteria**: New posts get readable, SEO-friendly URLs based on Column A titles without breaking display or CRUD operations
+
+**Known Constraints**:
+- Micro.blog may append `-2`, `-3` if slug collisions occur
+- Special characters in titles may be stripped/converted in slugs
+- Deleting and recreating posts won't guarantee same URL
+
 ## Dependencies & Risks
 
 ### External Dependencies
