@@ -72,17 +72,28 @@ Build an automated system that syncs Whitney's Google Sheets content tracking sp
 - See [Categories vs Pages](../docs/microblog-api-capabilities.md#key-architectural-concepts) for details
 
 ### Post Format
-Each micro.blog post will include:
+**⚠️ Updated**: This original format was revised during implementation. See **Decision 12: Post Content Format** for actual implementation.
+
+**Original planned format** (deprecated):
 ```markdown
 [Title as clickable link](url)
 Date
 ```
 
+**Actual implemented format** (see Decision 12):
+```markdown
+Show Name: [Title](url)
+```
+
 Example:
 ```markdown
-[Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
-January 9, 2025
+Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
 ```
+
+**Key differences from original plan**:
+- Show name prefix for context (required for multi-show content like Videos)
+- No date in post content (Micro.blog auto-displays date from `published` parameter)
+- Colon separator for clean visual distinction
 
 ### Sync Behavior
 - **New Rows**: Create new micro.blog post on appropriate page
@@ -834,7 +845,139 @@ The feature is complete when:
 - Posts appear correctly ordered on Micro.blog site
 - Simplifies implementation (no need to sort by date first)
 
+### Decision 12: Post Content Format with Show Name Prefix
+**Date**: 2025-10-19
+**Status**: ✅ Tested and validated
+
+**Rationale**:
+- Original format (`[Title](url)\nDate`) had issues:
+  - Date displayed twice (Micro.blog auto-shows date, plus our content date)
+  - No show context for content types with multiple shows (Videos, Guest appearances)
+  - Redundant and noisy UX
+- Videos appear on different shows - need per-post show identification
+- Podcasts are all "Software Defined Interviews" - can hardcode
+- User feedback: "very noisy website" with duplicate dates
+
+**Format Testing Process** (2025-10-19):
+- ❌ Attempt 1: `Show Name\n[Title](url)` - Rendered as single line "Show Name Title"
+- ❌ Attempt 2: `Show Name\n\n[Title](url)` - Created unwanted blank line gap
+- ❌ Attempt 3: `Show Name  \n[Title](url)` - Markdown soft break didn't work
+- ✅ **Final format**: `Show Name: [Title](url)` - Clean, clear visual separation
+
+**Implementation Details**:
+```javascript
+// Post content format
+const content = showName
+  ? `${showName}: [${title}](${url})`  // With show name prefix
+  : `[${title}](${url})`;               // Without (fallback)
+
+// Show name logic by content type:
+// - Podcast: Hardcode "Software Defined Interviews"
+// - Video/Blog/Presentation/Guest: Use Column C (Show) from spreadsheet
+// - If Column C empty: No show prefix (just linked title)
+```
+
+**Date Handling**:
+- **DO NOT include date in post content** - Micro.blog automatically displays date from `published` parameter
+- Parse spreadsheet Date column (Column D) to ISO 8601 for `published` parameter
+- Use UTC noon (`12:00:00Z`) to avoid timezone shifts
+- Manual MM/DD/YYYY parsing to prevent local timezone interpretation
+
+**Example Posts**:
+```markdown
+Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
+
+Conf42 DevOps 2025: [Kubernetes is a Social Construct](https://www.youtube.com/watch?v=xyz)
+
+[Standalone blog post title](https://example.com/blog-post)
+```
+
+**Visual Result**:
+- Category pages show: Date (auto), Show Name: Linked Title
+- Clean, scannable list format
+- Show context visible without extra clicks
+- No duplicate/redundant information
+
+**Impact**:
+- Reduced noise - single date display instead of double
+- Show context for multi-show content types (Videos especially)
+- Consistent format across all content types
+- Better user experience verified via live testing
+
+**When to Reconsider**:
+- If user wants show names on separate line (requires Micro.blog theme customization)
+- If date needs to be in post content for some reason (would need to suppress Micro.blog auto-date)
+
 ## Progress Log
+
+### 2025-10-19 (Implementation Session 9 - Format Testing & Implementation Learning)
+**Duration**: ~2 hours
+**Focus**: Post format validation, timezone fixes, cross-posting research
+**Branch**: feature/prd-1-microblog-integration
+
+**Work Completed**:
+- Tested multiple post format options (newline variants, colon separator)
+- Fixed timezone parsing issue causing off-by-one date errors
+- Verified backdated post feed placement behavior
+- Documented comprehensive implementation learnings in API capabilities doc
+- Identified cross-posting risk requiring pre-bulk-operation testing
+
+**Format Design Decisions** (see Decision 12):
+- **Final format**: `Show Name: [Title](url)` (colon separator, single line)
+- **Podcasts**: Hardcode "Software Defined Interviews"
+- **Videos/Others**: Use Column C (Show) from spreadsheet
+- **Date parsing**: Manual MM/DD/YYYY parsing with UTC noon to avoid timezone shifts
+
+**Testing Process & Results**:
+- ❌ Format attempt 1: Single newline - Rendered as single line without separation
+- ❌ Format attempt 2: Double newline - Created unwanted blank line gap
+- ❌ Format attempt 3: Markdown soft break (`  \n`) - Didn't render as expected
+- ✅ Format attempt 4: Colon separator - Clean visual separation, user approved
+- ✅ Timezone fix: Manual MM/DD/YYYY parsing → UTC noon prevents date shifts
+- ✅ Feed behavior: Backdated posts appear at correct chronological position
+- ✅ Date verification: 01/09/2025 → `/2025/01/09/` (correct URL)
+
+**Testing Insights Documented**:
+- Post updates take 1-2 minutes to render (hard refresh required: Cmd+Shift+R)
+- New post creation is immediate (seconds)
+- Backdated posts don't appear at top of feed (appear at `published` date position)
+- Markdown line break behavior differs from expected (documented in capabilities doc)
+
+**Cross-Posting Risk Identified**:
+- **Issue**: Micro.blog documentation unclear on backdated post cross-posting behavior
+- **Risk**: Bulk-creating 61 posts might spam all connected social accounts (Bluesky, LinkedIn, Mastodon)
+- **Uncertainty**: Does "new posts" mean creation time or published date?
+- **Required before Step 5.2**: Test 1 backdated post with cross-posting enabled
+- **Mitigation**: User can temporarily disable cross-posting before bulk operations
+
+**Files Modified**:
+- `docs/microblog-api-capabilities.md` - Added "Implementation Learnings (2025-10-19)" section:
+  - Published date behavior and feed placement details
+  - Timezone handling solution with code examples
+  - Cross-posting uncertainty and testing recommendations
+  - Content formatting lessons learned
+  - Update operation timing and caching behavior
+  - Testing best practices for future work
+- `prds/1-automated-content-publishing.md` - Added Decision 12 and updated Post Format section
+- `journal/entries/2025-10/2025-10-19.md` - Session documentation
+
+**Future PRD Ideas Captured** (user reflection):
+- PRD: Migrate Mastodon/Bluesky to Micro.blog as single source of truth (POSSE approach)
+- PRD: Rate-limited posting (1 per day) when bulk-adding new content to avoid follower spam
+
+**Technical Implementation Ready**:
+- Date parsing function complete and tested
+- Post content format function complete and tested
+- Show name logic defined per content type
+- Column C (Show) integration specified
+
+**Next Session Priority**:
+1. **CRITICAL**: Test cross-posting behavior (create 1 backdated test post, check social accounts)
+2. If safe: Test 3 videos (validates per-post show names from Column C)
+3. If unsafe: Document mitigation strategy, proceed with cross-posting disabled
+4. Begin Step 5.2 implementation (new row detection and post creation)
+
+═══════════════════════════════════════
 
 ### 2025-10-19 (Implementation Session 8 - Step 5.1 Complete)
 **Duration**: ~45 minutes
