@@ -10,6 +10,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "type": "commonjs",
   "devDependencies": {
     "commit-story": "file:../commit_story/commit-story-1.2.1.tgz"

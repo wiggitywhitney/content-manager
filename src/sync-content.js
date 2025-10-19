@@ -462,7 +462,7 @@ async function createMicroblogPost(content, postContent, publishedDate) {
     'Podcast': 'Podcast',
     'Video': 'Video',
     'Blog': 'Blog',
-    'Presentation': 'Presentations',
+    'Presentations': 'Presentations',
     'Guest': 'Guest'
   };
   const category = categoryMap[content.type];
