@@ -243,6 +243,83 @@ curl -X POST https://micro.blog/micropub \
 - **Location** - URL of created post
 - **Retry-After** - Wait time if rate limited
 
+## Implementation Learnings (2025-10-19)
+
+### Published Date Behavior
+
+**Feed Placement**: The `published` parameter controls chronological placement in feeds
+- Posts appear at their `published` date position, not creation time
+- Backdated posts (e.g., `published=2025-01-09T12:00:00Z`) appear in January, not at feed top
+- Users must scroll to the historical date to see backdated posts
+- Perfect for bulk-importing historical content without feed spam
+
+**Timezone Handling**: Critical for correct date display
+- JavaScript `new Date()` parses dates in **local timezone** by default
+- This causes off-by-one date errors when converting to UTC
+- **Solution**: Parse MM/DD/YYYY manually and create UTC date directly
+- Set time to noon UTC (`12:00:00Z`) to avoid timezone edge cases
+- Example: `01/09/2025` → `Date.UTC(2025, 0, 9, 12, 0, 0)` → `2025-01-09T12:00:00.000Z`
+
+**Verified URL Behavior**: Post URLs reflect the published date
+- `published=2025-01-09T12:00:00Z` → `/2025/01/09/post-slug.html`
+- Date in URL matches the `published` parameter date
+
+### Cross-Posting with Backdated Posts
+
+**Uncertainty**: Documentation unclear on cross-posting behavior for backdated posts
+- Micro.blog docs state: "Once enabled, any new posts (after you enable cross-posting) will be sent"
+- Unclear if "new" means creation time or published date
+- **Risk**: Bulk-creating 61 backdated posts might spam all connected social accounts
+
+**Recommendation**: Test before bulk operations
+1. Create 1 backdated test post with cross-posting enabled
+2. Check connected social accounts (Bluesky, LinkedIn, Mastodon, etc.)
+3. If post appears on socials → disable cross-posting before bulk import
+4. If post doesn't appear → safe to proceed with bulk creation
+
+**Draft Posts Option**: Use `post-status=draft` to avoid cross-posting during testing
+- Draft posts are not cross-posted
+- Visible via direct URL but not in feeds
+- Can be published later via web UI or API update
+
+### Content Formatting
+
+**Markdown Support**: Full Markdown rendering in post content
+- **Line breaks**: Use single `:` for inline separation (works well)
+- **Double newline** (`\n\n`): Creates paragraph break with blank line (too much spacing)
+- **Soft break** (`  \n`): Two spaces + newline didn't render as expected
+- **Recommended format**: `Show Name: [Title](url)` (colon separator, single line)
+
+**Tested Formats**:
+```
+✗ "Show Name\n[Title](url)" - Renders as "Show Name Title"
+✗ "Show Name\n\n[Title](url)" - Too much spacing (blank line)
+✗ "Show Name  \n[Title](url)" - Soft break didn't work
+✅ "Show Name: [Title](url)" - Clean, clear visual separation
+```
+
+**Example Post Content**:
+```
+Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
+```
+
+### Update Operation Timing
+
+**Cache/Rendering Delays**: Updates take time to appear
+- Post creation is fast (seconds)
+- Updates via Micropub may take 1-2 minutes to render
+- Hard refresh required (Cmd+Shift+R on Mac)
+- New posts appear faster than updates to existing posts
+
+### Testing Best Practices
+
+1. **Small batches first**: Test with 3 posts before bulk operations
+2. **Verify date display**: Check URLs and feed placement match expectations
+3. **Test cross-posting**: Single post test before bulk import
+4. **Use drafts for format testing**: Keeps test posts out of feeds
+5. **Delete test posts**: Clean up via Micropub delete operation
+6. **Clear spreadsheet state**: Reset Column H after deleting test posts
+
 ## References
 
 - **Micropub API**: https://help.micro.blog/t/posting-api/96

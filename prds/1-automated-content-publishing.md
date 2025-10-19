@@ -72,17 +72,28 @@ Build an automated system that syncs Whitney's Google Sheets content tracking sp
 - See [Categories vs Pages](../docs/microblog-api-capabilities.md#key-architectural-concepts) for details
 
 ### Post Format
-Each micro.blog post will include:
+**⚠️ Updated**: This original format was revised during implementation. See **Decision 12: Post Content Format** for actual implementation.
+
+**Original planned format** (deprecated):
 ```markdown
 [Title as clickable link](url)
 Date
 ```
 
+**Actual implemented format** (see Decision 12):
+```markdown
+Show Name: [Title](url)
+```
+
 Example:
 ```markdown
-[Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
-January 9, 2025
+Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
 ```
+
+**Key differences from original plan**:
+- Show name prefix for context (required for multi-show content like Videos)
+- No date in post content (Micro.blog auto-displays date from `published` parameter)
+- Colon separator for clean visual distinction
 
 ### Sync Behavior
 - **New Rows**: Create new micro.blog post on appropriate page
@@ -269,44 +280,49 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 
 **Milestone 3 Complete**: ✅ All error handling, logging, retry logic, and documentation implemented
 
-### Milestone 4: Micro.blog Integration
+### Milestone 4: Micro.blog Integration ✅
 **Estimated Time**: ~2-3 hours
+**Actual Time**: ~2 hours
 **API Reference**: [Micro.blog API Capabilities](../docs/microblog-api-capabilities.md)
 
 **Important Architectural Note**: Micro.blog uses **categories** (not pages) for content organization. Categories automatically create URLs like `/categories/podcast/` with individual RSS feeds. This is the correct approach for our use case.
 
-#### Step 4.1: Authentication Setup (~15-20 min)
+#### Step 4.1: Authentication Setup (~15-20 min) ✅
 **API Reference**: [Authentication Methods](../docs/microblog-api-capabilities.md#authentication)
 
-- [ ] Generate app token from micro.blog account (Account → Edit Apps)
-- [ ] Add `MICROBLOG_APP_TOKEN` to GitHub Secrets
-- [ ] Test authentication with Micropub config query
-- [ ] Verify token has full account access
+- [x] Generate app token from micro.blog account (Account → Edit Apps)
+- [x] Add `MICROBLOG_APP_TOKEN` to GitHub Secrets
+- [x] Test authentication with Micropub config query
+- [x] Verify token has full account access
 
 **API Details**:
 - Endpoint: `GET https://micro.blog/micropub?q=config`
 - Header: `Authorization: Bearer YOUR_TOKEN`
 - Success: Returns JSON with channels and media endpoint
 
-#### Step 4.2: Category Strategy (~30 min)
-- [ ] Create 5 categories via Micro.blog web UI: podcast, video, blog, presentation, guest
-- [ ] (Optional) Create navigation pages linking to each category
-- [ ] Document category URLs (e.g., `https://whitneylee.com/categories/podcast/`)
-- [ ] Test category assignment via API
+**Implementation**: App token stored in Google Secret Manager (secret: `microblog-content-manager`), accessed via Teller for consistency with existing credential management patterns.
+
+#### Step 4.2: Category Strategy (~30 min) ✅
+- [x] Create 5 categories via Micro.blog web UI: podcast, video, blog, presentation, guest
+- [x] (Optional) Create navigation pages linking to each category - Deferred to Milestone 6
+- [x] Document category URLs (e.g., `https://whitneylee.com/categories/podcast/`)
+- [x] Test category assignment via API
 
 **API Details**:
 - List categories: `GET /micropub?q=category`
 - Categories are created automatically when first post uses them
 - Assign category: `category=podcast` parameter in POST request
 
-#### Step 4.3: Post Creation Logic (~45-60 min)
+**Implementation**: All 5 categories verified existing in Micro.blog. Test posts successfully created and verified at category URLs.
+
+#### Step 4.3: Post Creation Logic (~45-60 min) ✅
 **API Reference**: [Micropub Create Posts](../docs/microblog-api-capabilities.md#supported-operations)
 
-- [ ] Implement Micropub POST request (form-encoded format recommended)
-- [ ] Map spreadsheet types to categories (Podcast → "podcast", Video → "video", etc.)
-- [ ] Format post content per PRD: `[Title](URL)\nDate`
-- [ ] Handle API responses (201/202 status, Location header)
-- [ ] Add error handling for auth failures, rate limits
+- [x] Implement Micropub POST request (form-encoded format recommended)
+- [x] Map spreadsheet types to categories (Podcast → "podcast", Video → "video", etc.)
+- [x] Format post content per PRD: `[Title](URL)\nDate`
+- [x] Handle API responses (201/202 status, Location header)
+- [x] Add error handling for auth failures, rate limits
 
 **API Details**:
 - Endpoint: `POST https://micro.blog/micropub`
@@ -314,99 +330,146 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 - Optional: `published=...` (ISO 8601 timestamp)
 - Response: Location header contains new post URL (save for updates/deletes)
 
-#### Step 4.4: Testing (~20-30 min)
-- [ ] Create test post in each category
-- [ ] Verify posts appear at category URLs
-- [ ] Verify post format matches requirements
-- [ ] Test draft posts with `post-status=draft`
-- [ ] Verify error handling with invalid token
+**Implementation**: Created test scripts using form-encoded POST format. Successfully parsed Location header from 201/202 responses.
 
-**Success Criteria**: Can authenticate and create posts in all 5 categories with correct formatting
+#### Step 4.4: Testing (~20-30 min) ✅
+- [x] Create test post in each category
+- [x] Verify posts appear at category URLs
+- [x] Verify post format matches requirements
+- [x] Test draft posts with `post-status=draft` - Used `published` status for testing
+- [x] Verify error handling with invalid token
+
+**Success Criteria**: Can authenticate and create posts in all 5 categories with correct formatting ✅
+
+**Milestone 4 Complete**: ✅ All authentication, posting, and testing verified. Test posts successfully deleted. Code cleaned up (test scripts removed, only production code remains).
 
 ### Milestone 5: Full CRUD Operations
 **Estimated Time**: ~3-4 hours
 **API Reference**: [Micro.blog API Capabilities](../docs/microblog-api-capabilities.md)
 
-#### Step 5.1: State Tracking System (~45-60 min)
-- [ ] Design state file format (JSON: row_id → post_url mapping)
-- [ ] Implement state file read/write functions
-- [ ] Store post URLs from Milestone 4 Location headers
-- [ ] Handle missing state file (first run)
-- [ ] Commit state file to repository after each sync
+**Important Design Decision**: Using spreadsheet Column H ("Micro.blog URL") as sync state instead of separate state file. Spreadsheet is single source of truth - script ensures Micro.blog matches spreadsheet exactly.
 
-**State File Format**:
-```json
-{
-  "posts": {
-    "row_42": {
-      "url": "https://whitneylee.com/2025/01/09/post-slug.html",
-      "title": "Learning to learn",
-      "category": "podcast",
-      "lastSynced": "2025-01-09T10:30:00Z"
-    }
-  }
-}
+#### Step 5.1: Spreadsheet Update Capability (~30-45 min) ✅
+- [x] Grant service account Editor permission (temporarily for Column H writes)
+- [x] Add Column H: "Micro.blog URL" to spreadsheet
+- [x] Test writing URLs back to spreadsheet after post creation
+- [x] Implement Google Sheets write operations in sync script
+- [x] Handle write errors gracefully (don't fail sync if write fails)
+
+**Spreadsheet Columns** (after this step):
+| A | B | C | D | E | F | G | H |
+|---|---|---|---|---|---|---|---|
+| Name | Type | Show | Date | Location | Confirmed | Link | Micro.blog URL |
+
+**Implementation Notes**:
+- Column H stores the Micro.blog post URL returned in Location header
+- Empty Column H = post needs to be created
+- Filled Column H = post exists (check for updates/deletes)
+
+#### Step 5.2: New Row Detection & Post Creation (~45-60 min) ✅
+- [x] Read spreadsheet including Column H
+- [x] Identify rows with empty Column H (new content to post)
+- [x] Create posts via Micropub with `published` date from Date column
+- [x] Write returned post URLs back to Column H
+- [x] Handle partial failures (some posts succeed, some fail)
+- [x] Log creation statistics
+
+**Completed 2025-10-19**: Successfully created 61 posts from spreadsheet. Implementation includes:
+- Date parsing to ISO 8601 (UTC noon) - handles MM/DD/YYYY and "Month Day, Year" formats
+- Post content formatting with keynote support: `[Keynote] Show Name: [Title](url)`
+- Category mapping: Podcast, Video, Blog, Presentations, Guest (title case)
+- Support for presentations without URLs (plain text titles)
+- Comprehensive error handling and statistics logging
+- 100% success rate (61/61 posts created)
+
+**API Details for Creation**:
+- Parse Date column (e.g., "January 9, 2025") → ISO 8601 (`2025-01-09T00:00:00Z`)
+- Include `published` parameter so posts appear in chronological order
+- Save Location header response to Column H
+
+**Example**:
+```javascript
+// Row: "Learning to learn" | Podcast | ... | "January 9, 2025" | ... | ""
+// Creates post with published=2025-01-09T00:00:00Z
+// Writes "https://whitneylee.com/2025/01/09/post-slug.html" to Column H
 ```
 
-#### Step 5.2: New Row Detection (~30-45 min)
-- [ ] Compare current spreadsheet rows to state file
-- [ ] Identify rows without post URLs (new content)
-- [ ] Create posts via Micropub (reuse Milestone 4 logic)
-- [ ] Save returned post URLs to state file
-- [ ] Log creation statistics
-
-#### Step 5.3: Update Detection and Editing (~60-90 min)
+#### Step 5.3: Update Detection (~60-90 min) ✅
 **API Reference**: [Micropub Update Operations](../docs/microblog-api-capabilities.md#supported-operations)
+**Completed**: 2025-10-19
 
-- [ ] Compare spreadsheet row data to state file cached data
-- [ ] Detect changes in Name, Date, Link fields
-- [ ] Implement Micropub update operation
-- [ ] Update state file with new data
-- [ ] Log update statistics
+- [x] For rows with filled Column H, compare current data vs last sync
+- [x] Detect changes in Name, Date, Link, Type (category), Show, or Confirmed (keynote) columns
+- [x] Implement Micropub update operation with JSON format
+- [x] Fix date comparison bug (normalize timezone formats)
+- [x] Log update statistics
+
+**Test Case for Step 5.3**:
+- **AI Tools Lab video** (Row 48, created 2025-10-19): Spreadsheet Type changed from "Video" to "Guest" after post creation
+- URL: `https://whitneylee.com/2025/05/22/ai-tools-lab-vibe-coding.html`
+- Expected behavior: Update detection should identify Type change and update post category from "Video" to "Guest"
+- This is an intentional test case - do not manually fix before implementing Step 5.3
+
+**Change Detection Strategy**:
+- **Option A**: Compare with in-memory snapshot from script start
+- **Option B**: Store hash of row data in Column I (optional optimization)
+- **Recommendation**: Start with Option A (simpler)
 
 **API Details for Updates**:
-- Endpoint: `POST https://micro.blog/micropub` (same endpoint, different payload)
-- Payload format:
 ```json
 {
   "action": "update",
   "url": "https://whitneylee.com/2025/01/09/post-slug.html",
   "replace": {
-    "content": ["[New Title](https://new-url.com)\nJanuary 10, 2025"]
+    "content": ["[Updated Title](https://new-url.com)\nJanuary 10, 2025"],
+    "published": ["2025-01-10T00:00:00Z"]
   }
 }
 ```
-- Response: 200 OK or 204 No Content on success
 
-#### Step 5.4: Delete Detection and Removal (~30-45 min)
+#### Step 5.4: Delete Detection & Removal (~30-45 min) ✅
 **API Reference**: [Micropub Delete Operations](../docs/microblog-api-capabilities.md#supported-operations)
+**Completed**: 2025-10-19
 
-- [ ] Identify state file entries not in current spreadsheet (deleted rows)
-- [ ] Implement Micropub delete operation
-- [ ] Remove entries from state file
-- [ ] Log deletion statistics
-- [ ] Handle "already deleted" errors gracefully
+- [x] Query all posts from 5 categories via Micropub (`q=source`)
+- [x] Build list of all post URLs in Micro.blog
+- [x] Compare with Column H URLs in spreadsheet
+- [x] Delete posts that exist in Micro.blog but not in spreadsheet
+- [x] Handle "already deleted" errors (404) gracefully
+- [x] Log deletion statistics
+
+**Deletion Logic**:
+```
+Micro.blog posts: [A, B, C, D]
+Spreadsheet Column H: [A, B, C]
+→ Delete post D (orphaned)
+```
+
+**API Details for Query**:
+- Endpoint: `GET /micropub?q=source&limit=100`
+- May need pagination for large numbers of posts
+- Returns array of post objects with URLs
 
 **API Details for Deletes**:
-- Endpoint: `POST https://micro.blog/micropub`
-- Payload format:
 ```json
 {
   "action": "delete",
   "url": "https://whitneylee.com/2025/01/09/post-slug.html"
 }
 ```
-- Response: 200 OK or 204 No Content on success
-- Error handling: 404 if post already deleted (treat as success)
 
-#### Step 5.5: Testing Full Sync (~30-45 min)
-- [ ] Test create: Add new row to spreadsheet, verify post created
-- [ ] Test update: Edit existing row, verify post updated
-- [ ] Test delete: Remove row from spreadsheet, verify post deleted
-- [ ] Test duplicate prevention: Run sync twice, verify no duplicate posts
-- [ ] Test state file persistence: Verify state survives between runs
+#### Step 5.5: Testing Full Sync (~30-45 min) ✅
+**Completed**: 2025-10-19
 
-**Success Criteria**: Complete CRUD operations working - spreadsheet changes automatically sync to micro.blog
+- [x] Test create: Add new row with empty Column H, verify post created and URL written
+- [x] Test update: Edit Name/Date/Link, verify post updated in Micro.blog
+- [x] Test delete: Remove row from spreadsheet, verify post deleted from Micro.blog
+- [x] Test idempotency: Run sync twice, verify no duplicate posts or unnecessary updates
+- [x] Test partial failures: Observed network failures (503 errors) handled gracefully with retry logic
+
+**Success Criteria**: Complete CRUD operations working - spreadsheet is single source of truth, Micro.blog automatically matches spreadsheet state ✅
+
+**Bug Fixed During Testing**: Orphan detection was deleting newly created posts because it used cached spreadsheet data. Fixed by updating in-memory row data (line 915: `row.microblogUrl = postUrl`) immediately after URL write-back, preventing false orphan detection.
 
 ### Milestone 6: Page Visibility Management
 **Estimated Time**: ~2-3 hours (or may be simplified based on API constraints)
@@ -721,7 +784,546 @@ The feature is complete when:
 - Azure MVP credits available when ready to migrate
 - No changes to Milestones 1-8
 
+### Decision 9: Spreadsheet-Based State Tracking
+**Date**: 2025-10-18
+**Status**: ✅ Planned for Milestone 5
+
+**Rationale**:
+- Separate state file adds complexity (two sources of truth)
+- Spreadsheet already contains all content data
+- Adding Column H ("Micro.blog URL") makes sync status visible
+- Single source of truth is simpler and less error-prone
+- Easy to manually fix sync issues (edit/clear URL column)
+
+**Implementation**:
+- Add Column H: "Micro.blog URL" to spreadsheet
+- Grant service account Editor permission (write URLs back)
+- Script writes post URL to Column H after successful creation
+- Empty Column H = post needs to be created
+- Filled Column H = post exists (check for updates)
+
+**Impact**:
+- No separate state file to manage or commit
+- Sync status visible directly in spreadsheet
+- Natural audit trail of what's been posted
+- Easy manual intervention if needed
+- Requires WRITE access to Google Sheets (minor permission increase)
+
+**When to Reconsider**: If spreadsheet writes become unreliable or if we need offline sync capability.
+
+### Decision 10: Auto-Delete Orphaned Posts
+**Date**: 2025-10-18
+**Status**: ✅ Planned for Milestone 5
+
+**Rationale**:
+- Spreadsheet is single source of truth - should drive Micro.blog state completely
+- Deleting spreadsheet row should delete corresponding post
+- Manual cleanup is error-prone and defeats automation purpose
+- Query-and-compare is straightforward with Micropub API
+
+**Implementation**:
+- Query all posts from 5 categories via `GET /micropub?q=source`
+- Compare Micro.blog post URLs with Column H URLs in spreadsheet
+- Delete posts that exist in Micro.blog but not in spreadsheet
+- Handle 404 errors gracefully (already deleted)
+- Log deletion statistics
+
+**Impact**:
+- True bidirectional sync: spreadsheet change = Micro.blog change
+- Removes stale posts automatically
+- One extra API call per sync run (query all posts)
+- Slightly riskier (accidental spreadsheet deletion = post deletion)
+
+**Safety Considerations**:
+- Could add "Deleted" column instead of physically deleting rows
+- Could add confirmation prompt for deletions
+- Could log deletions prominently for audit trail
+
+### Decision 11: Chronological Ordering via Published Date Parameter
+**Date**: 2025-10-18
+**Status**: ✅ Confirmed from API docs
+
+**Rationale**:
+- Need posts to appear in chronological order by actual publication date
+- Creating posts in random order would mess up timeline
+- Micro.blog supports `published` parameter per Micropub spec
+- Allows backfilling old content without timeline disruption
+
+**Implementation**:
+- Parse Date column (e.g., "January 9, 2025") to ISO 8601 format (`2025-01-09T00:00:00Z`)
+- Include `published` parameter in all post creation requests
+- Posts will appear chronologically regardless of creation order
+- Can sync entire spreadsheet in any order
+
+**Confirmed from Documentation**:
+- Micropub API docs (docs/microblog-api-capabilities.md:92)
+- Parameter: `published` | Purpose: Publication timestamp | Format: ISO 8601
+
+**Impact**:
+- Can sync spreadsheet in any order (row order doesn't matter)
+- Can backfill historical content without timeline issues
+- Posts appear correctly ordered on Micro.blog site
+- Simplifies implementation (no need to sort by date first)
+
+### Decision 12: Post Content Format with Show Name Prefix
+**Date**: 2025-10-19
+**Status**: ✅ Tested and validated
+
+**Rationale**:
+- Original format (`[Title](url)\nDate`) had issues:
+  - Date displayed twice (Micro.blog auto-shows date, plus our content date)
+  - No show context for content types with multiple shows (Videos, Guest appearances)
+  - Redundant and noisy UX
+- Videos appear on different shows - need per-post show identification
+- Podcasts are all "Software Defined Interviews" - can hardcode
+- User feedback: "very noisy website" with duplicate dates
+
+**Format Testing Process** (2025-10-19):
+- ❌ Attempt 1: `Show Name\n[Title](url)` - Rendered as single line "Show Name Title"
+- ❌ Attempt 2: `Show Name\n\n[Title](url)` - Created unwanted blank line gap
+- ❌ Attempt 3: `Show Name  \n[Title](url)` - Markdown soft break didn't work
+- ✅ **Final format**: `Show Name: [Title](url)` - Clean, clear visual separation
+
+**Implementation Details**:
+```javascript
+// Post content format
+const content = showName
+  ? `${showName}: [${title}](${url})`  // With show name prefix
+  : `[${title}](${url})`;               // Without (fallback)
+
+// Show name logic by content type:
+// - Podcast: Hardcode "Software Defined Interviews"
+// - Video/Blog/Presentation/Guest: Use Column C (Show) from spreadsheet
+// - If Column C empty: No show prefix (just linked title)
+```
+
+**Date Handling**:
+- **DO NOT include date in post content** - Micro.blog automatically displays date from `published` parameter
+- Parse spreadsheet Date column (Column D) to ISO 8601 for `published` parameter
+- Use UTC noon (`12:00:00Z`) to avoid timezone shifts
+- Manual MM/DD/YYYY parsing to prevent local timezone interpretation
+
+**Example Posts**:
+```markdown
+Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
+
+Conf42 DevOps 2025: [Kubernetes is a Social Construct](https://www.youtube.com/watch?v=xyz)
+
+[Standalone blog post title](https://example.com/blog-post)
+```
+
+**Visual Result**:
+- Category pages show: Date (auto), Show Name: Linked Title
+- Clean, scannable list format
+- Show context visible without extra clicks
+- No duplicate/redundant information
+
+**Impact**:
+- Reduced noise - single date display instead of double
+- Show context for multi-show content types (Videos especially)
+- Consistent format across all content types
+- Better user experience verified via live testing
+
+**When to Reconsider**:
+- If user wants show names on separate line (requires Micro.blog theme customization)
+- If date needs to be in post content for some reason (would need to suppress Micro.blog auto-date)
+
+### Decision 13: Category Naming - Plural and Title Case
+**Date**: 2025-10-19
+**Status**: ✅ Implemented
+
+**Rationale**:
+- Micro.blog UI uses title case categories: "Podcast", "Video", "Blog", "Guest"
+- User configured "Presentations" (plural) in Micro.blog settings
+- Initial implementation used "presentation" (lowercase, singular)
+- Caused category mismatch - posts went to wrong category
+- Standardizing on title case and plural for consistency with UI
+
+**Implementation**:
+```javascript
+const categoryMap = {
+  'Podcast': 'Podcast',
+  'Video': 'Video',
+  'Blog': 'Blog',
+  'Presentation': 'Presentations',  // Note: plural
+  'Guest': 'Guest'
+};
+```
+
+**Impact**:
+- Updated spreadsheet Type dropdown from "Presentation" to "Presentations"
+- Updated 9 spreadsheet rows to use "Presentations"
+- Migrated 3 existing posts from "presentation" to "Presentations" category
+- All categories now match Micro.blog UI exactly
+
+**When to Reconsider**:
+- If Micro.blog changes category naming conventions
+- If additional categories need different singular/plural handling
+
+### Decision 14: Allow Presentations Without URLs
+**Date**: 2025-10-19
+**Status**: ✅ Implemented
+
+**Rationale**:
+- Some presentations don't have recordings yet (talks scheduled but not delivered, or not recorded)
+- User wants to track all presentations in one place, even without video links
+- Micro.blog supports posts with plain text (no hyperlink required)
+- Better UX: complete list with "coming soon" placeholders than missing entries
+
+**Implementation**:
+- Removed Link (Column G) validation requirement for Presentations type only
+- Post format when no URL: `Show Name: Title` (plain text, no hyperlink)
+- Post format with URL: `Show Name: [Title](url)` (hyperlinked as normal)
+- Spreadsheet validation still requires Link for all other content types
+
+**Example Posts**:
+```markdown
+# With link
+[Keynote] KCD Costa Rica: [Choose Your Own Adventure](https://youtu.be/xyz)
+
+# Without link (plain text)
+University Talk: Cloud computing presentation to university students
+```
+
+**Impact**:
+- 2 presentations posted without URLs (rows 44, 84)
+- All 9 presentations visible at /presentations/ including linkless ones
+- Users can see complete presentation history even for unrecorded talks
+
+**When to Reconsider**:
+- If user prefers to omit unrecorded presentations from public list
+- If other content types also need linkless support
+
+### Decision 15: UTC Noon for Date Parsing
+**Date**: 2025-10-19
+**Status**: ✅ Implemented (revised from Decision 12)
+
+**Rationale**:
+- Spreadsheet dates are in MM/DD/YYYY format (e.g., "1/9/2025")
+- JavaScript Date parsing interprets as local timezone, causing off-by-one errors
+- Example: "1/9/2025" → `2025-01-08T08:00:00Z` (PST) → displays as Jan 8
+- UTC noon (`12:00:00Z`) is safe middle ground - won't shift into previous/next day regardless of timezone
+- Avoids need for explicit timezone configuration or guessing user's timezone
+
+**Implementation**:
+```javascript
+function parseDateToISO(dateString) {
+  const [month, day, year] = dateString.split('/');
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00Z`;
+}
+```
+
+**Impact**:
+- All 61 posts created with correct dates matching spreadsheet
+- No timezone-related date shifts
+- Consistent behavior regardless of server or user timezone
+- Manual parsing avoids JavaScript's local timezone interpretation
+
+**When to Reconsider**:
+- If user wants posts to show specific timezone timestamps (not just dates)
+- If Micro.blog adds date-only parameter (no timestamp required)
+
 ## Progress Log
+
+### 2025-10-19 (Implementation Session 12 - Step 5.5 Complete: Full Sync Testing & Milestone 5 Complete)
+**Duration**: ~45 minutes
+**Focus**: Comprehensive CRUD testing and bug fix for orphan detection
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.5: Testing Full Sync (all 5 items) - Evidence: Systematic testing of create, update, delete, idempotency
+- [x] **Milestone 5: Complete** ✅ - All CRUD operations working with spreadsheet as single source of truth
+
+**Testing Results**:
+- ✅ **Idempotency**: Re-running sync shows 0 changes (22 legitimate updates from previous session were timezone normalization fixes)
+- ✅ **Create**: Added test row, post created successfully, URL written to Column H
+- ✅ **Update**: Modified test row title, post content updated on Micro.blog
+- ✅ **Delete**: Removed test rows from spreadsheet, orphan detection found and deleted posts
+- ✅ **Partial failures**: Network failures (503 errors) observed in earlier runs, handled gracefully with retry logic and continued processing
+
+**Critical Bug Fixed**:
+- **Issue**: Orphan detection was immediately deleting newly created posts
+- **Root cause**: `validRows` cached spreadsheet data at script start. After Step 5.2 created posts and wrote URLs to Column H, Step 5.4 orphan detection still used OLD cached data (empty Column H), making new posts appear "orphaned"
+- **Solution**: Update in-memory row data after successful URL write (src/sync-content.js:915)
+  ```javascript
+  row.microblogUrl = postUrl;  // Prevents false orphan detection
+  ```
+- **Impact**: CREATE operation now works correctly without posts being immediately deleted
+
+**Files Modified**:
+- `src/sync-content.js` - 3 line bug fix (line 907, 915) to update in-memory data
+- Test scripts created, used, and deleted: `test-create.js`, `test-update.js`, `test-delete.js`
+
+**System State**:
+- 64 posts in sync between spreadsheet and Micro.blog
+- 0 orphaned posts
+- 0 pending updates
+- All test content cleaned up
+
+**Next Session Priority**: Milestone 6 (Page Visibility Management) OR Milestone 7 (Error Notifications & Monitoring)
+
+═══════════════════════════════════════
+
+### 2025-10-19 (Implementation Session 11 - Step 5.4 Complete: Delete Detection & Removal)
+**Duration**: ~45 minutes
+**Focus**: Delete Detection & Removal with client-side category filtering
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.4: Delete Detection & Removal (all 6 items) - Evidence: src/sync-content.js deletion system
+  - `deleteMicroblogPost()` function with 404 handling (lines 665-700)
+  - Client-side category filtering to protect uncategorized posts (lines 1010-1016)
+  - Orphan detection logic comparing Micro.blog vs spreadsheet (lines 1023-1037)
+  - Deletion loop with retry logic and error tracking (lines 1049-1077)
+  - Summary statistics integration for deletions (lines 1116-1123, 1189-1204, 1207-1217)
+
+**Implementation Features**:
+- **Category filtering**: Protects 18 uncategorized personal posts (photos, books, etc.)
+- **Client-side filtering required**: Discovered API quirk where category parameter doesn't actually filter
+- **Graceful 404 handling**: Treats already-deleted posts as success
+- **Comprehensive statistics**: Tracks checked/orphaned/attempted/successful/failed deletions
+- **Partial failure handling**: Continues processing even if some deletions fail
+
+**Testing Results**:
+- ✅ Current state: 0 orphaned posts (all 64 categorized posts in spreadsheet)
+- ✅ Idempotency verified: Running sync twice shows no changes
+- ✅ Statistics display correctly in both JSON and pretty-formatted output
+- ✅ Test scripts cleaned up (check-orphaned-posts.js, test-query.js removed)
+
+**Files Modified**:
+- `src/sync-content.js` - Added ~75 lines for deletion capability
+  - New deleteMicroblogPost() function (lines 665-700)
+  - Step 5.4 section with orphan detection (lines 1006-1077)
+  - Updated summary statistics (lines 1116-1123, 1189-1204, 1207-1217)
+
+**API Implementation**:
+- Delete format: JSON POST with `action: "delete"`, `url` parameters
+- Response codes: 200/202 success, 404 treated as success (already deleted)
+- Query approach: Fetch all posts, filter client-side by managed categories
+
+**Next Session Priority**: Step 5.5 - Manual testing of create/update/delete operations, complete Milestone 5
+
+═══════════════════════════════════════
+
+### 2025-10-19 (Implementation Session 10 - Step 5.3 Complete: Update Detection)
+**Duration**: ~3 hours
+**Focus**: Update detection with change comparison and bug fixes
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.3: Update Detection (all 5 items) - Evidence: src/sync-content.js functions and integration
+  - `queryMicroblogPosts()` - Fetches all posts from Micro.blog (lines 502-558)
+  - `normalizeTimestamp()` - Fixes timezone format comparison bug (lines 566-572)
+  - `detectChanges()` - Compares spreadsheet vs Micro.blog state (lines 580-617)
+  - `updateMicroblogPost()` - Updates via Micropub JSON format (lines 619-637)
+  - Integrated update detection into sync loop (lines 862-941)
+
+**Critical Bug Fixed**:
+- **Date comparison false positives**: Our format `2025-01-09T12:00:00Z` vs Micro.blog's `2025-01-09T12:00:00+00:00`
+  - Same timestamp, different string representation
+  - Caused every post to be flagged as "changed" even when nothing changed
+  - Solution: `normalizeTimestamp()` converts both to standard ISO format before comparison
+  - Result: 0 false positives, only real changes detected
+
+**Implementation Features**:
+- **Smart change detection**: Only detects actual changes in content, category, or published date
+- **Selective updates**: Only sends changed fields to API (not entire post)
+- **Efficient querying**: Fetches all posts in 1-2 API calls (100 posts per call)
+- **Partial failure handling**: Continues processing even if some updates fail
+- **Comprehensive logging**: Tracks attempted, successful, failed updates
+
+**Test Results**:
+- ✅ AI Tools Lab successfully moved from Video → Guest category
+- ✅ Date comparison working (no false positives)
+- ✅ Idempotent behavior confirmed (re-running sync shows 0 updates needed)
+- ✅ Update statistics properly logged
+- ⚠️ Network issues during testing caused some failures (expected with bad internet)
+
+**API Details**:
+- **Query endpoint**: `GET /micropub?q=source&limit=100` with pagination support
+- **Update format**: JSON with `action: "update"`, `url`, and `replace` object
+- **Content-Type**: `application/json` (not form-encoded like creates)
+- **Response**: 200/202 success codes
+
+**Files Modified**:
+- `src/sync-content.js` - Added ~160 lines for update detection system
+  - Query function with pagination (lines 502-558)
+  - Timestamp normalization utility (lines 566-572)
+  - Change detection logic (lines 580-617)
+  - Micropub update implementation (lines 619-637)
+  - Sync loop integration (lines 862-941)
+  - Summary statistics updates (lines 971-979, 1021-1043)
+
+**Scaling Discussion**:
+- Current approach works well up to ~200 posts (~3 seconds when no changes)
+- At 500 posts: ~15 seconds (still acceptable for hourly runs)
+- Discussed future optimization strategies:
+  - Option 1: Keep as-is (good for 6-12 months)
+  - Option 2: Split scripts (new content vs updates)
+  - Option 3: Batch processing by date range
+  - Option 4: Add "Last Synced" column tracking
+- **Decision**: Keep current approach until it becomes a problem
+
+**Next Session Priority**: Step 5.4 - Delete Detection & Removal (orphaned post cleanup)
+
+═══════════════════════════════════════
+
+### 2025-10-19 (Implementation Session 9 - Format Testing & Implementation Learning)
+**Duration**: ~2 hours
+**Focus**: Post format validation, timezone fixes, cross-posting research
+**Branch**: feature/prd-1-microblog-integration
+
+**Work Completed**:
+- Tested multiple post format options (newline variants, colon separator)
+- Fixed timezone parsing issue causing off-by-one date errors
+- Verified backdated post feed placement behavior
+- Documented comprehensive implementation learnings in API capabilities doc
+- Identified cross-posting risk requiring pre-bulk-operation testing
+
+**Format Design Decisions** (see Decision 12):
+- **Final format**: `Show Name: [Title](url)` (colon separator, single line)
+- **Podcasts**: Hardcode "Software Defined Interviews"
+- **Videos/Others**: Use Column C (Show) from spreadsheet
+- **Date parsing**: Manual MM/DD/YYYY parsing with UTC noon to avoid timezone shifts
+
+**Testing Process & Results**:
+- ❌ Format attempt 1: Single newline - Rendered as single line without separation
+- ❌ Format attempt 2: Double newline - Created unwanted blank line gap
+- ❌ Format attempt 3: Markdown soft break (`  \n`) - Didn't render as expected
+- ✅ Format attempt 4: Colon separator - Clean visual separation, user approved
+- ✅ Timezone fix: Manual MM/DD/YYYY parsing → UTC noon prevents date shifts
+- ✅ Feed behavior: Backdated posts appear at correct chronological position
+- ✅ Date verification: 01/09/2025 → `/2025/01/09/` (correct URL)
+
+**Testing Insights Documented**:
+- Post updates take 1-2 minutes to render (hard refresh required: Cmd+Shift+R)
+- New post creation is immediate (seconds)
+- Backdated posts don't appear at top of feed (appear at `published` date position)
+- Markdown line break behavior differs from expected (documented in capabilities doc)
+
+**Cross-Posting Risk Identified**:
+- **Issue**: Micro.blog documentation unclear on backdated post cross-posting behavior
+- **Risk**: Bulk-creating 61 posts might spam all connected social accounts (Bluesky, LinkedIn, Mastodon)
+- **Uncertainty**: Does "new posts" mean creation time or published date?
+- **Required before Step 5.2**: Test 1 backdated post with cross-posting enabled
+- **Mitigation**: User can temporarily disable cross-posting before bulk operations
+
+**Files Modified**:
+- `docs/microblog-api-capabilities.md` - Added "Implementation Learnings (2025-10-19)" section:
+  - Published date behavior and feed placement details
+  - Timezone handling solution with code examples
+  - Cross-posting uncertainty and testing recommendations
+  - Content formatting lessons learned
+  - Update operation timing and caching behavior
+  - Testing best practices for future work
+- `prds/1-automated-content-publishing.md` - Added Decision 12 and updated Post Format section
+- `journal/entries/2025-10/2025-10-19.md` - Session documentation
+
+**Future PRD Ideas Captured** (user reflection):
+- PRD: Migrate Mastodon/Bluesky to Micro.blog as single source of truth (POSSE approach)
+- PRD: Rate-limited posting (1 per day) when bulk-adding new content to avoid follower spam
+
+**Technical Implementation Ready**:
+- Date parsing function complete and tested
+- Post content format function complete and tested
+- Show name logic defined per content type
+- Column C (Show) integration specified
+
+**Next Session Priority**:
+1. **CRITICAL**: Test cross-posting behavior (create 1 backdated test post, check social accounts)
+2. If safe: Test 3 videos (validates per-post show names from Column C)
+3. If unsafe: Document mitigation strategy, proceed with cross-posting disabled
+4. Begin Step 5.2 implementation (new row detection and post creation)
+
+═══════════════════════════════════════
+
+### 2025-10-19 (Implementation Session 8 - Step 5.1 Complete)
+**Duration**: ~45 minutes
+**Focus**: Spreadsheet Update Capability (Column H integration)
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.1: All 5 items - Spreadsheet Update Capability
+  - Service account upgraded to Editor permission
+  - Column H "Micro.blog URL" header added
+  - `writeUrlToSpreadsheet()` function implemented with error handling
+  - `parseRow()` updated to extract `microblogUrl` from Column H
+  - Auth scope changed from readonly to full spreadsheets access
+  - Write functionality tested and verified
+
+**Files Modified**:
+- `src/sync-content.js` - Added Column H support and write capability
+  - Line 6: Updated RANGE to include Column H
+  - Lines 304-322: New `writeUrlToSpreadsheet()` function
+  - Line 336: Updated `parseRow()` to extract microblogUrl
+  - Line 407: Changed auth scope for write access
+
+**Implementation Features**:
+- **Column H Integration**: Spreadsheet now tracks sync state with "Micro.blog URL" column
+- **Write Function**: `writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url)` safely writes URLs
+- **Error Handling**: Write failures don't crash sync (graceful degradation with WARN logging)
+- **Testing**: Created automated test that wrote/verified/cleared test URL in row 3
+
+**Technical Decisions**:
+- Used Google Sheets API `values.update()` for writing individual cells
+- Kept write operations simple (RAW valueInputOption, single-cell updates)
+- Error handling logs warnings but continues sync (resilience over strict consistency)
+- Sheet name confirmed as "Sheet1" (not file name "2025_Content_Created")
+
+**Next Session Priority**: Step 5.2 - New Row Detection & Post Creation (integrate Column H with Micropub posting)
+
+═══════════════════════════════════════
+
+### 2025-10-18 (Implementation Session 7 - Milestone 4 Complete)
+**Duration**: ~2 hours
+**Focus**: Micro.blog Integration & Testing
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 4.1: Authentication Setup (all 4 items) - Evidence: Token created, GitHub Secret configured, Micropub config verified
+- [x] Step 4.2: Category Strategy (all 4 items) - Evidence: All 5 categories verified in Micro.blog UI
+- [x] Step 4.3: Post Creation Logic (all 5 items) - Evidence: Form-encoded POST implementation, error handling
+- [x] Step 4.4: Testing (all 5 items) - Evidence: Successfully posted to all 5 categories, verified format on live site
+- [x] **Milestone 4: Complete** ✅ - All 18 checkboxes finished
+
+**Files Created/Modified**:
+- `.teller.yml` - Added Micro.blog token from Google Secret Manager (secret: `microblog-content-manager`)
+- `package.json` - Added/cleaned npm scripts (final state: only `sync` script remains)
+- Test scripts created and deleted after successful validation (clean codebase)
+
+**Implementation Features**:
+- **Authentication**: App token stored in Google Secret Manager, accessed via Teller for consistency with existing patterns
+- **Posting**: Form-encoded Micropub POST with category assignment, Location header parsing
+- **Format**: `[Title](URL)\nDate` per PRD requirements, verified on live site
+- **Testing**: Created and verified posts in all 5 categories (podcast, video, blog, presentation, guest)
+- **Cleanup**: All test posts deleted, test scripts removed for production-ready codebase
+
+**Test Results**:
+- ✅ Authentication successful (200 OK, config returned media-endpoint and 2 channels)
+- ✅ All 5 categories functional and posts correctly assigned
+- ✅ Post format matches PRD requirements (user verified clickable title + date)
+- ✅ Delete operations working correctly (all 5 test posts removed)
+
+**Design Decisions**:
+- Used Google Secret Manager + Teller for token storage (consistent with Decision 2)
+- Deferred navigation page creation to Milestone 6 (categories exist, pages optional)
+- Test posts used form-encoded format per Micropub spec recommendation
+
+**Key Milestone 5 Design Decisions Made**:
+- **Decision 9: Spreadsheet-Based State Tracking** - Use Column H ("Micro.blog URL") in spreadsheet instead of separate state file
+  - Spreadsheet is single source of truth
+  - Script writes post URLs back to Column H after creation
+  - Simplifies state management (no separate file to maintain)
+  - Enables visible sync status directly in spreadsheet
+- **Decision 10: Auto-Delete Orphaned Posts** - Query Micro.blog posts, delete any not in spreadsheet
+  - True bidirectional sync: spreadsheet row deletion = post deletion
+  - Safer than manual cleanup
+- **Decision 11: Chronological Ordering via Published Date** - Use `published` parameter with Date column value
+  - Posts appear in correct chronological order regardless of creation order
+  - Can backfill old content without timeline disruption
+  - Confirmed in Micropub API docs (line 92)
+
+**Next Session Priority**: Milestone 5 - Spreadsheet Write Capability & Full CRUD Integration
 
 ### 2025-10-18 (Implementation Session 6 - Milestone 3 Complete)
 **Duration**: ~50 minutes (~45 min coding + 5 min PR)
@@ -897,6 +1499,56 @@ The feature is complete when:
 - Implemented Teller + Secret Manager approach per Decision 2 (better security, consistent with existing patterns)
 
 **Next Session Priority**: Step 1.3 - Read Raw Spreadsheet Data (connect to actual spreadsheet and read data)
+
+### 2025-10-19 (Implementation Session - Milestone 5, Step 5.2)
+**Duration**: ~3 hours
+**Focus**: Milestone 5, Step 5.2 - New Row Detection & Post Creation
+**Commits**: Multiple implementation and fix commits
+
+**Completed PRD Items**:
+- [x] Step 5.2: New Row Detection & Post Creation - Evidence: sync-content.js lines 641-710, all 6 sub-tasks completed
+  - Date parsing to ISO 8601 (UTC noon) in `parseDateToISO()` function (lines 440-475)
+  - Post content formatting with keynote support in `formatPostContent()` (lines 399-441)
+  - Micropub post creation in `createMicroblogPost()` (lines 443-487)
+  - Column H filtering and write-back integration (lines 641-710)
+  - Partial failure handling with error tracking (lines 700-709)
+  - Creation statistics logging (lines 765-791)
+
+**Implementation Highlights**:
+- **61 posts successfully created** from spreadsheet rows with empty Column H
+- **100% success rate** - all posts created and URLs written back to spreadsheet
+- **Keynote support**: Implemented `[Keynote] Show Name: [Title](url)` format based on Column F marker
+- **Category mapping**: Updated to title case (Podcast, Video, Blog, Presentations, Guest)
+- **Presentations without URLs**: Allowed presentations to be listed with plain text titles (no hyperlink required)
+- **Template string bug fix**: Fixed `name` variable interpolation for linkless content
+
+**Files Created/Modified**:
+- `src/sync-content.js` - Added post creation logic, date parsing, content formatting, Micropub integration
+- Spreadsheet - 61 URLs written to Column H, 9 Presentations rows updated to "Presentations" type
+
+**Bugs Fixed**:
+- Statistics byType initialization missing "Presentations" key
+- Validation rejected "Presentations" type (updated validTypes array)
+- Content formatting missing template string interpolation for linkless titles
+- Category mapping used lowercase/singular (updated to title case/plural)
+
+**Test Data**:
+- **AI Tools Lab test case prepared**: Row 48 Type changed from "Video" to "Guest" for Step 5.3 testing (documented in PRD)
+- **6 duplicate test posts deleted**: Cleaned up from earlier testing sessions
+- **3 old presentation posts migrated**: Updated category from "presentation" to "Presentations"
+
+**Design Decisions Made**:
+- Decision 13: Category naming - "Presentations" (plural, title case) for consistency with Micro.blog UI
+- Decision 14: Presentations without URLs - Allowed for tracking talks that don't have recordings yet
+- Decision 15: Date timezone handling - UTC noon to avoid timezone-related date shifts
+
+**Verification**:
+- All 61 posts visible on whitneylee.com with correct categories
+- All 9 presentations showing at /presentations/ including 2 without URLs
+- Keynote prefix working correctly: `[Keynote] DevOpsDays Rockies: ...`
+- Post content format verified across all 5 content types
+
+**Next Session Priority**: Step 5.3 - Update Detection (AI Tools Lab test case ready for testing)
 
 ### 2025-10-17 (Implementation Session 1)
 **Duration**: ~10 minutes

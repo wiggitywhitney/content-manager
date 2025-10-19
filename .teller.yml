@@ -7,3 +7,4 @@ providers:
         path: projects/demoo-ooclock
         keys:
           content_manager_service_account: GOOGLE_SERVICE_ACCOUNT_JSON
+          microblog-content-manager: MICROBLOG_APP_TOKEN
