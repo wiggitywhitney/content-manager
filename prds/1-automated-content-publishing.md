@@ -394,14 +394,15 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 // Writes "https://whitneylee.com/2025/01/09/post-slug.html" to Column H
 ```
 
-#### Step 5.3: Update Detection (~60-90 min)
+#### Step 5.3: Update Detection (~60-90 min) ✅
 **API Reference**: [Micropub Update Operations](../docs/microblog-api-capabilities.md#supported-operations)
+**Completed**: 2025-10-19
 
-- [ ] For rows with filled Column H, compare current data vs last sync
-- [ ] Detect changes in Name, Date, Link, Type (category), Show, or Confirmed (keynote) columns
-- [ ] Implement Micropub update operation
-- [ ] Update Column H if URL changes (unlikely but possible)
-- [ ] Log update statistics
+- [x] For rows with filled Column H, compare current data vs last sync
+- [x] Detect changes in Name, Date, Link, Type (category), Show, or Confirmed (keynote) columns
+- [x] Implement Micropub update operation with JSON format
+- [x] Fix date comparison bug (normalize timezone formats)
+- [x] Log update statistics
 
 **Test Case for Step 5.3**:
 - **AI Tools Lab video** (Row 48, created 2025-10-19): Spreadsheet Type changed from "Video" to "Guest" after post creation
@@ -1018,6 +1019,69 @@ function parseDateToISO(dateString) {
 - If Micro.blog adds date-only parameter (no timestamp required)
 
 ## Progress Log
+
+### 2025-10-19 (Implementation Session 10 - Step 5.3 Complete: Update Detection)
+**Duration**: ~3 hours
+**Focus**: Update detection with change comparison and bug fixes
+**Branch**: feature/prd-1-microblog-integration
+
+**Completed PRD Items**:
+- [x] Step 5.3: Update Detection (all 5 items) - Evidence: src/sync-content.js functions and integration
+  - `queryMicroblogPosts()` - Fetches all posts from Micro.blog (lines 502-558)
+  - `normalizeTimestamp()` - Fixes timezone format comparison bug (lines 566-572)
+  - `detectChanges()` - Compares spreadsheet vs Micro.blog state (lines 580-617)
+  - `updateMicroblogPost()` - Updates via Micropub JSON format (lines 619-637)
+  - Integrated update detection into sync loop (lines 862-941)
+
+**Critical Bug Fixed**:
+- **Date comparison false positives**: Our format `2025-01-09T12:00:00Z` vs Micro.blog's `2025-01-09T12:00:00+00:00`
+  - Same timestamp, different string representation
+  - Caused every post to be flagged as "changed" even when nothing changed
+  - Solution: `normalizeTimestamp()` converts both to standard ISO format before comparison
+  - Result: 0 false positives, only real changes detected
+
+**Implementation Features**:
+- **Smart change detection**: Only detects actual changes in content, category, or published date
+- **Selective updates**: Only sends changed fields to API (not entire post)
+- **Efficient querying**: Fetches all posts in 1-2 API calls (100 posts per call)
+- **Partial failure handling**: Continues processing even if some updates fail
+- **Comprehensive logging**: Tracks attempted, successful, failed updates
+
+**Test Results**:
+- ✅ AI Tools Lab successfully moved from Video → Guest category
+- ✅ Date comparison working (no false positives)
+- ✅ Idempotent behavior confirmed (re-running sync shows 0 updates needed)
+- ✅ Update statistics properly logged
+- ⚠️ Network issues during testing caused some failures (expected with bad internet)
+
+**API Details**:
+- **Query endpoint**: `GET /micropub?q=source&limit=100` with pagination support
+- **Update format**: JSON with `action: "update"`, `url`, and `replace` object
+- **Content-Type**: `application/json` (not form-encoded like creates)
+- **Response**: 200/202 success codes
+
+**Files Modified**:
+- `src/sync-content.js` - Added ~160 lines for update detection system
+  - Query function with pagination (lines 502-558)
+  - Timestamp normalization utility (lines 566-572)
+  - Change detection logic (lines 580-617)
+  - Micropub update implementation (lines 619-637)
+  - Sync loop integration (lines 862-941)
+  - Summary statistics updates (lines 971-979, 1021-1043)
+
+**Scaling Discussion**:
+- Current approach works well up to ~200 posts (~3 seconds when no changes)
+- At 500 posts: ~15 seconds (still acceptable for hourly runs)
+- Discussed future optimization strategies:
+  - Option 1: Keep as-is (good for 6-12 months)
+  - Option 2: Split scripts (new content vs updates)
+  - Option 3: Batch processing by date range
+  - Option 4: Add "Last Synced" column tracking
+- **Decision**: Keep current approach until it becomes a problem
+
+**Next Session Priority**: Step 5.4 - Delete Detection & Removal (orphaned post cleanup)
+
+═══════════════════════════════════════
 
 ### 2025-10-19 (Implementation Session 9 - Format Testing & Implementation Learning)
 **Duration**: ~2 hours

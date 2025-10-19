@@ -496,6 +496,173 @@ async function createMicroblogPost(content, postContent, publishedDate) {
 }
 
 /**
+ * Query all posts from Micro.blog across all categories
+ * @returns {Promise<Map>} - Map of postUrl -> {content, category, published}
+ */
+async function queryMicroblogPosts() {
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  const allPosts = new Map();
+  let offset = 0;
+  const limit = 100;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = `https://micro.blog/micropub?q=source&limit=${limit}&offset=${offset}`;
+    log(`Querying Micro.blog: offset=${offset}, limit=${limit}`, 'DEBUG');
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to query posts (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const posts = data.items || [];
+
+    log(`Received ${posts.length} posts from API`, 'DEBUG');
+
+    // Build map of post URL -> post data
+    for (const post of posts) {
+      // FIX: post.url is inside post.properties, not at top level
+      const postUrl = post.properties?.url?.[0];
+      if (postUrl) {
+        allPosts.set(postUrl, {
+          content: post.properties?.content?.[0] || '',
+          category: post.properties?.category?.[0] || '',
+          published: post.properties?.published?.[0] || ''
+        });
+        log(`Mapped post: ${postUrl}`, 'DEBUG');
+      } else {
+        log(`Post missing URL: ${JSON.stringify(post)}`, 'DEBUG');
+      }
+    }
+
+    // Check if there are more posts to fetch
+    hasMore = posts.length === limit;
+    offset += limit;
+
+    log(`Fetched ${posts.length} posts from Micro.blog (offset: ${offset - limit}, total so far: ${allPosts.size})`, 'DEBUG');
+  }
+
+  log(`Total posts fetched from Micro.blog: ${allPosts.size}`, 'INFO');
+  return allPosts;
+}
+
+/**
+ * Normalize ISO 8601 timestamp to UTC with Z format
+ * Handles both "2025-01-09T12:00:00Z" and "2025-01-09T12:00:00+00:00"
+ * @param {string} dateString - ISO 8601 timestamp
+ * @returns {string} - Normalized timestamp with Z format
+ */
+function normalizeTimestamp(dateString) {
+  if (!dateString) return '';
+
+  // Parse to Date object and back to ISO string (always uses Z format)
+  const date = new Date(dateString);
+  return date.toISOString();
+}
+
+/**
+ * Detect changes between spreadsheet row and existing Micro.blog post
+ * @param {Object} row - Spreadsheet row data
+ * @param {Object} existingPost - Existing post data from Micro.blog
+ * @returns {Object} - {needsUpdate: boolean, changes: {content?, category?, published?}}
+ */
+function detectChanges(row, existingPost) {
+  const changes = {};
+
+  // Generate expected content
+  const expectedContent = formatPostContent(row);
+  if (expectedContent !== existingPost.content) {
+    changes.content = expectedContent;
+  }
+
+  // Generate expected category
+  const categoryMap = {
+    'Podcast': 'Podcast',
+    'Video': 'Video',
+    'Blog': 'Blog',
+    'Presentations': 'Presentations',
+    'Guest': 'Guest'
+  };
+  const expectedCategory = categoryMap[row.type];
+  if (expectedCategory && expectedCategory !== existingPost.category) {
+    changes.category = expectedCategory;
+  }
+
+  // Generate expected published date and normalize both for comparison
+  const expectedPublished = parseDateToISO(row.date);
+  if (expectedPublished) {
+    const normalizedExpected = normalizeTimestamp(expectedPublished);
+    const normalizedExisting = normalizeTimestamp(existingPost.published);
+
+    if (normalizedExpected !== normalizedExisting) {
+      changes.published = expectedPublished;
+    }
+  }
+
+  return {
+    needsUpdate: Object.keys(changes).length > 0,
+    changes
+  };
+}
+
+/**
+ * Update a post on Micro.blog via Micropub API
+ * @param {string} postUrl - URL of the post to update
+ * @param {Object} changes - Changes to apply {content?, category?, published?}
+ * @returns {Promise<void>}
+ */
+async function updateMicroblogPost(postUrl, changes) {
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  // Build replace object with only changed fields
+  // Note: Values must be arrays per Micropub spec
+  const replace = {};
+  if (changes.content !== undefined) {
+    replace.content = [changes.content];
+  }
+  if (changes.category !== undefined) {
+    replace.category = [changes.category];
+  }
+  if (changes.published !== undefined) {
+    replace.published = [changes.published];
+  }
+
+  // Make JSON POST request with update action
+  const response = await fetch('https://micro.blog/micropub', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'update',
+      url: postUrl,
+      replace
+    })
+  });
+
+  // Check for success (200 or 202)
+  if (response.status !== 200 && response.status !== 202) {
+    const errorText = await response.text();
+    throw new Error(`Micropub update failed (${response.status}): ${errorText}`);
+  }
+}
+
+/**
  * Parse spreadsheet date to ISO 8601 format (UTC noon)
  * Handles formats like "1/9/2025", "01/09/2025", "January 9, 2025"
  * @param {string} dateString - Date string from spreadsheet Column D
@@ -719,6 +886,87 @@ async function syncContent() {
     }
 
     // ========================================================================
+    // Step 5.3: Update Detection
+    // ========================================================================
+
+    // Query all existing posts from Micro.blog
+    log(`\nQuerying existing posts from Micro.blog...`);
+    const existingPosts = await withRetry(
+      () => queryMicroblogPosts(),
+      'Query Micro.blog posts'
+    );
+
+    // Filter rows that already have Micro.blog URLs (existing posts)
+    const rowsToCheck = validRows.filter(row => row.microblogUrl);
+
+    log(`Found ${rowsToCheck.length} rows with Micro.blog URLs (checking for updates)`);
+
+    // Track update statistics
+    const updateStats = {
+      checked: 0,
+      needsUpdate: 0,
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      errors: [],
+      changeDetails: []
+    };
+
+    // Check each existing post for changes
+    for (const row of rowsToCheck) {
+      updateStats.checked++;
+
+      const existingPost = existingPosts.get(row.microblogUrl);
+
+      if (!existingPost) {
+        // Post exists in spreadsheet but not on Micro.blog (orphaned or deleted manually)
+        log(`Row ${row.rowIndex}: Post not found on Micro.blog (${row.microblogUrl})`, 'WARN');
+        continue;
+      }
+
+      // Detect changes
+      const changeDetection = detectChanges(row, existingPost);
+
+      if (changeDetection.needsUpdate) {
+        updateStats.needsUpdate++;
+        updateStats.attempted++;
+
+        // Log what changed
+        const changedFields = Object.keys(changeDetection.changes);
+        log(`Row ${row.rowIndex}: Changes detected in ${changedFields.join(', ')}`, 'INFO');
+
+        // Track change details for summary
+        updateStats.changeDetails.push({
+          row: row.rowIndex,
+          title: row.name,
+          fields: changedFields,
+          changes: changeDetection.changes
+        });
+
+        try {
+          // Apply updates to Micro.blog
+          await withRetry(
+            () => updateMicroblogPost(row.microblogUrl, changeDetection.changes),
+            `Update post for row ${row.rowIndex}`
+          );
+
+          updateStats.successful++;
+          log(`✅ Post updated: ${row.microblogUrl}`, 'INFO');
+
+        } catch (error) {
+          updateStats.failed++;
+          updateStats.errors.push({
+            row: row.rowIndex,
+            title: row.name,
+            error: error.message
+          });
+          log(`❌ Failed to update post for row ${row.rowIndex}: ${error.message}`, 'ERROR');
+          // Continue with next row (partial failure handling)
+        }
+      }
+    }
+
+    // ========================================================================
     // Summary Statistics
     // ========================================================================
 
@@ -745,6 +993,15 @@ async function syncContent() {
             successful: postStats.successful,
             failed: postStats.failed,
             errors: postStats.errors
+          },
+          updating: {
+            checked: updateStats.checked,
+            needsUpdate: updateStats.needsUpdate,
+            attempted: updateStats.attempted,
+            successful: updateStats.successful,
+            failed: updateStats.failed,
+            errors: updateStats.errors,
+            changeDetails: updateStats.changeDetails
           }
         }
       });
@@ -787,13 +1044,41 @@ async function syncContent() {
           }
         }
 
+        // Post update summary
+        if (updateStats.checked > 0) {
+          console.log('\n📝 Post Update Results:');
+          console.log(`  Posts checked:            ${updateStats.checked}`);
+          console.log(`  Updates needed:           ${updateStats.needsUpdate}`);
+          console.log(`  Updates attempted:        ${updateStats.attempted}`);
+          console.log(`  ✅ Successfully updated:  ${updateStats.successful}`);
+          console.log(`  ❌ Failed:                ${updateStats.failed}`);
+
+          if (updateStats.changeDetails.length > 0) {
+            console.log('\n  Changes detected:');
+            updateStats.changeDetails.forEach(detail => {
+              console.log(`    Row ${detail.row} (${detail.title}): ${detail.fields.join(', ')}`);
+            });
+          }
+
+          if (updateStats.errors.length > 0) {
+            console.log('\n  Errors:');
+            updateStats.errors.forEach(err => {
+              console.log(`    Row ${err.row} (${err.title}): ${err.error}`);
+            });
+          }
+        }
+
         console.log('\n' + '='.repeat(60));
-        if (postStats.successful > 0) {
-          log(`✅ Sync complete: ${postStats.successful} posts created`);
-        } else if (rowsToPost.length === 0) {
-          log(`✅ Sync complete: All content already posted (no new rows)`);
+        const totalChanges = postStats.successful + updateStats.successful;
+        if (totalChanges > 0) {
+          const changes = [];
+          if (postStats.successful > 0) changes.push(`${postStats.successful} created`);
+          if (updateStats.successful > 0) changes.push(`${updateStats.successful} updated`);
+          log(`✅ Sync complete: ${changes.join(', ')}`);
+        } else if (rowsToPost.length === 0 && updateStats.needsUpdate === 0) {
+          log(`✅ Sync complete: All content up to date (no changes needed)`);
         } else {
-          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created`);
+          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created, ${updateStats.successful}/${updateStats.attempted} posts updated`);
         }
         console.log('='.repeat(60) + '\n');
       }
