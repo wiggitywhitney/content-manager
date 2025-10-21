@@ -374,7 +374,9 @@ Google Sheets ↔ GitHub Actions Worker ↔ Micro.blog
 - [x] Handle partial failures (some posts succeed, some fail)
 - [x] Log creation statistics
 
-**Completed 2025-10-19**: Successfully created 61 posts from spreadsheet. Implementation includes:
+**⚠️ IMPORTANT: Before bulk-creating posts** (especially when back-filling historical content or testing), **disable cross-posting in Micro.blog settings** to prevent spamming connected social accounts.
+
+**Completed 2025-10-19**: Successfully created 61 posts from spreadsheet (cross-posting was disabled). Implementation includes:
 - Date parsing to ISO 8601 (UTC noon) - handles MM/DD/YYYY and "Month Day, Year" formats
 - Post content formatting with keynote support: `[Keynote] Show Name: [Title](url)`
 - Category mapping: Podcast, Video, Blog, Presentations, Guest (title case)
@@ -557,7 +559,11 @@ Choose implementation approach:
 **Problem**: Posts currently get timestamp URLs (`/130000.html`) instead of content-based slugs (`/demo-an-automated.html`)
 **Root Cause**: Script doesn't send `name` parameter, resulting in "untitled posts"
 
+**⚠️ IMPORTANT: Cross-Posting Precaution**
+Before testing or creating any posts during this milestone, **disable cross-posting in Micro.blog settings** (Account → Edit Apps → Cross-posting). This prevents test posts and bulk operations from spamming connected social accounts (Bluesky, LinkedIn, Mastodon, etc.).
+
 #### Step 9.1: Research & Testing (~30 min)
+- [ ] **⚠️ CRITICAL: Disable cross-posting in Micro.blog settings** (prevents test posts from spamming social accounts)
 - [ ] Document current URL generation behavior (with/without `name` parameter)
 - [ ] Create test post with `name` parameter to verify content-based slug generation
 - [ ] Verify test post displays correctly on category page (no layout/formatting issues)
@@ -565,6 +571,7 @@ Choose implementation approach:
 - [ ] Delete test post and verify cleanup works correctly
 
 #### Step 9.2: Implementation (~20-30 min)
+- [ ] **⚠️ Verify cross-posting is still disabled** (before creating any new posts)
 - [ ] Update `createMicroblogPost()` to send `name` parameter (Column A value)
 - [ ] Test with one new post creation to verify slug generation
 - [ ] Verify URL is written back to spreadsheet Column H correctly
