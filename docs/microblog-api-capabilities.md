@@ -88,6 +88,7 @@ GET /micropub?q=category&filter=pod  # Filter results
 | `h` | Post type (required) | `entry` |
 | `content` | Post body text | Any string |
 | `name` | Post title | Any string |
+| `mp-slug` | Suggested URL slug (Micropub extension) | Slugified string (e.g., `my-post-title`) |
 | `category` | Assign to category | Single: `podcast` or Multiple: `category[]=podcast&category[]=video` |
 | `published` | Publication timestamp | ISO 8601: `2025-01-09T10:30:00Z` |
 | `post-status` | Draft vs published | `draft` or omit for published |
@@ -104,6 +105,105 @@ GET /micropub?q=category&filter=pod  # Filter results
 - **Location header** - Contains URL of created post
 - **400 Bad Request** - Invalid parameters
 - **401 Unauthorized** - Authentication failed
+
+### URL Slug Generation
+
+**Research Date**: 2025-10-22
+
+#### How Micro.blog Generates Post URLs
+
+**With `name` parameter (titled posts)**:
+- Micro.blog auto-generates a URL slug from the `name` value
+- Posts with titles get content-based URLs: `/2025/01/09/title-based-slug.html`
+- Slug generation: title → lowercase → spaces to hyphens → special char removal
+
+**Without `name` parameter (untitled posts/notes)**:
+- Results in timestamp-based URLs: `/2025/01/09/130000.html`
+- These are "untitled posts" or "notes" in Micropub terminology
+
+#### Custom Slug Control with `mp-slug`
+
+**Micropub Extension**: `mp-slug` is a stable Micropub extension that Micro.blog supports
+- **Purpose**: Allows client to suggest a custom URL slug
+- **Status**: Stable extension with multiple implementations
+- **Micro.blog Support**: ✅ Confirmed (Micro.blog listed as supporting client)
+
+**How it works**:
+```bash
+# Suggest custom slug via mp-slug parameter
+h=entry&name=My Post Title&mp-slug=custom-url-slug&content=...
+
+# Server may accept or modify the suggestion
+# Final URL: /2025/01/09/custom-url-slug.html
+```
+
+**Server Behavior** (per Micropub spec):
+> "The server MAY or MAY NOT decide to respect the requested slug, based on whether it would cause conflicts with other URLs on the site."
+
+- Server checks for URL conflicts
+- Server can modify suggested slug to avoid collisions
+- Common modification: append `-2`, `-3`, etc. for duplicates
+- Example: `my-slug` → `my-slug-2` if `my-slug` already exists
+
+#### Use Cases for `mp-slug`
+
+**1. Duplicate Titles (Same Talk, Different Conferences)**:
+```javascript
+// Post 1
+name: "Kubernetes is a Social Construct"
+mp-slug: "kubernetes-social-construct-devopsdays-rockies"
+
+// Post 2
+name: "Kubernetes is a Social Construct"
+mp-slug: "kubernetes-social-construct-conf42-devops"
+
+// Result: Unique URLs despite identical titles
+```
+
+**2. Stable URLs for Updated Content**:
+- When updating a post (edit spreadsheet row, regenerate post)
+- Use the **same `mp-slug` value** for the regenerated post
+- Ensures consistent URL even if title changes slightly
+- Maintains link integrity and SEO value
+
+**3. SEO-Optimized URLs**:
+- Control exact slug format for better SEO
+- Include keywords not in title
+- Shorten long titles for cleaner URLs
+
+#### Best Practices for Content Manager Implementation
+
+**For Initial Post Creation**:
+- Generate `mp-slug` from Column A (Title) + Column C (Show) for uniqueness
+- Slugify: lowercase + hyphenate + remove special chars
+- Store the generated slug for future updates
+
+**For Post Updates**:
+- **Always use the same `mp-slug` value** when updating existing posts
+- Do NOT regenerate slug from updated title
+- This preserves the URL even if content changes
+- **Slug Persistence Strategy**: Extract slug from Column H (Micro.blog URL) on updates
+  - Column H stores: `https://whitneylee.com/2025/01/09/kubernetes-social-construct-devopsdays.html`
+  - Extract slug: `kubernetes-social-construct-devopsdays`
+  - Reuse extracted slug in `mp-slug` parameter for updates
+  - No need for separate column - URL is source of truth
+- Example workflow:
+  1. Initial creation: Generate `mp-slug=kubernetes-social-construct-devopsdays`
+  2. Store URL in Column H: `https://whitneylee.com/2025/01/09/kubernetes-social-construct-devopsdays.html`
+  3. User updates title in spreadsheet
+  4. Script extracts slug from Column H URL
+  5. Update post with same `mp-slug` → URL preserved
+
+**Collision Handling Strategy**:
+- For duplicate titles, append show/conference identifier to slug
+- Accept server modifications (e.g., `-2` suffix) as fallback
+- Log final URL from Location header for tracking
+
+#### References
+
+- **Micropub Extensions**: https://indieweb.org/Micropub-extensions
+- **mp-slug Spec**: https://indieweb.org/Micropub-extensions#Slug
+- **Micro.blog Pretty URLs Discussion**: https://help.micro.blog/t/pretty-urls/266
 
 ## Categories
 

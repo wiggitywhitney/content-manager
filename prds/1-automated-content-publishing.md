@@ -1061,6 +1061,95 @@ function parseDateToISO(dateString) {
 - If user wants posts to show specific timezone timestamps (not just dates)
 - If Micro.blog adds date-only parameter (no timestamp required)
 
+### Decision 16: Use mp-slug for Content-Based URLs and Slug Persistence
+**Date**: 2025-10-22
+**Status**: ✅ Planned for Milestone 9
+
+**Rationale**:
+- Current posts use timestamp URLs (`/130000.html`) due to missing `name` parameter
+- Content-based URLs improve SEO and user experience
+- Duplicate talk titles (same talk at different conferences) need unique URLs
+- Post updates must preserve URLs even when titles change
+- Micro.blog supports `mp-slug` Micropub extension for custom URL slugs
+
+**Research Findings**:
+- **`name` parameter**: Sets post title, Micro.blog auto-generates slug from it
+- **`mp-slug` parameter**: Micropub extension for suggesting custom slugs
+- **Micro.blog support**: Confirmed via IndieWeb documentation as supporting client
+- **Server behavior**: May accept or modify suggested slug to avoid URL conflicts
+- **Collision handling**: Server appends `-2`, `-3` etc. if slug already exists
+
+**Implementation Strategy**:
+
+**For Initial Post Creation**:
+```javascript
+// Generate unique slug from title + show name
+const slug = slugify(`${title}-${show}`);
+// Example: "Kubernetes is a Social Construct" + "DevOpsDays Rockies"
+// → "kubernetes-social-construct-devopsdays-rockies"
+
+// Send both name and mp-slug parameters
+name: "Kubernetes is a Social Construct"
+mp-slug: "kubernetes-social-construct-devopsdays-rockies"
+```
+
+**For Post Updates** (preserving URLs):
+```javascript
+// Extract existing slug from Column H URL
+const existingUrl = row.microblogUrl; // From Column H
+// "https://whitneylee.com/2025/01/09/kubernetes-social-construct-devopsdays-rockies.html"
+const slug = extractSlugFromUrl(existingUrl);
+// → "kubernetes-social-construct-devopsdays-rockies"
+
+// Reuse SAME slug even if title changes
+name: "Updated Title Here"  // Can change
+mp-slug: "kubernetes-social-construct-devopsdays-rockies"  // Must stay same
+```
+
+**Slug Persistence**:
+- No need for separate slug storage column
+- Column H (Micro.blog URL) is source of truth
+- Extract slug from URL path for updates
+- Guarantees URL stability across content changes
+
+**Duplicate Title Handling**:
+```javascript
+// Same talk, different conferences
+Post 1: mp-slug: "kubernetes-social-construct-devopsdays-rockies"
+Post 2: mp-slug: "kubernetes-social-construct-conf42-devops"
+// Result: Unique URLs despite identical titles
+```
+
+**Impact**:
+- Better SEO with keyword-rich URLs
+- Professional link sharing on social media
+- Stable URLs even when content is updated
+- Clear conference context in URLs for duplicate talks
+- No manual intervention needed for URL management
+
+**Code Changes Required**:
+- Add `slugify()` helper function (lowercase, hyphenate, remove special chars)
+- Add `extractSlugFromUrl()` helper function for updates
+- Update `createMicroblogPost()` to include `mp-slug` parameter
+- Update `updateMicroblogPost()` to extract and reuse existing slug
+- Add slug generation logic based on Column A + Column C
+
+**Testing Plan** (Milestone 9, Step 9.1):
+- Test `name` parameter alone (observe auto-generated slug)
+- Test `mp-slug` parameter (verify server respects suggestion)
+- Test duplicate titles with different slugs (confirm uniqueness)
+- Test post update with same slug (verify URL preservation)
+- Document any Micro.blog quirks in slug handling
+
+**When to Reconsider**:
+- If Micro.blog changes `mp-slug` support in future updates
+- If URL conflicts become frequent (may need more sophisticated slug generation)
+- If user wants shorter slugs (currently includes both title and show name)
+
+**References**:
+- [Micropub Extensions - mp-slug](https://indieweb.org/Micropub-extensions#Slug)
+- [Micro.blog API Capabilities - URL Slug Generation](../docs/microblog-api-capabilities.md#url-slug-generation)
+
 ## Progress Log
 
 ### 2025-10-19 (Implementation Session 12 - Step 5.5 Complete: Full Sync Testing & Milestone 5 Complete)
