@@ -554,41 +554,54 @@ Choose implementation approach:
 
 **Success Criteria**: System running autonomously with minimal maintenance required
 
-### Milestone 9: Content-Based URL Slugs
-**Estimated Time**: ~1-2 hours
+### Milestone 9: Content-Based URL Slugs ❌ Not Feasible
+**Status**: Cancelled after research and testing (2025-10-23)
+**Estimated Time**: 2 hours spent on research and testing
 **Problem**: Posts currently get timestamp URLs (`/130000.html`) instead of content-based slugs (`/demo-an-automated.html`)
 **Root Cause**: Script doesn't send `name` parameter, resulting in "untitled posts"
 
-**⚠️ IMPORTANT: Cross-Posting Precaution**
-Before testing or creating any posts during this milestone, **disable cross-posting in Micro.blog settings** (Account → Edit Apps → Cross-posting). This prevents test posts and bulk operations from spamming connected social accounts (Bluesky, LinkedIn, Mastodon, etc.).
+#### Research Findings (2025-10-23)
 
-#### Step 9.1: Research & Testing (~30 min)
-- [ ] **⚠️ CRITICAL: Disable cross-posting in Micro.blog settings** (prevents test posts from spamming social accounts)
-- [ ] Document current URL generation behavior (with/without `name` parameter)
-- [ ] Create test post with `name` parameter to verify content-based slug generation
-- [ ] Verify test post displays correctly on category page (no layout/formatting issues)
-- [ ] Check if `name` field affects update detection or other CRUD operations
-- [ ] Delete test post and verify cleanup works correctly
+**Test Results**:
+- [x] ✅ Disabled cross-posting in Micro.blog settings
+- [x] ✅ Tested `name` parameter behavior
+- [x] ✅ Tested `mp-slug` parameter behavior
+- [x] ✅ Documented Micro.blog URL generation quirks
+- [x] ✅ Verified impact on post display format
 
-#### Step 9.2: Implementation (~20-30 min)
-- [ ] **⚠️ Verify cross-posting is still disabled** (before creating any new posts)
-- [ ] Update `createMicroblogPost()` to send `name` parameter (Column A value)
-- [ ] Test with one new post creation to verify slug generation
-- [ ] Verify URL is written back to spreadsheet Column H correctly
-- [ ] Run full sync to ensure no regressions
+**Key Discovery**: Adding `name` parameter creates "titled posts" instead of "untitled posts"
 
-#### Step 9.3: Validation & Documentation (~10-20 min)
-- [ ] Create 2-3 new test posts, verify all get content-based slugs
-- [ ] Document any Micro.blog quirks discovered (slug collision handling, character limits, etc.)
-- [ ] Update PRD Decision log with findings
-- [ ] Optional: Research if existing timestamp-URL posts can be migrated to content slugs
+**Titled Posts (with `name` parameter)**:
+- Post displays as title with "Continue reading →" link
+- Requires extra click to see content
+- Poor user experience for content link aggregation
+- Does generate content-based URLs
 
-**Success Criteria**: New posts get readable, SEO-friendly URLs based on Column A titles without breaking display or CRUD operations
+**Untitled Posts (without `name` parameter)**:
+- Content displays directly on category pages
+- Single click to reach linked content
+- Better UX for link sharing use case
+- Generates timestamp URLs (`/130000.html`)
 
-**Known Constraints**:
-- Micro.blog may append `-2`, `-3` if slug collisions occur
-- Special characters in titles may be stripped/converted in slugs
-- Deleting and recreating posts won't guarantee same URL
+**Decision**: Keep existing untitled post format
+- **Rationale**: Direct content display more important than SEO-friendly URLs for this use case
+- **Trade-off**: Accept timestamp URLs to maintain good UX
+- **Impact**: All posts remain untitled for consistent, streamlined display
+
+#### Implementation Notes
+
+**Tested but Rejected**:
+- `mp-slug` parameter: Micro.blog does not respect custom slug suggestions despite IndieWeb documentation listing it as supported
+- Show name in title: Successfully generates unique slugs but creates unwanted titled format
+- Title + show combinations: Creates very long titles and still has click-through issue
+
+**Code Changes Made and Reverted**:
+- Added `generatePostTitle()` helper - REMOVED
+- Added `name` parameter to `createMicroblogPost()` - REMOVED
+- Added name change detection to `detectChanges()` - REMOVED
+- Test scripts for slug validation - REMOVED
+
+**Final State**: Code returned to Milestone 5 implementation (untitled posts with timestamp URLs)
 
 ## Dependencies & Risks
 
@@ -1149,6 +1162,97 @@ Post 2: mp-slug: "kubernetes-social-construct-conf42-devops"
 **References**:
 - [Micropub Extensions - mp-slug](https://indieweb.org/Micropub-extensions#Slug)
 - [Micro.blog API Capabilities - URL Slug Generation](../docs/microblog-api-capabilities.md#url-slug-generation)
+
+### Decision 17: Reject Content-Based URL Slugs (Milestone 9 Cancelled)
+**Date**: 2025-10-23
+**Status**: ❌ Feature rejected after implementation and testing
+
+**Problem**: Posts use timestamp URLs (`/130000.html`) instead of content-based slugs (`/kubernetes-social-construct.html`)
+
+**Research Conducted**:
+1. Tested `name` parameter (Micropub standard for titled posts)
+2. Tested `mp-slug` parameter (Micropub extension for custom slugs)
+3. Tested show name in title for uniqueness
+4. Validated impact on post display format and user experience
+
+**Key Findings**:
+- Adding `name` parameter successfully generates content-based URLs
+- BUT: Changes posts from "untitled" to "titled" format
+- Titled posts display as clickable title + "Continue reading →" link
+- Requires extra click-through to see actual content
+- Poor UX for content link aggregation use case
+- `mp-slug` parameter ignored by Micro.blog despite IndieWeb documentation
+
+**Decision**: Reject content-based URLs, keep timestamp URLs
+
+**Rationale**:
+- **Primary use case**: Whitneylee.com aggregates content links (podcasts, videos, talks)
+- **Critical UX requirement**: Direct content display on category pages (single click to reach linked content)
+- **User feedback**: Titled format with extra click-through is "no bueno"
+- **Trade-off accepted**: Timestamp URLs have worse SEO but better UX for this specific use case
+
+**Implementation Actions**:
+- Reverted all Milestone 9 code changes
+- Removed `generatePostTitle()` helper function
+- Removed `name` parameter from `createMicroblogPost()`
+- Removed name change detection from `detectChanges()`
+- Deleted test scripts and npm commands
+- Returned to Milestone 5 implementation
+
+**Impact**:
+- All posts remain untitled (timestamp URLs)
+- Category pages show direct content without extra clicks
+- Consistent UX across all 64 posts
+- Milestone 9 marked as cancelled in PRD
+
+**When to Reconsider**:
+- If Micro.blog adds theme option to display titled posts inline
+- If primary use case shifts from link aggregation to blog content
+- If SEO becomes more important than UX for this site
+
+### Decision 18: Automatic URL Regeneration for Non-Title Slugs
+**Date**: 2025-10-23
+**Status**: ✅ Implemented in Step 5.2.5
+
+**Discovery**: Micro.blog auto-extracts titles from post content when no `name` parameter is provided, but extraction is inconsistent. Some posts got content-based URLs (`software-defined-interviews-learning-to`), while others got timestamp URLs (`130000`) or hash slugs (`8e237a`).
+
+**Problem**: Inconsistent URL quality across posts affects SEO and professionalism.
+
+**Decision**: Implement automatic URL regeneration during hourly sync
+
+**Implementation**:
+- Added `isNonTitleUrl()` detection function with two patterns:
+  - Pattern 1: All digits (timestamp URLs like `130000`)
+  - Pattern 2: Short hex hashes without hyphens (≤8 chars, like `8e237a`)
+- Added Step 5.2.5 in sync flow between creation and updates
+- Detects non-title URLs in Column H
+- Deletes old post and recreates with same content/date
+- Writes new URL back to spreadsheet
+- Hourly sync provides natural retry mechanism
+
+**Results**:
+- Successfully regenerated 9 posts on initial run
+- Most posts now have content-based URLs
+- 2 edge cases continue regenerating (Micro.blog fails title extraction consistently for these)
+- Edge cases accepted as limitation of Micro.blog's inconsistent title extraction
+
+**Why No Safeguards**:
+- Hourly sync prevents infinite loops within single run
+- Failed regenerations will retry next hour automatically
+- No need for attempt tracking or max retry limits
+- Simple, stateless implementation
+
+**Trade-offs**:
+- ✅ Most posts get SEO-friendly URLs automatically
+- ✅ System self-heals timestamp URLs from past failures
+- ✅ No manual intervention required
+- ⚠️ 2-3 posts may regenerate repeatedly (acceptable for automation)
+- ⚠️ Additional API calls per hour (2 calls per problematic post)
+
+**When to Reconsider**:
+- If Micro.blog rate limits become an issue
+- If regeneration count grows significantly
+- If need to add max attempt tracking to prevent perpetual regeneration
 
 ## Progress Log
 

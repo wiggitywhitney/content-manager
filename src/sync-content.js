@@ -396,6 +396,35 @@ function validateContent(content) {
 }
 
 /**
+ * Check if URL has a non-title slug (timestamp or hash)
+ * @param {string} url - Full Micro.blog post URL
+ * @returns {boolean} - True if URL needs regeneration
+ */
+function isNonTitleUrl(url) {
+  if (!url) return false;
+
+  // Extract slug from URL format: /YYYY/MM/DD/slug.html
+  const match = url.match(/\/(\d{4})\/(\d{2})\/(\d{2})\/(.+)\.html$/);
+  if (!match) return false;
+
+  const slug = match[4];
+
+  // Pattern 1: All digits (timestamp URL like "130000")
+  if (/^\d+$/.test(slug)) {
+    return true;
+  }
+
+  // Pattern 2: Short hex hash (8 chars or less, no hyphens, like "8e237a", "100fa5")
+  // Must not contain hyphens to avoid catching real title slugs
+  if (slug.length <= 8 && /^[0-9a-f]+$/.test(slug) && !slug.includes('-')) {
+    return true;
+  }
+
+  // Otherwise assume it's a proper title-based slug
+  return false;
+}
+
+/**
  * Format post content with keynote prefix and show name
  * Format: `[Keynote] Show Name: [Title](url)` or `Show Name: [Title](url)`
  * @param {Object} content - Parsed content object
@@ -636,7 +665,7 @@ function detectChanges(row, existingPost) {
  * This is intentional for this use case (one category per post).
  *
  * @param {string} postUrl - URL of the post to update
- * @param {Object} changes - Changes to apply {content?, category?, published?}
+ * @param {Object} changes - Changes to apply {name?, content?, category?, published?}
  * @returns {Promise<void>}
  */
 async function updateMicroblogPost(postUrl, changes) {
@@ -945,6 +974,97 @@ async function syncContent() {
     }
 
     // ========================================================================
+    // Step 5.2.5: URL Regeneration for Non-Title Slugs
+    // ========================================================================
+
+    // Check existing posts for non-title URLs (timestamps/hashes) and regenerate
+    const rowsToRegenerate = validRows.filter(row =>
+      row.microblogUrl && isNonTitleUrl(row.microblogUrl)
+    );
+
+    if (rowsToRegenerate.length > 0) {
+      log(`\nFound ${rowsToRegenerate.length} posts with non-title URLs (will regenerate)`, 'INFO');
+    }
+
+    // Track regeneration statistics
+    const regenStats = {
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Regenerate posts with non-title URLs
+    for (const row of rowsToRegenerate) {
+      regenStats.attempted++;
+
+      try {
+        const oldUrl = row.microblogUrl;
+        const match = oldUrl.match(/\/(\d{4})\/(\d{2})\/(\d{2})\/(.+)\.html$/);
+        const oldSlug = match ? match[4] : 'unknown';
+
+        log(`Regenerating post for row ${row.rowIndex}: ${row.name}`, 'INFO');
+        log(`  Old URL: ${oldUrl} (slug: ${oldSlug})`, 'DEBUG');
+
+        // Delete the old post
+        await withRetry(
+          () => deleteMicroblogPost(oldUrl),
+          `Delete post for regeneration (row ${row.rowIndex})`
+        );
+        log(`  ✓ Old post deleted`, 'DEBUG');
+
+        // Parse date and format content
+        const publishedDate = parseDateToISO(row.date);
+        if (!publishedDate) {
+          regenStats.failed++;
+          regenStats.errors.push({
+            row: row.rowIndex,
+            title: row.name,
+            error: 'Invalid date format'
+          });
+          log(`  ❌ Failed to parse date "${row.date}"`, 'ERROR');
+          continue;
+        }
+
+        const postContent = formatPostContent(row);
+
+        // Create new post
+        const newUrl = await withRetry(
+          () => createMicroblogPost(row, postContent, publishedDate),
+          `Recreate post for row ${row.rowIndex}`
+        );
+
+        const newMatch = newUrl.match(/\/(\d{4})\/(\d{2})\/(\d{2})\/(.+)\.html$/);
+        const newSlug = newMatch ? newMatch[4] : 'unknown';
+
+        log(`  ✓ New post created: ${newUrl} (slug: ${newSlug})`, 'INFO');
+
+        // Write new URL to spreadsheet
+        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.rowIndex, newUrl);
+
+        if (writeSuccess) {
+          regenStats.successful++;
+          log(`  ✅ Regenerated successfully`, 'INFO');
+        } else {
+          regenStats.successful++;
+          log(`  ⚠️  Post regenerated but failed to write URL to spreadsheet`, 'WARN');
+        }
+
+        // Update in-memory row data
+        row.microblogUrl = newUrl;
+
+      } catch (error) {
+        regenStats.failed++;
+        regenStats.errors.push({
+          row: row.rowIndex,
+          title: row.name,
+          error: error.message
+        });
+        log(`❌ Failed to regenerate post for row ${row.rowIndex}: ${error.message}`, 'ERROR');
+      }
+    }
+
+    // ========================================================================
     // Step 5.3: Update Detection
     // ========================================================================
 
@@ -1184,6 +1304,22 @@ async function syncContent() {
           }
         }
 
+        // Post regeneration summary
+        if (regenStats.attempted > 0) {
+          console.log('\n🔄 URL Regeneration Results:');
+          console.log(`  Non-title URLs found:     ${rowsToRegenerate.length}`);
+          console.log(`  Regenerations attempted:  ${regenStats.attempted}`);
+          console.log(`  ✅ Successfully regenerated: ${regenStats.successful}`);
+          console.log(`  ❌ Failed:                ${regenStats.failed}`);
+
+          if (regenStats.errors.length > 0) {
+            console.log('\n  Errors:');
+            regenStats.errors.forEach(err => {
+              console.log(`    Row ${err.row} (${err.title}): ${err.error}`);
+            });
+          }
+        }
+
         // Post update summary
         if (updateStats.checked > 0) {
           console.log('\n📝 Post Update Results:');
@@ -1226,17 +1362,18 @@ async function syncContent() {
         }
 
         console.log('\n' + '='.repeat(60));
-        const totalChanges = postStats.successful + updateStats.successful + deleteStats.successful;
+        const totalChanges = postStats.successful + regenStats.successful + updateStats.successful + deleteStats.successful;
         if (totalChanges > 0) {
           const changes = [];
           if (postStats.successful > 0) changes.push(`${postStats.successful} created`);
+          if (regenStats.successful > 0) changes.push(`${regenStats.successful} regenerated`);
           if (updateStats.successful > 0) changes.push(`${updateStats.successful} updated`);
           if (deleteStats.successful > 0) changes.push(`${deleteStats.successful} deleted`);
           log(`✅ Sync complete: ${changes.join(', ')}`);
-        } else if (rowsToPost.length === 0 && updateStats.needsUpdate === 0 && deleteStats.orphaned === 0) {
+        } else if (rowsToPost.length === 0 && regenStats.attempted === 0 && updateStats.needsUpdate === 0 && deleteStats.orphaned === 0) {
           log(`✅ Sync complete: All content up to date (no changes needed)`);
         } else {
-          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created, ${updateStats.successful}/${updateStats.attempted} posts updated, ${deleteStats.successful}/${deleteStats.attempted} posts deleted`);
+          log(`⚠️  Sync complete with errors: ${postStats.successful}/${postStats.attempted} posts created, ${regenStats.successful}/${regenStats.attempted} regenerated, ${updateStats.successful}/${updateStats.attempted} posts updated, ${deleteStats.successful}/${deleteStats.attempted} posts deleted`);
         }
         console.log('='.repeat(60) + '\n');
       }
