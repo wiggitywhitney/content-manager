@@ -1256,6 +1256,48 @@ Post 2: mp-slug: "kubernetes-social-construct-conf42-devops"
 
 ## Progress Log
 
+### 2025-10-23 (Post-Implementation Cleanup & Documentation)
+**Duration**: ~1 hour
+**Focus**: Fix titled post UX issue and update documentation accuracy
+
+**Problem Identified**:
+- 55 posts displaying with bolded titles + "Continue reading" link (bad UX - requires two clicks)
+- Root cause: Posts retained `name` parameter from Milestone 9 testing
+- User feedback: "The UX is terrible and involves clicking into a page before clicking to the content"
+
+**Investigation**:
+- Created diagnostic script (`find-titled-posts.js`) to query all Micro.blog posts via Micropub API
+- Identified 55 titled posts across managed categories (Podcast: 16, Video: 22, Presentations: 8, Guest: 9)
+- Confirmed 3 uncategorized personal posts (left untouched as they're not spreadsheet-managed)
+- Verified current sync code does NOT send `name` parameter (correct implementation)
+
+**Solution Implemented**:
+- Created fix script (`fix-titled-posts.js`) with two-phase approach:
+  1. Delete 55 titled posts from Micro.blog via Micropub delete operation
+  2. Clear Column H (Micro.blog URL) in spreadsheet for deleted posts
+- Executed fix: 55 posts deleted, 55 Column H cells cleared (0 failures)
+- Ran sync script: 55 posts recreated as untitled posts with direct link format
+- All posts regenerated successfully with content-based URLs
+
+**Documentation Updates**:
+- Fixed README category URLs: `/categories/Podcast/` → `/podcast/` (and all other categories)
+- Removed temporary diagnostic and fix scripts after successful completion
+- Cleaned up npm scripts in package.json
+
+**Verification**:
+- User confirmed fix working on live site: "Fixed! Huzzah!"
+- All managed posts now display with good UX (direct links, single click to content)
+- 3 personal uncategorized posts retained their titled format (by design)
+
+**System State**:
+- 64 posts total in sync (55 recreated + 9 unchanged)
+- Consistent untitled post format across all managed categories
+- README documentation accurate and up-to-date
+
+**Next Priority**: Consider Milestone 6 (Page Visibility) or Milestone 7 (Error Notifications)
+
+═══════════════════════════════════════
+
 ### 2025-10-19 (Implementation Session 12 - Step 5.5 Complete: Full Sync Testing & Milestone 5 Complete)
 **Duration**: ~45 minutes
 **Focus**: Comprehensive CRUD testing and bug fix for orphan detection

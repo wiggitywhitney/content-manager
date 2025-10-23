@@ -22,11 +22,11 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 
 ## Content Categories
 
-- **Podcast** → `/categories/Podcast/`
-- **Video** → `/categories/Video/`
-- **Blog** → `/categories/Blog/`
-- **Presentations** → `/categories/Presentations/`
-- **Guest** → `/categories/Guest/`
+- **Podcast** → `/podcast/`
+- **Video** → `/video/`
+- **Blog** → `/blog/`
+- **Presentations** → `/presentations/`
+- **Guest** → `/guest/`
 
 ## Setup
 
