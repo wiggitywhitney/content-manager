@@ -1,9 +1,15 @@
 const { google } = require('googleapis');
+const https = require('https');
+const { CATEGORY_PAGES } = require('./config/category-pages');
+
+// XML-RPC configuration
+const XMLRPC_TIMEOUT_MS = parseInt(process.env.XMLRPC_TIMEOUT_MS || '10000', 10);
+const XMLRPC_MAX_RETRIES = parseInt(process.env.XMLRPC_MAX_RETRIES || '3', 10);
 
 // Spreadsheet configuration
-const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
-const SHEET_NAME = 'Sheet1';
-const RANGE = `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
+const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
+const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // ============================================================================
 // Error Classification & Recovery
@@ -48,6 +54,142 @@ const ErrorType = {
   DATA: 'DATA',           // Unexpected data format or parsing issues
   UNKNOWN: 'UNKNOWN'      // Unclassified errors
 };
+
+// ============================================================================
+// XML-RPC Utilities for Page Management
+// ============================================================================
+
+/**
+ * Escape special XML characters
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string
+ */
+function escapeXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Make XML-RPC request to Micro.blog
+ * @param {string} methodName - XML-RPC method name (e.g., 'microblog.editPage')
+ * @param {Array} params - Method parameters
+ * @returns {Promise<Object>} - Response with statusCode and body
+ */
+function xmlrpcRequest(methodName, params) {
+  return new Promise((resolve, reject) => {
+    // Early auth validation
+    if (!process.env.MICROBLOG_XMLRPC_TOKEN) {
+      return reject(new Error('MICROBLOG_XMLRPC_TOKEN not set'));
+    }
+    const username = process.env.MICROBLOG_USERNAME || 'wiggitywhitney';
+
+    // Build XML-RPC request body
+    const paramsXml = params.map(param => {
+      if (typeof param === 'string') {
+        return `<param><value><string>${escapeXml(param)}</string></value></param>`;
+      } else if (typeof param === 'number') {
+        return `<param><value><int>${param}</int></value></param>`;
+      } else if (typeof param === 'boolean') {
+        return `<param><value><boolean>${param ? 1 : 0}</boolean></value></param>`;
+      } else if (param && typeof param === 'object' && !Array.isArray(param)) {
+        const members = Object.entries(param).map(([key, value]) => {
+          let valueXml = '<string></string>';
+          if (typeof value === 'string') {
+            valueXml = `<string>${escapeXml(value)}</string>`;
+          } else if (typeof value === 'boolean') {
+            valueXml = `<boolean>${value ? 1 : 0}</boolean>`;
+          } else if (typeof value === 'number') {
+            valueXml = `<int>${value}</int>`;
+          }
+          return `<member><name>${key}</name><value>${valueXml}</value></member>`;
+        }).join('');
+        return `<param><value><struct>${members}</struct></value></param>`;
+      }
+    }).join('');
+
+    const requestBody = `<?xml version="1.0"?>
+<methodCall>
+  <methodName>${methodName}</methodName>
+  <params>
+    ${paramsXml}
+  </params>
+</methodCall>`;
+
+    // XML-RPC uses HTTP Basic Auth
+    const auth = Buffer.from(`${username}:${process.env.MICROBLOG_XMLRPC_TOKEN}`).toString('base64');
+
+    const options = {
+      hostname: 'micro.blog',
+      path: '/xmlrpc',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml',
+        'Content-Length': Buffer.byteLength(requestBody),
+        'Authorization': 'Basic ' + auth
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+        } else {
+          resolve({ statusCode: res.statusCode, body: data });
+        }
+      });
+    });
+
+    req.setTimeout(XMLRPC_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Request timeout after ${XMLRPC_TIMEOUT_MS}ms`));
+    });
+    req.on('error', reject);
+    req.write(requestBody);
+    req.end();
+  });
+}
+
+/**
+ * Edit a page's navigation visibility
+ * @param {number} pageId - Micro.blog page ID
+ * @param {string} title - Page title
+ * @param {string} description - Page description/URL
+ * @param {boolean} isNavigation - Whether page should appear in navigation
+ * @returns {Promise<boolean>} - Success status
+ */
+async function setPageNavigationVisibility(pageId, title, description, isNavigation) {
+  const params = [
+    pageId,
+    process.env.MICROBLOG_USERNAME || 'wiggitywhitney',
+    process.env.MICROBLOG_XMLRPC_TOKEN,
+    {
+      title: title,
+      description: description,
+      is_navigation: isNavigation
+    }
+  ];
+
+  for (let attempt = 1; attempt <= XMLRPC_MAX_RETRIES; attempt++) {
+    try {
+      const response = await xmlrpcRequest('microblog.editPage', params);
+      // Check for success (no fault in response)
+      return !response.body.includes('<fault>');
+    } catch (error) {
+      if (attempt === XMLRPC_MAX_RETRIES) {
+        log(`XML-RPC error for page ${pageId}: ${error.message}`, 'ERROR');
+        return false;
+      }
+      const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      log(`editPage failed (attempt ${attempt}); retrying in ${backoff}ms`, 'WARN');
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+}
 
 /**
  * Classify an error by type
@@ -785,6 +927,13 @@ function parseDateToISO(dateString) {
     }
   }
 
+  // Try ISO date YYYY-MM-DD format
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${y}-${m}-${d}T12:00:00Z`;
+  }
+
   // Invalid format
   log(`Invalid date format: "${dateString}"`, 'WARN');
   return null;
@@ -895,8 +1044,10 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.2: New Row Detection & Post Creation
+    // New Row Detection & Post Creation
     // ========================================================================
+    // Note: Page visibility management has been moved to separate daily workflow
+    // (update-page-visibility.yml) to reduce API calls from ~120/day to ~5/day
 
     // Filter rows that need to be posted (empty Column H)
     const rowsToPost = validRows.filter(row => !row.microblogUrl);
@@ -974,7 +1125,7 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.2.5: URL Regeneration for Non-Title Slugs
+    // URL Regeneration for Non-Title Slugs
     // ========================================================================
 
     // Check existing posts for non-title URLs (timestamps/hashes) and regenerate
@@ -1065,7 +1216,7 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.3: Update Detection
+    // Update Detection
     // ========================================================================
 
     // Query all existing posts from Micro.blog
@@ -1146,7 +1297,7 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.4: Delete Detection & Removal
+    // Delete Detection & Removal
     // ========================================================================
 
     const MANAGED_CATEGORIES = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
@@ -1395,7 +1546,7 @@ async function syncContent() {
       log('Stack trace:', 'DEBUG', { stack: error.stack });
     }
 
-    // Exit with error code (will be enhanced with retry logic in Step 3)
+    // Exit with error code
     process.exit(1);
   }
 }
