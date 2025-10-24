@@ -1,15 +1,15 @@
-name: Sync Content to Micro.blog
+name: Update Page Visibility
 
 on:
   # Manual trigger for testing
   workflow_dispatch:
 
-  # Scheduled run (hourly) - will enable after testing
-  # schedule:
-  #   - cron: '0 * * * *'  # Run at the start of every hour (UTC)
+  # Scheduled run (daily at 3 AM UTC)
+  schedule:
+    - cron: '0 3 * * *'  # Run at 3 AM UTC every day
 
 jobs:
-  sync:
+  update-visibility:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,10 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --omit=dev
 
-      - name: Run content sync
+      - name: Update page visibility
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          MICROBLOG_APP_TOKEN: ${{ secrets.MICROBLOG_APP_TOKEN }}
           MICROBLOG_XMLRPC_TOKEN: ${{ secrets.MICROBLOG_XMLRPC_TOKEN }}
           MICROBLOG_USERNAME: ${{ secrets.MICROBLOG_USERNAME }}
-        run: node src/sync-content.js
+        run: node src/update-page-visibility.js

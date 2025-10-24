@@ -1115,86 +1115,10 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Category Activity Tracking
-    // ========================================================================
-
-    const categoryActivity = calculateCategoryActivity(validRows);
-
-    log('\n' + '='.repeat(60));
-    log('Category Activity Status');
-    log('='.repeat(60) + '\n');
-
-    for (const category of ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest']) {
-      const activity = categoryActivity[category];
-
-      log(`${category}:`);
-
-      if (activity.postCount === 0) {
-        console.log(`  Posts: 0`);
-        console.log(`  Status: ✗ No posts (inactive)`);
-      } else {
-        console.log(`  Posts: ${activity.postCount}`);
-        console.log(`  Last post: ${activity.lastPostDateString} (${activity.daysSincePost} days ago)`);
-
-        if (activity.isInactive) {
-          console.log(`  Status: ✗ Inactive (4+ months)`);
-        } else {
-          console.log(`  Status: ✓ Active`);
-        }
-      }
-
-      console.log('');
-    }
-
-    // ========================================================================
-    // Page Visibility Management
-    // ========================================================================
-
-    log('\n' + '='.repeat(60));
-    log('Page Visibility Management');
-    log('='.repeat(60) + '\n');
-
-    for (const category of ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest']) {
-      const activity = categoryActivity[category];
-      const pageConfig = CATEGORY_PAGES[category];
-
-      if (!pageConfig) {
-        log(`${category}: ⚠️  No page configuration found (skipped)`, 'WARN');
-        continue;
-      }
-
-      log(`${category} (Page ID: ${pageConfig.id}):`);
-
-      try {
-        // Determine desired visibility state
-        const shouldBeVisible = !activity.isInactive && activity.postCount > 0;
-
-        const success = await setPageNavigationVisibility(
-          pageConfig.id,
-          pageConfig.title,
-          pageConfig.description,
-          shouldBeVisible
-        );
-
-        if (success) {
-          if (shouldBeVisible) {
-            console.log(`  ✓ Page visible in navigation (active category)`);
-          } else {
-            console.log(`  ✗ Page hidden from navigation (inactive 4+ months)`);
-          }
-        } else {
-          log(`  ❌ Failed to update page visibility`, 'ERROR');
-        }
-      } catch (error) {
-        log(`  ❌ Error updating visibility: ${error.message}`, 'ERROR');
-      }
-
-      console.log('');
-    }
-
-    // ========================================================================
     // New Row Detection & Post Creation
     // ========================================================================
+    // Note: Page visibility management has been moved to separate daily workflow
+    // (update-page-visibility.yml) to reduce API calls from ~120/day to ~5/day
 
     // Filter rows that need to be posted (empty Column H)
     const rowsToPost = validRows.filter(row => !row.microblogUrl);
