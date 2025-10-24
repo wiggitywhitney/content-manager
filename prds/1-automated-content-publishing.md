@@ -501,13 +501,13 @@ Spreadsheet Column H: [A, B, C]
 
 **Implementation Note**: Navigation pages already exist in Micro.blog for all 5 categories (Video, Podcast, Guest, Blog, Presentations) with redirects configured to category URLs. We only need to query existing pages and toggle `is_navigation` parameter.
 
-- [ ] Query existing pages via `microblog.getPages`
-- [ ] Identify the 5 category navigation pages by title
-- [ ] Extract page IDs for tracking
-- [ ] Implement `microblog.editPage` to toggle `is_navigation` parameter
-- [ ] Auto-hide pages when category inactive 4+ months
-- [ ] Auto-show pages when category receives new content
-- [ ] Store page ID mappings (category name → page ID)
+- [x] Query existing pages via `microblog.getPages`
+- [x] Identify the 5 category navigation pages by title
+- [x] Extract page IDs for tracking
+- [x] Implement `microblog.editPage` to toggle `is_navigation` parameter
+- [x] Auto-hide pages when category inactive 4+ months
+- [x] Auto-show pages when category receives new content
+- [x] Store page ID mappings (category name → page ID)
 
 **API Details for XML-RPC**:
 - Endpoint: `https://micro.blog/xmlrpc`
@@ -525,8 +525,8 @@ Spreadsheet Column H: [A, B, C]
 - [x] Test XML-RPC authentication with existing app token
 - [x] Verify page query returns all category pages with correct IDs
 - [x] Test is_navigation toggle (hide/show a test page)
-- [ ] Test inactive category detection accuracy
-- [ ] Verify page ID persistence across sync runs
+- [x] Test inactive category detection accuracy
+- [x] Verify page ID persistence across sync runs
 - [x] Document approach in Progress Log
 
 **Success Criteria**: Activity tracking works and navigation management approach is documented/implemented (may not include auto-hide if API limitations make it impractical)
@@ -1580,17 +1580,19 @@ Discovered 2 posts with "undefined" category during testing. Assistant analysis:
 - [x] Step 6.2: Auto-hide pages when category inactive 4+ months
 - [x] Step 6.2: Auto-show pages when new content added
 - [x] Step 6.2: Store page ID mappings in code
-- [ ] Step 6.3: Test inactive category detection accuracy
-- [ ] Step 6.3: Verify page ID persistence across sync runs
-- [ ] Step 6.4: Extract visibility logic into src/update-page-visibility.js
-- [ ] Step 6.4: Create .github/workflows/update-page-visibility.yml with daily schedule
-- [ ] Step 6.4: Remove page visibility section from sync-content.js
-- [ ] Step 6.4: Test both workflows independently
-- [ ] Step 6.4: Verify API calls reduced from ~120/day to ~5/day
+- [x] Step 6.3: Test inactive category detection accuracy
+- [x] Step 6.3: Verify page ID persistence across sync runs
+- [x] Step 6.4: Extract visibility logic into src/update-page-visibility.js
+- [x] Step 6.4: Create .github/workflows/update-page-visibility.yml with daily schedule
+- [x] Step 6.4: Remove page visibility section from sync-content.js
+- [x] Step 6.4: Test both workflows independently
+- [x] Step 6.4: Verify API calls reduced from ~120/day to ~5/day
+- [ ] Verify daily workflow runs automatically at 3 AM UTC (post-merge to main)
+- [ ] Monitor first few daily runs for stability
 
 **Decision Made**: Option B selected for Milestone 6 - automated XML-RPC visibility management (documented as Decision 19 in PRD). Decision 21 approved - extract visibility to separate daily workflow (Step 6.4).
 
-**Next Session Priority**: Complete remaining Step 6.3 tests, then implement Step 6.4 (extract to daily workflow) to optimize API usage
+**Status**: Steps 6.1-6.4 completed on 2025-10-24. Dual-workflow architecture implemented with 96% API reduction (120→5 calls/day). Pending: production testing after merge to main.
 
 ═══════════════════════════════════════
 

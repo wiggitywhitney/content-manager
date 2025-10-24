@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const https = require('https');
+const { CATEGORY_PAGES } = require('./config/category-pages');
 
 // ============================================================================
 // Configuration
@@ -10,39 +11,9 @@ const XMLRPC_TIMEOUT_MS = parseInt(process.env.XMLRPC_TIMEOUT_MS || '10000', 10)
 const XMLRPC_MAX_RETRIES = parseInt(process.env.XMLRPC_MAX_RETRIES || '3', 10);
 
 // Spreadsheet configuration
-const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
-const SHEET_NAME = 'Sheet1';
-const RANGE = `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
-
-// Page configuration for category navigation pages
-// IDs are stable and won't change unless pages are deleted/recreated
-const CATEGORY_PAGES = {
-  'Podcast': {
-    id: 897417,
-    title: 'Podcast',
-    description: 'https://whitneylee.com/podcast/'
-  },
-  'Video': {
-    id: 897489,
-    title: 'Video',
-    description: 'https://whitneylee.com/video/'
-  },
-  'Blog': {
-    id: 897491,
-    title: 'Blog',
-    description: 'https://whitneylee.com/blog/'
-  },
-  'Presentations': {
-    id: 897483,
-    title: 'Presentations',
-    description: 'https://whitneylee.com/presentations/'
-  },
-  'Guest': {
-    id: 897488,
-    title: 'Guest',
-    description: 'https://whitneylee.com/guest/'
-  }
-};
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
+const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
+const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // ============================================================================
 // Logging System
@@ -302,6 +273,13 @@ function parseDateToISO(dateString) {
     }
   }
 
+  // Try ISO date YYYY-MM-DD format
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${y}-${m}-${d}T12:00:00Z`;
+  }
+
   log(`Invalid date format: "${dateString}"`, 'WARN');
   return null;
 }
@@ -457,6 +435,14 @@ function calculateCategoryActivity(validRows) {
 async function updatePageVisibility() {
   try {
     log('Starting page visibility update');
+
+    // Validate required secrets upfront
+    if (!process.env.MICROBLOG_XMLRPC_TOKEN) {
+      throw new Error('MICROBLOG_XMLRPC_TOKEN environment variable not set');
+    }
+    if (!process.env.MICROBLOG_USERNAME) {
+      log('MICROBLOG_USERNAME not set; defaulting to "wiggitywhitney"', 'WARN');
+    }
 
     // Authenticate with Google Sheets API
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;

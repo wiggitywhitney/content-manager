@@ -1,44 +1,15 @@
 const { google } = require('googleapis');
 const https = require('https');
+const { CATEGORY_PAGES } = require('./config/category-pages');
 
 // XML-RPC configuration
 const XMLRPC_TIMEOUT_MS = parseInt(process.env.XMLRPC_TIMEOUT_MS || '10000', 10);
 const XMLRPC_MAX_RETRIES = parseInt(process.env.XMLRPC_MAX_RETRIES || '3', 10);
 
 // Spreadsheet configuration
-const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
-const SHEET_NAME = 'Sheet1';
-const RANGE = `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
-
-// Page configuration for category navigation pages
-// IDs are stable and won't change unless pages are deleted/recreated
-const CATEGORY_PAGES = {
-  'Podcast': {
-    id: 897417,
-    title: 'Podcast',
-    description: 'https://whitneylee.com/podcast/'
-  },
-  'Video': {
-    id: 897489,
-    title: 'Video',
-    description: 'https://whitneylee.com/video/'
-  },
-  'Blog': {
-    id: 897491,
-    title: 'Blog',
-    description: 'https://whitneylee.com/blog/'
-  },
-  'Presentations': {
-    id: 897483,
-    title: 'Presentations',
-    description: 'https://whitneylee.com/presentations/'
-  },
-  'Guest': {
-    id: 897488,
-    title: 'Guest',
-    description: 'https://whitneylee.com/guest/'
-  }
-};
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
+const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
+const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // ============================================================================
 // Error Classification & Recovery
@@ -956,76 +927,16 @@ function parseDateToISO(dateString) {
     }
   }
 
+  // Try ISO date YYYY-MM-DD format
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${y}-${m}-${d}T12:00:00Z`;
+  }
+
   // Invalid format
   log(`Invalid date format: "${dateString}"`, 'WARN');
   return null;
-}
-
-/**
- * Calculate last post date and activity status for each category
- * Used for page visibility management (auto-hide inactive categories after 4 months)
- *
- * @param {Array} validRows - Array of validated content rows from spreadsheet
- * @returns {Object} Activity data by category (lastPostDate, daysSincePost, isInactive, postCount)
- */
-function calculateCategoryActivity(validRows) {
-  const activity = {};
-  const today = new Date();
-  const INACTIVE_THRESHOLD_DAYS = 120; // 4 months
-
-  // Initialize all 5 managed categories
-  const categories = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
-  for (const category of categories) {
-    activity[category] = {
-      lastPostDate: null,
-      lastPostDateString: null,
-      daysSincePost: null,
-      isInactive: false,
-      postCount: 0
-    };
-  }
-
-  // Find most recent date for each category
-  for (const row of validRows) {
-    const category = row.type;
-
-    // Skip if not one of our managed categories
-    if (!activity[category]) {
-      continue;
-    }
-
-    activity[category].postCount++;
-
-    // Parse date
-    const isoDate = parseDateToISO(row.date);
-    if (!isoDate) {
-      log(`Skipping row ${row.rowIndex} for activity tracking - invalid date: ${row.date}`, 'WARN');
-      continue;
-    }
-
-    const postDate = new Date(isoDate);
-
-    // Update if this is the most recent post for this category
-    if (!activity[category].lastPostDate || postDate > activity[category].lastPostDate) {
-      activity[category].lastPostDate = postDate;
-      activity[category].lastPostDateString = row.date; // Original format for logging
-    }
-  }
-
-  // Calculate days since last post and inactive status
-  for (const category in activity) {
-    if (activity[category].lastPostDate) {
-      const daysSince = Math.floor((today - activity[category].lastPostDate) / (1000 * 60 * 60 * 24));
-      activity[category].daysSincePost = daysSince;
-      activity[category].isInactive = daysSince >= INACTIVE_THRESHOLD_DAYS;
-    } else {
-      // Category has no posts
-      activity[category].daysSincePost = null;
-      activity[category].isInactive = true; // No posts = inactive
-    }
-  }
-
-  return activity;
 }
 
 /**
