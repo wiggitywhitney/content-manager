@@ -1,6 +1,10 @@
 const { google } = require('googleapis');
 const https = require('https');
 
+// XML-RPC configuration
+const XMLRPC_TIMEOUT_MS = parseInt(process.env.XMLRPC_TIMEOUT_MS || '10000', 10);
+const XMLRPC_MAX_RETRIES = parseInt(process.env.XMLRPC_MAX_RETRIES || '3', 10);
+
 // Spreadsheet configuration
 const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = 'Sheet1';
@@ -90,7 +94,7 @@ const ErrorType = {
  * @returns {string} - Escaped string
  */
 function escapeXml(str) {
-  return str
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -106,6 +110,12 @@ function escapeXml(str) {
  */
 function xmlrpcRequest(methodName, params) {
   return new Promise((resolve, reject) => {
+    // Early auth validation
+    if (!process.env.MICROBLOG_XMLRPC_TOKEN) {
+      return reject(new Error('MICROBLOG_XMLRPC_TOKEN not set'));
+    }
+    const username = process.env.MICROBLOG_USERNAME || 'wiggitywhitney';
+
     // Build XML-RPC request body
     const paramsXml = params.map(param => {
       if (typeof param === 'string') {
@@ -114,9 +124,9 @@ function xmlrpcRequest(methodName, params) {
         return `<param><value><int>${param}</int></value></param>`;
       } else if (typeof param === 'boolean') {
         return `<param><value><boolean>${param ? 1 : 0}</boolean></value></param>`;
-      } else if (typeof param === 'object' && !Array.isArray(param)) {
+      } else if (param && typeof param === 'object' && !Array.isArray(param)) {
         const members = Object.entries(param).map(([key, value]) => {
-          let valueXml;
+          let valueXml = '<string></string>';
           if (typeof value === 'string') {
             valueXml = `<string>${escapeXml(value)}</string>`;
           } else if (typeof value === 'boolean') {
@@ -139,9 +149,7 @@ function xmlrpcRequest(methodName, params) {
 </methodCall>`;
 
     // XML-RPC uses HTTP Basic Auth
-    const auth = Buffer.from(
-      `${process.env.MICROBLOG_USERNAME || 'wiggitywhitney'}:${process.env.MICROBLOG_XMLRPC_TOKEN}`
-    ).toString('base64');
+    const auth = Buffer.from(`${username}:${process.env.MICROBLOG_XMLRPC_TOKEN}`).toString('base64');
 
     const options = {
       hostname: 'micro.blog',
@@ -166,6 +174,9 @@ function xmlrpcRequest(methodName, params) {
       });
     });
 
+    req.setTimeout(XMLRPC_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Request timeout after ${XMLRPC_TIMEOUT_MS}ms`));
+    });
     req.on('error', reject);
     req.write(requestBody);
     req.end();
@@ -192,13 +203,20 @@ async function setPageNavigationVisibility(pageId, title, description, isNavigat
     }
   ];
 
-  try {
-    const response = await xmlrpcRequest('microblog.editPage', params);
-    // Check for success (no fault in response)
-    return !response.body.includes('<fault>');
-  } catch (error) {
-    log(`XML-RPC error for page ${pageId}: ${error.message}`, 'ERROR');
-    return false;
+  for (let attempt = 1; attempt <= XMLRPC_MAX_RETRIES; attempt++) {
+    try {
+      const response = await xmlrpcRequest('microblog.editPage', params);
+      // Check for success (no fault in response)
+      return !response.body.includes('<fault>');
+    } catch (error) {
+      if (attempt === XMLRPC_MAX_RETRIES) {
+        log(`XML-RPC error for page ${pageId}: ${error.message}`, 'ERROR');
+        return false;
+      }
+      const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      log(`editPage failed (attempt ${attempt}); retrying in ${backoff}ms`, 'WARN');
+      await new Promise(r => setTimeout(r, backoff));
+    }
   }
 }
 
