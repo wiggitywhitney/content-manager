@@ -9,4 +9,7 @@ This is a fresh repository with minimal setup. The project structure and develop
 ## Development Setup
 
 Currently no specific build, test, or lint commands are configured. These will be added as the project framework and tooling are established.
-- no references to prds or milestones or any task management
+
+## Code Guidelines
+- No references to PRDs, milestones, task management systems, commit hashes, or commit messages in code comments or documentation files
+- Commit messages themselves can reference PRDs/milestones
