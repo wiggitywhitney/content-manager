@@ -791,6 +791,85 @@ function parseDateToISO(dateString) {
 }
 
 /**
+ * Calculate last post date and activity status for each category
+ * Used for page visibility management (auto-hide inactive categories after 4 months)
+ *
+ * @param {Array} validRows - Array of validated content rows from spreadsheet
+ * @returns {Object} Activity data by category (lastPostDate, daysSincePost, isInactive, postCount)
+ */
+function calculateCategoryActivity(validRows) {
+  const activity = {};
+  const today = new Date();
+  const INACTIVE_THRESHOLD_DAYS = 120; // 4 months
+
+  // Initialize all 5 managed categories
+  const categories = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
+  for (const category of categories) {
+    activity[category] = {
+      lastPostDate: null,
+      lastPostDateString: null,
+      daysSincePost: null,
+      isInactive: false,
+      postCount: 0
+    };
+  }
+
+  // Find most recent date for each category
+  for (const row of validRows) {
+    const category = row.type;
+
+    // Skip if not one of our managed categories
+    if (!activity[category]) {
+      continue;
+    }
+
+    activity[category].postCount++;
+
+    // Parse date
+    const isoDate = parseDateToISO(row.date);
+    if (!isoDate) {
+      log(`Skipping row ${row.rowIndex} for activity tracking - invalid date: ${row.date}`, 'WARN');
+      continue;
+    }
+
+    const postDate = new Date(isoDate);
+
+    // Update if this is the most recent post for this category
+    if (!activity[category].lastPostDate || postDate > activity[category].lastPostDate) {
+      activity[category].lastPostDate = postDate;
+      activity[category].lastPostDateString = row.date; // Original format for logging
+    }
+  }
+
+  // Calculate days since last post and inactive status
+  for (const category in activity) {
+    if (activity[category].lastPostDate) {
+      const daysSince = Math.floor((today - activity[category].lastPostDate) / (1000 * 60 * 60 * 24));
+      activity[category].daysSincePost = daysSince;
+      activity[category].isInactive = daysSince >= INACTIVE_THRESHOLD_DAYS;
+    } else {
+      // Category has no posts
+      activity[category].daysSincePost = null;
+      activity[category].isInactive = true; // No posts = inactive
+    }
+  }
+
+  return activity;
+}
+
+/**
+ * Page IDs for category navigation pages (discovered via XML-RPC microblog.getPages)
+ * Used for toggling is_navigation parameter to show/hide pages from navigation
+ */
+const CATEGORY_PAGE_IDS = {
+  'Video': 897489,
+  'Podcast': 897417,
+  'Guest': 897488,
+  'Blog': 897491,
+  'Presentations': 897483
+};
+
+/**
  * Main sync function - reads and parses spreadsheet data
  */
 async function syncContent() {
@@ -895,7 +974,39 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.2: New Row Detection & Post Creation
+    // Category Activity Tracking
+    // ========================================================================
+
+    const categoryActivity = calculateCategoryActivity(validRows);
+
+    log('\n' + '='.repeat(60));
+    log('Category Activity Status');
+    log('='.repeat(60) + '\n');
+
+    for (const category of ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest']) {
+      const activity = categoryActivity[category];
+
+      log(`${category}:`);
+
+      if (activity.postCount === 0) {
+        console.log(`  Posts: 0`);
+        console.log(`  Status: ✗ No posts (inactive)`);
+      } else {
+        console.log(`  Posts: ${activity.postCount}`);
+        console.log(`  Last post: ${activity.lastPostDateString} (${activity.daysSincePost} days ago)`);
+
+        if (activity.isInactive) {
+          console.log(`  Status: ✗ Inactive (4+ months)`);
+        } else {
+          console.log(`  Status: ✓ Active`);
+        }
+      }
+
+      console.log('');
+    }
+
+    // ========================================================================
+    // New Row Detection & Post Creation
     // ========================================================================
 
     // Filter rows that need to be posted (empty Column H)
@@ -974,7 +1085,7 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.2.5: URL Regeneration for Non-Title Slugs
+    // URL Regeneration for Non-Title Slugs
     // ========================================================================
 
     // Check existing posts for non-title URLs (timestamps/hashes) and regenerate
@@ -1065,7 +1176,7 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.3: Update Detection
+    // Update Detection
     // ========================================================================
 
     // Query all existing posts from Micro.blog
@@ -1146,7 +1257,7 @@ async function syncContent() {
     }
 
     // ========================================================================
-    // Step 5.4: Delete Detection & Removal
+    // Delete Detection & Removal
     // ========================================================================
 
     const MANAGED_CATEGORIES = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
@@ -1395,7 +1506,7 @@ async function syncContent() {
       log('Stack trace:', 'DEBUG', { stack: error.stack });
     }
 
-    // Exit with error code (will be enhanced with retry logic in Step 3)
+    // Exit with error code
     process.exit(1);
   }
 }

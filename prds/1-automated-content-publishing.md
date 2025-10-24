@@ -479,11 +479,11 @@ Spreadsheet Column H: [A, B, C]
 
 **Important Note**: Original PRD assumed managing "page" visibility, but we're using **categories** for content organization. Category navigation is managed differently - see implementation options below.
 
-#### Step 6.1: Activity Tracking (~30-45 min)
-- [ ] Track last post date for each category in state file
-- [ ] Calculate days since last post for each category
-- [ ] Identify categories inactive for 4+ months
-- [ ] Log activity status for all categories
+#### Step 6.1: Activity Tracking (~30-45 min) ✅
+- [x] Track last post date for each category in state file
+- [x] Calculate days since last post for each category
+- [x] Identify categories inactive for 4+ months
+- [x] Log activity status for all categories
 
 **State File Addition**:
 ```json
@@ -1295,7 +1295,60 @@ Each page has "Include this page in your blog navigation" checkbox, controllable
 - If regeneration count grows significantly
 - If need to add max attempt tracking to prevent perpetual regeneration
 
+### Decision 20: Confirm 4-Month Inactivity Threshold for Navigation Hiding
+**Date**: 2025-10-24
+**Status**: ✅ Confirmed
+
+**Context**: User proposed reducing the inactivity threshold from 4 months to 3 months for hiding category navigation pages.
+
+**Clarification**: Navigation hiding applies to entire category sections, not individual posts. When a category has no new posts for the threshold period, the category page is removed from site navigation. All content remains accessible and reappears when new content is published.
+
+**Decision**: Keep 4-month threshold as originally specified
+
+**Rationale**:
+- 3 months too aggressive for content types with irregular publishing patterns (presentations, guest appearances)
+- 4 months provides breathing room for seasonal gaps without constant navigation flickering
+- Balances "keeping site feeling active" with tolerance for temporary pauses
+
+**Impact**: No changes to PRD requirements or implementation approach
+
 ## Progress Log
+
+### 2025-10-24 (Milestone 6 Step 6.1 Complete: Activity Tracking Implementation)
+**Duration**: ~30 minutes
+**Branch**: feature/prd-1-milestone-6-activity-tracking
+**Focus**: Category activity tracking for page visibility management
+
+**Completed PRD Items**:
+- [x] Step 6.1: Track last post date for each category - Evidence: `calculateCategoryActivity()` function (sync-content.js:800-857)
+- [x] Step 6.1: Calculate days since last post - Evidence: Calculates daysSince using date math
+- [x] Step 6.1: Identify categories inactive 4+ months - Evidence: 120-day threshold, Guest detected as inactive
+- [x] Step 6.1: Log activity status for all categories - Evidence: Activity status section in sync output
+
+**Implementation Highlights**:
+- Created `calculateCategoryActivity()` function that analyzes validRows from spreadsheet
+- Uses existing `parseDateToISO()` for date parsing - no additional state storage needed
+- Added `CATEGORY_PAGE_IDS` constant with page IDs discovered in Step 6.3
+- Activity status shows: post count, last post date, days since post, active/inactive status
+- Test results: Guest category correctly identified as inactive (139 days), all others active
+
+**Files Modified**:
+- `src/sync-content.js` - Added activity tracking function and integration into sync workflow
+- Removed task management references from code per user feedback
+
+**Test Results**:
+- Podcast: 19 posts, last 09/17/2025 (36 days ago) - Active ✓
+- Video: 23 posts, last 09/30/2025 (23 days ago) - Active ✓
+- Blog: 4 posts, last 08/22/2025 (62 days ago) - Active ✓
+- Presentations: 9 posts, last 09/16/2025 (37 days ago) - Active ✓
+- Guest: 9 posts, last 6/6/2025 (139 days ago) - Inactive ✗
+
+**Reflection**:
+Discovered 2 posts with "undefined" category during testing. Want to fix this undefined categories problem. Assistant analysis: "Pizza" rows are correctly filtered out during validation (invalid Type logged as WARN and skipped). The 2 "undefined" posts must be from an old bug or manual posts.
+
+**Next Session Priority**: Step 6.2 - Implement XML-RPC auto-hide/show logic using activity data
+
+═══════════════════════════════════════
 
 ### 2025-10-24 (Milestone 6 Research: XML-RPC API Validation for Page Visibility)
 **Duration**: ~3 hours
