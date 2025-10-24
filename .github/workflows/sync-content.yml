@@ -4,9 +4,9 @@ on:
   # Manual trigger for testing
   workflow_dispatch:
 
-  # Scheduled run (hourly) - will enable after testing
-  # schedule:
-  #   - cron: '0 * * * *'  # Run at the start of every hour (UTC)
+  # Scheduled run (hourly)
+  schedule:
+    - cron: '0 * * * *'  # Run at the start of every hour (UTC)
 
 jobs:
   sync:
