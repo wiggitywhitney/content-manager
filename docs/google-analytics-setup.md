@@ -88,22 +88,85 @@ Selected objectives:
 
 ### 6. Tracking Code Installation
 
-**Location:** Micro.blog → Posts → Design → Edit Footer
+This section provides detailed step-by-step instructions for adding the Google Analytics tracking code to your Micro.blog site's custom footer.
 
-**Code Added:**
-```html
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-XW8L9T3MN2"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+#### Step 6.1: Navigate to Posts → Design
 
-  gtag('config', 'G-XW8L9T3MN2');
-</script>
-```
+1. From the Micro.blog sidebar, locate the **Design** option
 
-**Note:** The footer is inserted in each page right before the closing `</body></html>`, making it ideal for JavaScript tracking codes.
+   ![Micro.blog sidebar showing Design option](images/google-analytics/microblog-setup/01-posts-sidebar-design.png)
+
+2. Click on **Design** to open the Design section
+
+   ![Design option selected in sidebar](images/google-analytics/microblog-setup/02-design-selected.png)
+
+#### Step 6.2: Open Your Custom Theme
+
+1. You'll see the Design page with your theme settings:
+   - Custom theme name (e.g., "wiggitywhitney")
+   - Hugo version
+   - Theme customization options
+
+   ![Design page showing theme options](images/google-analytics/microblog-setup/03-design-page-theme-options.png)
+
+2. Click the **"Open Theme: [your-theme-name]"** button to access your theme files
+
+   ![Open Theme button highlighted](images/google-analytics/microblog-setup/04-open-theme-button.png)
+
+#### Step 6.3: Locate the Custom Footer File
+
+1. You'll see a list of theme files including:
+   - Custom CSS
+   - **Custom Footer** ← This is what we need!
+   - config.json
+   - layouts/partials/head.html
+   - And other theme files
+
+   ![Theme files list showing Custom Footer](images/google-analytics/microblog-setup/05-theme-files-list.png)
+
+2. Click on **Custom Footer** to open the footer editor
+
+   ![Custom Footer selected](images/google-analytics/microblog-setup/06-custom-footer-selected.png)
+
+#### Step 6.4: Add the Google Analytics Tracking Code
+
+1. The Custom Footer editor will open. You'll see:
+   - A helpful note: "The footer is inserted in each page right before the closing `</body></html>`, so it's useful for adding JavaScript."
+   - A text area where you can add your custom footer code
+   - An **"Update Footer"** button to save your changes
+
+   ![Custom Footer editor](images/google-analytics/microblog-setup/07-custom-footer-editor-with-code.png)
+
+2. In the footer text area, paste your Google Analytics tracking code:
+
+   ```html
+   <!-- Google tag (gtag.js) -->
+   <script async src="https://www.googletagmanager.com/gtag/js?id=G-XW8L9T3MN2"></script>
+   <script>
+     window.dataLayer = window.dataLayer || [];
+     function gtag(){dataLayer.push(arguments);}
+     gtag('js', new Date());
+
+     gtag('config', 'G-XW8L9T3MN2');
+   </script>
+   ```
+
+   **Important Notes:**
+   - Replace `G-XW8L9T3MN2` with your own Measurement ID (obtained from Google Analytics)
+   - The code can be added before or after any existing footer content
+   - Make sure to paste the code exactly as provided by Google Analytics
+
+3. Click **"Update Footer"** to save your changes
+
+4. The tracking code will now be included on every page of your Micro.blog site, right before the closing `</body></html>` tags
+
+#### Why the Custom Footer Works for Analytics
+
+The Custom Footer is ideal for tracking codes because:
+- It loads on every page of your site automatically
+- It's positioned at the end of the page (before `</body>`), which doesn't block initial page rendering
+- Changes to the footer are immediately applied across your entire site
+- No need to manually edit theme HTML files
 
 ### 7. Verification
 
@@ -119,6 +182,9 @@ Selected objectives:
 
 All setup screenshots are available in `/docs/images/google-analytics/`:
 
+### Google Analytics Account Setup
+Screenshots of the Google Analytics account creation process (to be added):
+
 1. `01-welcome-screen.png` - Initial GA welcome screen
 2. `02-account-creation.png` - Account creation form
 3. `03-property-creation.png` - Property setup with whitneylee.com
@@ -130,6 +196,17 @@ All setup screenshots are available in `/docs/images/google-analytics/`:
 9. `09-tag-verification-success.png` - Successful tag detection
 10. `10-web-stream-details.png` - Complete stream configuration
 11. `11-data-collection-dashboard.png` - Data collection status
+
+### Micro.blog Installation Steps
+Screenshots showing how to add tracking code to Micro.blog custom footer:
+
+1. `microblog-setup/01-posts-sidebar-design.png` - Micro.blog sidebar showing Design option
+2. `microblog-setup/02-design-selected.png` - Design option selected in sidebar
+3. `microblog-setup/03-design-page-theme-options.png` - Design page showing theme options
+4. `microblog-setup/04-open-theme-button.png` - Open Theme button highlighted
+5. `microblog-setup/05-theme-files-list.png` - Theme files list showing Custom Footer
+6. `microblog-setup/06-custom-footer-selected.png` - Custom Footer selected
+7. `microblog-setup/07-custom-footer-editor-with-code.png` - Custom Footer editor with tracking code
 
 ---
 
