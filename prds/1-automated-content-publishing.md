@@ -531,6 +531,32 @@ Spreadsheet Column H: [A, B, C]
 
 **Success Criteria**: Activity tracking works and navigation management approach is documented/implemented (may not include auto-hide if API limitations make it impractical)
 
+#### Step 6.4: Extract Page Visibility to Daily Workflow (~45-60 min)
+**Decision Reference**: Decision 21 - Separate Daily Workflow for Page Visibility Management
+
+**Context**: Page visibility logic currently runs on every hourly sync (120 API calls/day). Given the 4-month inactivity threshold, daily checks are sufficient. Extract visibility management into separate daily workflow for better resource efficiency and separation of concerns.
+
+- [ ] Extract visibility logic from sync-content.js into new src/update-page-visibility.js
+- [ ] Move XML-RPC utilities (escapeXml, xmlrpcRequest, setPageNavigationVisibility) to shared location or duplicate in new script
+- [ ] Create .github/workflows/update-page-visibility.yml with daily schedule (3 AM UTC)
+- [ ] Remove page visibility management section from sync-content.js (keep activity tracking for potential future use)
+- [ ] Update both workflows to use MICROBLOG_XMLRPC_TOKEN secret
+- [ ] Test new workflow manually via workflow_dispatch
+- [ ] Verify main sync still runs correctly without visibility section
+- [ ] Update documentation to reflect dual-workflow architecture
+
+**Implementation Notes**:
+- New script needs: Google Sheets read access (for activity calculation), XML-RPC utilities, CATEGORY_PAGES config
+- Can reuse existing calculateCategoryActivity() function - may need to extract to shared module
+- Daily schedule: `cron: '0 3 * * *'` (3 AM UTC daily)
+- Keep page visibility code simple - no need for state files or optimization yet
+
+**Success Criteria**:
+- Page visibility runs once daily instead of hourly
+- Both workflows function independently
+- API calls reduced from ~120/day to ~5/day
+- No regression in visibility management behavior
+
 ### Milestone 7: Error Notifications & Monitoring
 - [ ] Comprehensive error catching and logging
 - [ ] Email notification system for errors
@@ -1312,7 +1338,87 @@ Each page has "Include this page in your blog navigation" checkbox, controllable
 
 **Impact**: No changes to PRD requirements or implementation approach
 
+### Decision 21: Separate Daily Workflow for Page Visibility Management
+**Date**: 2025-10-24
+**Status**: ✅ Approved - Option 1 Selected
+
+**Context**: Page visibility management runs XML-RPC API calls on every sync (currently hourly). Given the 4-month inactivity threshold, hourly checks are unnecessary and waste API calls.
+
+**Options Considered**:
+1. **Separate GitHub Actions workflow** - New daily workflow for visibility, hourly workflow for content sync
+2. **Conditional execution** - Environment variable or timestamp check to run visibility logic less frequently
+3. **State-based optimization** - Track current visibility state, only make API calls when changes needed
+
+**Decision**: Option 1 - Create separate daily GitHub Actions workflow for page visibility management
+
+**Rationale**:
+- **Clean separation of concerns**: Content sync (time-sensitive) vs visibility management (low-frequency)
+- **Resource optimization**: Reduces XML-RPC API calls from ~120/day (5 categories × 24 hours) to ~5/day
+- **Flexibility**: Can adjust schedule independently (daily, weekly, etc.) without affecting content sync
+- **Simpler logic**: No conditional checks or state files needed in main sync script
+- **Clearer observability**: Separate workflow runs show visibility updates distinctly from content changes
+
+**Implementation Plan**:
+1. Create new workflow file: `.github/workflows/update-page-visibility.yml`
+2. Create new script: `src/update-page-visibility.js` (extract visibility logic from sync-content.js)
+3. Schedule: Daily at off-peak time (e.g., 3 AM UTC)
+4. Shared code: Both scripts use common `calculateCategoryActivity()` and XML-RPC utilities
+5. Main sync continues hourly for content operations only
+
+**Impact on PRD**:
+- **Requirements**: No change - page visibility still automated based on activity
+- **Architecture**: Two workflows instead of one - cleaner but adds deployment complexity
+- **Timeline**: Deferred to post-Step 6.2 completion (implement after visibility logic proven working)
+- **Scope**: Slight expansion - requires additional workflow configuration and script extraction
+
+**Code Changes Required**:
+- Extract page visibility section from `sync-content.js` into standalone script
+- Create new GitHub Actions workflow with daily cron schedule
+- Update documentation to reflect dual-workflow architecture
+
 ## Progress Log
+
+### 2025-10-24 (Milestone 6 Step 6.2 Complete: Automated Page Visibility Implementation)
+**Duration**: ~45 minutes
+**Branch**: feature/prd-1-milestone-6-activity-tracking
+**Focus**: Implement automated page show/hide based on category activity
+
+**Completed PRD Items**:
+- [x] Step 6.2: Store page ID mappings in code - Evidence: `CATEGORY_PAGES` configuration object (sync-content.js:11-37)
+- [x] Step 6.2: Auto-hide pages when category inactive 4+ months - Evidence: Guest page hidden (140 days inactive)
+- [x] Step 6.2: Auto-show pages when new content added - Evidence: 4 active categories remain visible
+
+**Implementation Highlights**:
+- Created `CATEGORY_PAGES` configuration with page IDs, titles, and descriptions for all 5 categories
+- Extracted XML-RPC utilities from test scripts: `escapeXml()`, `xmlrpcRequest()`, `setPageNavigationVisibility()`
+- Added page visibility management section in sync workflow (runs after activity tracking)
+- Uses correct XML-RPC parameter order: pageID, username, password, content_struct (discovered in Step 6.3)
+- Requires `title` and `description` fields in editPage call (learned from test-edit-page.js)
+
+**Files Modified**:
+- `src/sync-content.js` - Added XML-RPC utilities and page visibility management section
+  - Lines 2: Added `require('https')` for XML-RPC requests
+  - Lines 11-37: `CATEGORY_PAGES` configuration
+  - Lines 72-183: XML-RPC utility functions
+  - Lines 1136-1193: Page visibility management loop
+
+**Test Results** (Guest category correctly hidden):
+- Podcast (37 days): ✓ Visible in navigation
+- Video (24 days): ✓ Visible in navigation
+- Blog (63 days): ✓ Visible in navigation
+- Presentations (38 days): ✓ Visible in navigation
+- Guest (140 days): ✗ Hidden from navigation (inactive 4+ months)
+
+**Design Decision Made**:
+- Decision 21: Selected Option 1 - Separate daily GitHub Actions workflow for page visibility
+- Rationale: Reduces API calls from ~120/day to ~5/day, cleaner separation of concerns
+- Implementation deferred: Will extract visibility logic into standalone script post-Step 6.2
+
+**Next Steps**:
+- Complete remaining Step 6.3 testing (inactive category detection accuracy, page ID persistence)
+- Consider extracting page visibility into separate daily workflow (Decision 21)
+
+═══════════════════════════════════════
 
 ### 2025-10-24 (Milestone 6 Step 6.1 Complete: Activity Tracking Implementation)
 **Duration**: ~30 minutes
@@ -1413,19 +1519,24 @@ Discovered 2 posts with "undefined" category during testing. Assistant analysis:
 - ✅ Changes persist and queryable via `microblog.getPage`
 
 **Remaining Work for Milestone 6**:
-- [ ] Step 6.1: Implement activity tracking (track last post date per category)
-- [ ] Step 6.1: Calculate days since last post
-- [ ] Step 6.1: Identify categories inactive 4+ months
-- [ ] Step 6.1: Log activity status for all categories
-- [ ] Step 6.2: Auto-hide pages when category inactive 4+ months
-- [ ] Step 6.2: Auto-show pages when new content added
-- [ ] Step 6.2: Store page ID mappings in code
+- [x] Step 6.1: Implement activity tracking (track last post date per category)
+- [x] Step 6.1: Calculate days since last post
+- [x] Step 6.1: Identify categories inactive 4+ months
+- [x] Step 6.1: Log activity status for all categories
+- [x] Step 6.2: Auto-hide pages when category inactive 4+ months
+- [x] Step 6.2: Auto-show pages when new content added
+- [x] Step 6.2: Store page ID mappings in code
 - [ ] Step 6.3: Test inactive category detection accuracy
 - [ ] Step 6.3: Verify page ID persistence across sync runs
+- [ ] Step 6.4: Extract visibility logic into src/update-page-visibility.js
+- [ ] Step 6.4: Create .github/workflows/update-page-visibility.yml with daily schedule
+- [ ] Step 6.4: Remove page visibility section from sync-content.js
+- [ ] Step 6.4: Test both workflows independently
+- [ ] Step 6.4: Verify API calls reduced from ~120/day to ~5/day
 
-**Decision Made**: Option B selected for Milestone 6 - automated XML-RPC visibility management (documented as Decision 19 in PRD)
+**Decision Made**: Option B selected for Milestone 6 - automated XML-RPC visibility management (documented as Decision 19 in PRD). Decision 21 approved - extract visibility to separate daily workflow (Step 6.4).
 
-**Next Session Priority**: Implement Step 6.1 (activity tracking) and Step 6.2 (auto-toggle logic) to complete Milestone 6
+**Next Session Priority**: Complete remaining Step 6.3 tests, then implement Step 6.4 (extract to daily workflow) to optimize API usage
 
 ═══════════════════════════════════════
 

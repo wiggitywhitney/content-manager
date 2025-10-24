@@ -1,9 +1,40 @@
 const { google } = require('googleapis');
+const https = require('https');
 
 // Spreadsheet configuration
 const SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = 'Sheet1';
 const RANGE = `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
+
+// Page configuration for category navigation pages
+// IDs are stable and won't change unless pages are deleted/recreated
+const CATEGORY_PAGES = {
+  'Podcast': {
+    id: 897417,
+    title: 'Podcast',
+    description: 'https://whitneylee.com/podcast/'
+  },
+  'Video': {
+    id: 897489,
+    title: 'Video',
+    description: 'https://whitneylee.com/video/'
+  },
+  'Blog': {
+    id: 897491,
+    title: 'Blog',
+    description: 'https://whitneylee.com/blog/'
+  },
+  'Presentations': {
+    id: 897483,
+    title: 'Presentations',
+    description: 'https://whitneylee.com/presentations/'
+  },
+  'Guest': {
+    id: 897488,
+    title: 'Guest',
+    description: 'https://whitneylee.com/guest/'
+  }
+};
 
 // ============================================================================
 // Error Classification & Recovery
@@ -48,6 +79,128 @@ const ErrorType = {
   DATA: 'DATA',           // Unexpected data format or parsing issues
   UNKNOWN: 'UNKNOWN'      // Unclassified errors
 };
+
+// ============================================================================
+// XML-RPC Utilities for Page Management
+// ============================================================================
+
+/**
+ * Escape special XML characters
+ * @param {string} str - String to escape
+ * @returns {string} - Escaped string
+ */
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Make XML-RPC request to Micro.blog
+ * @param {string} methodName - XML-RPC method name (e.g., 'microblog.editPage')
+ * @param {Array} params - Method parameters
+ * @returns {Promise<Object>} - Response with statusCode and body
+ */
+function xmlrpcRequest(methodName, params) {
+  return new Promise((resolve, reject) => {
+    // Build XML-RPC request body
+    const paramsXml = params.map(param => {
+      if (typeof param === 'string') {
+        return `<param><value><string>${escapeXml(param)}</string></value></param>`;
+      } else if (typeof param === 'number') {
+        return `<param><value><int>${param}</int></value></param>`;
+      } else if (typeof param === 'boolean') {
+        return `<param><value><boolean>${param ? 1 : 0}</boolean></value></param>`;
+      } else if (typeof param === 'object' && !Array.isArray(param)) {
+        const members = Object.entries(param).map(([key, value]) => {
+          let valueXml;
+          if (typeof value === 'string') {
+            valueXml = `<string>${escapeXml(value)}</string>`;
+          } else if (typeof value === 'boolean') {
+            valueXml = `<boolean>${value ? 1 : 0}</boolean>`;
+          } else if (typeof value === 'number') {
+            valueXml = `<int>${value}</int>`;
+          }
+          return `<member><name>${key}</name><value>${valueXml}</value></member>`;
+        }).join('');
+        return `<param><value><struct>${members}</struct></value></param>`;
+      }
+    }).join('');
+
+    const requestBody = `<?xml version="1.0"?>
+<methodCall>
+  <methodName>${methodName}</methodName>
+  <params>
+    ${paramsXml}
+  </params>
+</methodCall>`;
+
+    // XML-RPC uses HTTP Basic Auth
+    const auth = Buffer.from(
+      `${process.env.MICROBLOG_USERNAME || 'wiggitywhitney'}:${process.env.MICROBLOG_XMLRPC_TOKEN}`
+    ).toString('base64');
+
+    const options = {
+      hostname: 'micro.blog',
+      path: '/xmlrpc',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml',
+        'Content-Length': Buffer.byteLength(requestBody),
+        'Authorization': 'Basic ' + auth
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+        } else {
+          resolve({ statusCode: res.statusCode, body: data });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(requestBody);
+    req.end();
+  });
+}
+
+/**
+ * Edit a page's navigation visibility
+ * @param {number} pageId - Micro.blog page ID
+ * @param {string} title - Page title
+ * @param {string} description - Page description/URL
+ * @param {boolean} isNavigation - Whether page should appear in navigation
+ * @returns {Promise<boolean>} - Success status
+ */
+async function setPageNavigationVisibility(pageId, title, description, isNavigation) {
+  const params = [
+    pageId,
+    process.env.MICROBLOG_USERNAME || 'wiggitywhitney',
+    process.env.MICROBLOG_XMLRPC_TOKEN,
+    {
+      title: title,
+      description: description,
+      is_navigation: isNavigation
+    }
+  ];
+
+  try {
+    const response = await xmlrpcRequest('microblog.editPage', params);
+    // Check for success (no fault in response)
+    return !response.body.includes('<fault>');
+  } catch (error) {
+    log(`XML-RPC error for page ${pageId}: ${error.message}`, 'ERROR');
+    return false;
+  }
+}
 
 /**
  * Classify an error by type
@@ -858,18 +1011,6 @@ function calculateCategoryActivity(validRows) {
 }
 
 /**
- * Page IDs for category navigation pages (discovered via XML-RPC microblog.getPages)
- * Used for toggling is_navigation parameter to show/hide pages from navigation
- */
-const CATEGORY_PAGE_IDS = {
-  'Video': 897489,
-  'Podcast': 897417,
-  'Guest': 897488,
-  'Blog': 897491,
-  'Presentations': 897483
-};
-
-/**
  * Main sync function - reads and parses spreadsheet data
  */
 async function syncContent() {
@@ -1000,6 +1141,52 @@ async function syncContent() {
         } else {
           console.log(`  Status: ✓ Active`);
         }
+      }
+
+      console.log('');
+    }
+
+    // ========================================================================
+    // Page Visibility Management
+    // ========================================================================
+
+    log('\n' + '='.repeat(60));
+    log('Page Visibility Management');
+    log('='.repeat(60) + '\n');
+
+    for (const category of ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest']) {
+      const activity = categoryActivity[category];
+      const pageConfig = CATEGORY_PAGES[category];
+
+      if (!pageConfig) {
+        log(`${category}: ⚠️  No page configuration found (skipped)`, 'WARN');
+        continue;
+      }
+
+      log(`${category} (Page ID: ${pageConfig.id}):`);
+
+      try {
+        // Determine desired visibility state
+        const shouldBeVisible = !activity.isInactive && activity.postCount > 0;
+
+        const success = await setPageNavigationVisibility(
+          pageConfig.id,
+          pageConfig.title,
+          pageConfig.description,
+          shouldBeVisible
+        );
+
+        if (success) {
+          if (shouldBeVisible) {
+            console.log(`  ✓ Page visible in navigation (active category)`);
+          } else {
+            console.log(`  ✗ Page hidden from navigation (inactive 4+ months)`);
+          }
+        } else {
+          log(`  ❌ Failed to update page visibility`, 'ERROR');
+        }
+      } catch (error) {
+        log(`  ❌ Error updating visibility: ${error.message}`, 'ERROR');
       }
 
       console.log('');
