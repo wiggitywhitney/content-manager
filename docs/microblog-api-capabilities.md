@@ -268,6 +268,333 @@ Micro.blog supports automatic category assignment based on:
 - **`is_template`** (boolean) - Indicates dynamic pages (About, Archive, Photos)
 - **`is_redirect`** (boolean) - Page redirects to another URL
 
+## XML-RPC API - Detailed Implementation Guide
+
+**Research Date**: 2025-10-24
+**Status**: ✅ Fully tested and validated
+
+### Authentication Requirements
+
+**Critical Finding**: XML-RPC requires a **different app token** than Micropub API.
+
+1. **Token Type**: Use the **MarsEdit token** from Account → Edit Apps
+   - The "content-manager" token (used for Micropub) will return `403 User not authorized`
+   - Must use the token labeled "MarsEdit" for XML-RPC operations
+
+2. **Authentication Method**: HTTP Basic Auth (NOT Bearer token)
+   ```javascript
+   const auth = Buffer.from(`${username}:${token}`).toString('base64');
+   headers: { 'Authorization': 'Basic ' + auth }
+   ```
+
+3. **Required Credentials**:
+   - **Username**: Your Micro.blog username (e.g., `wiggitywhitney`)
+   - **Password**: MarsEdit app token
+   - **Blog ID**: Found in RSD file at `https://yourdomain.com/rsd.xml`
+
+### RSD Discovery
+
+To find your Blog ID:
+```bash
+curl https://whitneylee.com/rsd.xml
+```
+
+Example RSD file:
+```xml
+<api name="Micro.blog" blogID="169604" preferred="true"
+     apiLink="https://micro.blog/xmlrpc"/>
+```
+
+The `blogID` (169604 in this example) is required for some XML-RPC methods.
+
+### Method Parameter Orders
+
+**IMPORTANT**: Parameter order varies by method. Incorrect order causes errors like "Page title can't be blank".
+
+#### `microblog.getPages` - List All Pages
+**Parameter Order**:
+1. Blog ID (integer)
+2. Username (string)
+3. Password (string - use MarsEdit token)
+4. Number of pages (integer) - how many to fetch
+5. Offset (integer) - pagination offset
+
+**Example**:
+```javascript
+xmlrpcRequest('microblog.getPages', [
+  169604,              // blogID
+  'wiggitywhitney',    // username
+  'MARSEDIT_TOKEN',    // password
+  100,                 // fetch up to 100 pages
+  0                    // offset 0
+]);
+```
+
+**Returns**: Array of page structs with fields:
+- `id` (integer) - Page ID
+- `title` (string) - Page title
+- `permalink` (string) - Page URL
+- `description` (string) - Page content or redirect URL
+- `is_navigation` (boolean) - Visible in nav?
+- `is_template` (boolean) - Dynamic template page?
+- `is_redirect` (boolean) - Redirects elsewhere?
+
+#### `microblog.getPage` - Get Single Page
+**Parameter Order**:
+1. Page ID (integer)
+2. Username (string)
+3. Password (string - use MarsEdit token)
+
+**Example**:
+```javascript
+xmlrpcRequest('microblog.getPage', [
+  897491,              // pageID
+  'wiggitywhitney',    // username
+  'MARSEDIT_TOKEN'     // password
+]);
+```
+
+#### `microblog.editPage` - Update Page
+**Parameter Order**:
+1. Page ID (integer)
+2. Username (string)
+3. Password (string - use MarsEdit token)
+4. Content struct (object)
+
+**Content Struct Fields**:
+- `title` (string, required) - Page title
+- `description` (string, required) - Page content or redirect URL
+- `is_navigation` (boolean, optional) - Show in navigation?
+
+**Example - Hide Page from Navigation**:
+```javascript
+xmlrpcRequest('microblog.editPage', [
+  897491,              // pageID
+  'wiggitywhitney',    // username
+  'MARSEDIT_TOKEN',    // password
+  {
+    title: 'Blog',
+    description: 'https://whitneylee.com/blog',
+    is_navigation: false  // HIDE from navigation
+  }
+]);
+```
+
+**Example - Show Page in Navigation**:
+```javascript
+xmlrpcRequest('microblog.editPage', [
+  897491,              // pageID
+  'wiggitywhitney',    // username
+  'MARSEDIT_TOKEN',    // password
+  {
+    title: 'Blog',
+    description: 'https://whitneylee.com/blog',
+    is_navigation: true   // SHOW in navigation
+  }
+]);
+```
+
+**Response**: `<boolean>1</boolean>` on success
+
+### Complete Working Example
+
+```javascript
+const https = require('https');
+
+const MICROBLOG_XMLRPC_TOKEN = process.env.MICROBLOG_XMLRPC_TOKEN; // MarsEdit token
+const MICROBLOG_USERNAME = 'wiggitywhitney';
+const BLOG_ID = 169604;
+
+function xmlrpcRequest(methodName, params) {
+  return new Promise((resolve, reject) => {
+    // Build params XML
+    const paramsXml = params.map(param => {
+      if (typeof param === 'string') {
+        return `<param><value><string>${escapeXml(param)}</string></value></param>`;
+      } else if (typeof param === 'number') {
+        return `<param><value><int>${param}</int></value></param>`;
+      } else if (typeof param === 'object') {
+        const members = Object.entries(param).map(([key, value]) => {
+          let valueXml;
+          if (typeof value === 'string') {
+            valueXml = `<string>${escapeXml(value)}</string>`;
+          } else if (typeof value === 'boolean') {
+            valueXml = `<boolean>${value ? 1 : 0}</boolean>`;
+          }
+          return `<member><name>${key}</name><value>${valueXml}</value></member>`;
+        }).join('');
+        return `<param><value><struct>${members}</struct></value></param>`;
+      }
+    }).join('');
+
+    const requestBody = `<?xml version="1.0"?>
+<methodCall>
+  <methodName>${methodName}</methodName>
+  <params>${paramsXml}</params>
+</methodCall>`;
+
+    const auth = Buffer.from(`${MICROBLOG_USERNAME}:${MICROBLOG_XMLRPC_TOKEN}`).toString('base64');
+
+    const options = {
+      hostname: 'micro.blog',
+      path: '/xmlrpc',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml',
+        'Content-Length': Buffer.byteLength(requestBody),
+        'Authorization': 'Basic ' + auth
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+    });
+
+    req.on('error', reject);
+    req.write(requestBody);
+    req.end();
+  });
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Example: Get all pages
+const response = await xmlrpcRequest('microblog.getPages', [
+  BLOG_ID,
+  MICROBLOG_USERNAME,
+  MICROBLOG_XMLRPC_TOKEN,
+  100,
+  0
+]);
+
+// Example: Hide a page
+await xmlrpcRequest('microblog.editPage', [
+  897491,  // Page ID for "Blog"
+  MICROBLOG_USERNAME,
+  MICROBLOG_XMLRPC_TOKEN,
+  {
+    title: 'Blog',
+    description: 'https://whitneylee.com/blog',
+    is_navigation: false
+  }
+]);
+```
+
+### Tested Use Cases
+
+**✅ Successfully Tested (2025-10-24)**:
+
+1. **Authentication with MarsEdit token** - Works perfectly
+2. **Query all pages** (`microblog.getPages`) - Returns 14 pages with full metadata
+3. **Get single page** (`microblog.getPage`) - Returns complete page data
+4. **Hide page from navigation** (`microblog.editPage` with `is_navigation: false`) - Verified working
+5. **Show page in navigation** (`microblog.editPage` with `is_navigation: true`) - Verified working
+6. **Changes persist** - Page visibility changes immediately visible in Micro.blog UI
+
+**Category Navigation Pages Found**:
+- Video: Page ID 897489
+- Podcast: Page ID 897417
+- Guest: Page ID 897488
+- Blog: Page ID 897491
+- Presentations: Page ID 897483
+
+### Common Errors and Solutions
+
+**Error: "User not authorized" (403)**
+- **Cause**: Using wrong app token (Micropub token instead of MarsEdit token)
+- **Solution**: Use the MarsEdit token from Account → Edit Apps
+
+**Error: "Page title can't be blank" (500)**
+- **Cause**: Wrong parameter order for `microblog.editPage`
+- **Solution**: Use order: pageID, username, password, content_struct (NOT blogID first)
+
+**Error: HTTP 500 with no details**
+- **Cause**: Trying to use standard MetaWeblog methods that Micro.blog doesn't fully support
+- **Solution**: Use `microblog.*` methods instead of `wp.*` or `metaWeblog.*` methods
+
+### XML Response Parsing
+
+Responses contain nested structs. Example parser:
+
+```javascript
+function parseXmlRpcArray(xml) {
+  const pages = [];
+  const arrayMatch = xml.match(/<array><data>([\s\S]*?)<\/data><\/array>/);
+  if (!arrayMatch) return pages;
+
+  let content = arrayMatch[1];
+  let pos = 0;
+
+  // Extract top-level structs by counting depth
+  while (pos < content.length) {
+    const valueStart = content.indexOf('<value><struct>', pos);
+    if (valueStart === -1) break;
+
+    // Find matching </struct></value> by counting depth
+    let depth = 0;
+    let i = valueStart;
+    let structEnd = -1;
+
+    while (i < content.length) {
+      if (content.substring(i, i + 15) === '<value><struct>') {
+        depth++;
+        i += 15;
+      } else if (content.substring(i, i + 17) === '</struct></value>') {
+        depth--;
+        if (depth === 0) {
+          structEnd = i + 17;
+          break;
+        }
+        i += 17;
+      } else {
+        i++;
+      }
+    }
+
+    if (structEnd === -1) break;
+
+    const structXml = content.substring(valueStart, structEnd);
+    const page = {};
+
+    // Extract fields
+    const idMatch = structXml.match(/<name>id<\/name><value><i4>(\d+)<\/i4>/);
+    if (idMatch) page.id = parseInt(idMatch[1], 10);
+
+    const titleMatch = structXml.match(/<name>title<\/name><value><string>(.*?)<\/string>/);
+    if (titleMatch) page.title = titleMatch[1];
+
+    const navMatch = structXml.match(/<name>is_navigation<\/name><value><boolean>([01])<\/boolean>/);
+    if (navMatch) page.is_navigation = navMatch[1] === '1';
+
+    if (page.id && page.title) {
+      pages.push(page);
+    }
+
+    pos = structEnd;
+  }
+
+  return pages;
+}
+```
+
+### Environment Configuration
+
+Add to `.teller.yml`:
+```yaml
+keys:
+  marsedit_token: MICROBLOG_XMLRPC_TOKEN
+```
+
+Add to `.env`:
+```bash
+MICROBLOG_USERNAME=wiggitywhitney
+MICROBLOG_BLOG_ID=169604
+```
+
 ## Key Architectural Concepts
 
 ### Pages vs Categories vs Posts

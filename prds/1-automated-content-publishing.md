@@ -495,44 +495,39 @@ Spreadsheet Column H: [A, B, C]
 }
 ```
 
-#### Step 6.2: Navigation Management Strategy (~60-90 min)
-**API Reference**: [Navigation Limitations](../docs/microblog-api-capabilities.md#limitations--constraints)
-
-Choose implementation approach:
-
-**Option A: Manual Setup (Simplest)** ✅ Recommended
-- [ ] Create navigation pages once via Micro.blog web UI
-- [ ] Link each page to category URL (e.g., `/categories/podcast/`)
-- [ ] Log warnings when categories become inactive (no auto-hide)
-- [ ] Whitney manually hides/shows pages based on logs
-
-**Option B: XML-RPC Page Management** (More complex)
+#### Step 6.2: Navigation Management via XML-RPC (~60-90 min)
 **API Reference**: [XML-RPC Page Methods](../docs/microblog-api-capabilities.md#page-management-methods)
+**Decision**: Option B selected (2025-10-24) - See Decision 19
 
-- [ ] Create navigation pages via `microblog.newPage` with links to categories
+**Implementation Note**: Navigation pages already exist in Micro.blog for all 5 categories (Video, Podcast, Guest, Blog, Presentations) with redirects configured to category URLs. We only need to query existing pages and toggle `is_navigation` parameter.
+
+- [ ] Query existing pages via `microblog.getPages`
+- [ ] Identify the 5 category navigation pages by title
+- [ ] Extract page IDs for tracking
 - [ ] Implement `microblog.editPage` to toggle `is_navigation` parameter
 - [ ] Auto-hide pages when category inactive 4+ months
 - [ ] Auto-show pages when category receives new content
-- [ ] Handle page ID tracking in state file
+- [ ] Store page ID mappings (category name → page ID)
 
 **API Details for XML-RPC**:
 - Endpoint: `https://micro.blog/xmlrpc`
-- Method: `microblog.editPage`
+- Method: `microblog.getPages` - List all pages with IDs and is_navigation status
+- Method: `microblog.editPage` - Update page with new is_navigation value
 - Parameters: `page_id`, `is_navigation` (boolean)
 - Authentication: Username + app token as password
-- Limitation: Manages pages, not direct category navigation
 
-**Option C: Skip Auto-Management** (Pragmatic)
-- [ ] Categories remain visible at all times
-- [ ] No navigation hiding (categories without content show empty)
-- [ ] Focus effort on core posting functionality
+**Simplified Workflow**:
+1. One-time setup: Query pages, map category names to page IDs
+2. Hourly sync: Check category activity, toggle is_navigation as needed
+3. No page creation required (pages already exist)
 
-#### Step 6.3: Implementation Decision and Testing (~30-45 min)
-- [ ] Choose approach (A, B, or C) based on effort vs value
-- [ ] Implement chosen approach
-- [ ] Test inactive category detection
-- [ ] Test navigation visibility changes (if Option B)
-- [ ] Document approach in Progress Log
+#### Step 6.3: Testing (~30-45 min)
+- [x] Test XML-RPC authentication with existing app token
+- [x] Verify page query returns all category pages with correct IDs
+- [x] Test is_navigation toggle (hide/show a test page)
+- [ ] Test inactive category detection accuracy
+- [ ] Verify page ID persistence across sync runs
+- [x] Document approach in Progress Log
 
 **Success Criteria**: Activity tracking works and navigation management approach is documented/implemented (may not include auto-hide if API limitations make it impractical)
 
@@ -1214,6 +1209,52 @@ Post 2: mp-slug: "kubernetes-social-construct-conf42-devops"
 **Date**: 2025-10-23
 **Status**: ✅ Implemented in Step 5.2.5
 
+### Decision 19: Option B Selected for Milestone 6 - XML-RPC Automated Page Visibility
+**Date**: 2025-10-24
+**Status**: ✅ Approved for implementation
+
+**Context**: Three options existed for managing category page visibility:
+- Option A: Manual page management with activity warnings (simplest)
+- Option B: Automated XML-RPC page visibility toggling (more complex)
+- Option C: Skip visibility management (pragmatic but poor UX)
+
+**Discovery**: Navigation pages already exist in Micro.blog for all 5 categories:
+- Video → `/video` (23 posts)
+- Podcast → `/podcast` (19 posts)
+- Guest → `/guest` (9 posts)
+- Blog → `/blog` (4 posts)
+- Presentations → `/presentations` (9 posts)
+
+Each page has "Include this page in your blog navigation" checkbox, controllable via XML-RPC `is_navigation` parameter.
+
+**Decision**: Implement Option B (XML-RPC automated visibility management)
+
+**Rationale**:
+- Pages already exist - no need to create them (major simplification)
+- Redirects already configured to category URLs
+- XML-RPC API supports `microblog.getPages` and `microblog.editPage`
+- `is_navigation` parameter controls checkbox state
+- Automation provides better UX than manual management
+- Effort reduced from 3-4 hours to 2-3 hours due to existing pages
+
+**Implementation Approach**:
+1. Query existing pages via `microblog.getPages` (one-time page ID discovery)
+2. Map category names to page IDs (persist in code or state)
+3. Track category activity in spreadsheet Column I (last post date)
+4. Auto-toggle `is_navigation` when categories go stale (4+ months) or reactivate
+5. Use same app token authentication as Micropub (username + token)
+
+**Impact**:
+- Milestone 6 Step 6.2 updated with simplified workflow
+- No page creation logic needed
+- Step 6.3 testing focused on XML-RPC validation
+- Reduced implementation time due to existing infrastructure
+
+**When to Reconsider**:
+- If XML-RPC API proves unreliable or unsupported
+- If page ID mapping becomes complex to maintain
+- If user prefers manual control after seeing automated behavior
+
 **Discovery**: Micro.blog auto-extracts titles from post content when no `name` parameter is provided, but extraction is inconsistent. Some posts got content-based URLs (`software-defined-interviews-learning-to`), while others got timestamp URLs (`130000`) or hash slugs (`8e237a`).
 
 **Problem**: Inconsistent URL quality across posts affects SEO and professionalism.
@@ -1255,6 +1296,85 @@ Post 2: mp-slug: "kubernetes-social-construct-conf42-devops"
 - If need to add max attempt tracking to prevent perpetual regeneration
 
 ## Progress Log
+
+### 2025-10-24 (Milestone 6 Research: XML-RPC API Validation for Page Visibility)
+**Duration**: ~3 hours
+**Focus**: Research, test, and validate XML-RPC API for automated page visibility management
+**Status**: Research phase complete, implementation pending
+
+**Completed PRD Items**:
+- [x] Step 6.3: Test XML-RPC authentication - Evidence: Successfully authenticated using MarsEdit token
+- [x] Step 6.3: Verify page query returns all category pages - Evidence: `test-xmlrpc.js` queries 14 pages, identifies all 5 category pages
+- [x] Step 6.3: Test is_navigation toggle - Evidence: `test-edit-page.js` successfully hides/shows pages, visually verified
+- [x] Step 6.3: Document approach - Evidence: Comprehensive XML-RPC guide in `docs/microblog-api-capabilities.md`
+
+**Key Discoveries**:
+1. **Two Separate Tokens Required**:
+   - Micropub API uses "content-manager" token
+   - XML-RPC API requires separate "MarsEdit" token from Account → Edit Apps
+   - Using wrong token returns `403 User not authorized`
+
+2. **RSD Discovery for Blog ID**:
+   - Found blog ID (169604) via `https://whitneylee.com/rsd.xml`
+   - Blog ID required for some XML-RPC methods like `microblog.getPages`
+
+3. **Parameter Order Critical**:
+   - `microblog.getPages`: blogID, username, password, numPages, offset
+   - `microblog.editPage`: pageID, username, password, content_struct (NOT blogID first!)
+   - `microblog.getPage`: pageID, username, password
+   - Wrong order causes errors like "Page title can't be blank"
+
+4. **Navigation Pages Pre-exist**:
+   - All 5 category pages already configured in Micro.blog
+   - Page IDs discovered: Video (897489), Podcast (897417), Guest (897488), Blog (897491), Presentations (897483)
+   - No need to create pages, only toggle `is_navigation` parameter
+
+5. **Immediate UI Changes**:
+   - `is_navigation` toggle takes effect instantly
+   - Visually confirmed "Blog" page disappeared/reappeared from navigation
+
+**Files Created**:
+- `src/test-xmlrpc.js` - XML-RPC authentication, page query, and parsing (depth-aware struct parser)
+- `src/test-edit-page.js` - Complete hide/show/verify workflow with 2-second propagation delays
+- `src/hide-blog-page.js` - Helper script for visual verification
+- `src/restore-blog-page.js` - Helper script to restore visibility
+- `src/test-metaweblog.js` - MetaWeblog API exploration (unsuccessful, returned HTTP 500)
+- `src/test-auth-simple.js` - Basic authentication test with blogger.getUsersBlogs
+
+**Configuration Updates**:
+- `.teller.yml` - Added `marsedit_token: MICROBLOG_XMLRPC_TOKEN` mapping
+- `.env` - Added `MICROBLOG_USERNAME=wiggitywhitney` and `MICROBLOG_BLOG_ID=169604`
+
+**Documentation Created**:
+- Comprehensive 300+ line XML-RPC implementation guide in `docs/microblog-api-capabilities.md`
+- Covers authentication requirements, RSD discovery, method parameter orders
+- Includes complete working examples, common errors/solutions, XML parsing examples
+- Documents all tested use cases with evidence of success
+
+**Testing Results**:
+- ✅ XML-RPC authentication successful with MarsEdit token
+- ✅ Query all pages returns 14 pages with full metadata
+- ✅ Page ID extraction working for all 5 category pages
+- ✅ Hide page from navigation verified (Blog page disappeared from whitneylee.com)
+- ✅ Show page in navigation verified (Blog page restored to whitneylee.com)
+- ✅ Changes persist and queryable via `microblog.getPage`
+
+**Remaining Work for Milestone 6**:
+- [ ] Step 6.1: Implement activity tracking (track last post date per category)
+- [ ] Step 6.1: Calculate days since last post
+- [ ] Step 6.1: Identify categories inactive 4+ months
+- [ ] Step 6.1: Log activity status for all categories
+- [ ] Step 6.2: Auto-hide pages when category inactive 4+ months
+- [ ] Step 6.2: Auto-show pages when new content added
+- [ ] Step 6.2: Store page ID mappings in code
+- [ ] Step 6.3: Test inactive category detection accuracy
+- [ ] Step 6.3: Verify page ID persistence across sync runs
+
+**Decision Made**: Option B selected for Milestone 6 - automated XML-RPC visibility management (documented as Decision 19 in PRD)
+
+**Next Session Priority**: Implement Step 6.1 (activity tracking) and Step 6.2 (auto-toggle logic) to complete Milestone 6
+
+═══════════════════════════════════════
 
 ### 2025-10-23 (Post-Implementation Cleanup & Documentation)
 **Duration**: ~1 hour
