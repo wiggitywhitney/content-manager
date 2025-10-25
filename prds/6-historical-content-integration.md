@@ -148,6 +148,27 @@ Integrate historical content into the current 2025 spreadsheet as separate yearl
 - Specific questions (filtering, data sources, etc.) deferred to implementation time
 - Year-specific decisions captured in each milestone, not upfront
 
+### Decision 4: Extract-First Strategy - All Data Extraction Before Google Sheets Import
+**Date**: 2025-10-25
+**Status**: ✅ Confirmed
+
+**Rationale**:
+- Avoids multiple imports to same yearly tabs (reduces rework and potential errors)
+- Enables comprehensive deduplication across ALL sources before import
+- Single import → test → approve workflow is cleaner than multiple append cycles
+- All 2024 content (playlists + events spreadsheet) merged into one complete `2024` tab
+- Same benefit applies to 2023 and 2022 tabs
+
+**Impact**:
+- **Phase A (Extraction)**: Milestones 6.1-6.4 focus on extracting data to FINAL CSVs only
+- **Phase B (Import)**: New Milestone 6.6 handles ONE comprehensive import of all tabs
+- Milestone 6.1 extraction = ✅ COMPLETE (234 videos from playlists)
+- Milestone 6.2: Extract 2024_Events spreadsheet → merge with FINAL-2024.csv
+- Milestone 6.3: Extract 2023 spreadsheet → merge with FINAL-2023.csv
+- Milestone 6.4: Extract 2022 spreadsheet → merge with FINAL-2022.csv
+- Milestone 6.5: IBM videos already extracted (included in 6.1)
+- Milestone 6.6: Import ALL FINAL CSVs to Google Sheets tabs in one operation
+
 ## Open Questions (Deferred to Implementation)
 
 The following questions will be answered during each milestone's implementation phase:
@@ -209,15 +230,21 @@ The following questions will be answered during each milestone's implementation 
 
 ### Milestone Structure
 
-Each milestone is a **completely separate effort**. Complete one milestone fully (plan → implement → document learnings) before starting the next.
+**Two-Phase Approach** (Decision 4):
+- **Phase A - Data Extraction (Milestones 6.1-6.4)**: Extract all historical content to FINAL CSVs
+- **Phase B - Import to Google Sheets (Milestone 6.6)**: ONE comprehensive import of all yearly tabs
+
+Each extraction milestone is a **separate effort**. Complete one milestone fully (extract → merge → document learnings) before starting the next.
 
 **Cross-posting**: All historical content imported with **cross-posting disabled** (consistent with PRD-6 original approach) to avoid spamming followers with old content.
 
 ---
 
-### Milestone 6.1: 2024_Work_Details Integration
+### Milestone 6.1: YouTube Playlist Extraction (PHASE A)
 
-**Goal**: Migrate 2024 work/content details (primarily Enlightning streams) to `2024` tab
+**Goal**: Extract 2024 work/content details (primarily Enlightning streams) from YouTube playlists to FINAL CSVs
+
+**Status**: ✅ EXTRACTION COMPLETE
 
 **Sources**:
 - Primary: 2024_Work_Details spreadsheet (116 rows, 7 columns)
@@ -236,9 +263,9 @@ Each milestone is a **completely separate effort**. Complete one milestone fully
   - IBM Cloud → "Video"
 - ✅ **Show name formatting**: ⚡️Enlightning (no space between emoji and text), IBM Cloud (renamed from IBM Videos)
 
-**Success Criteria**:
-- [x] 2024 work/content data extracted from YouTube playlists (98 videos for 2024)
-- [x] Additional years extracted: 2020 (4), 2021 (3), 2022 (33), 2023 (82)
+**Success Criteria** (Extraction Phase):
+- [x] 2024 work/content data extracted from YouTube playlists (111 videos for 2024)
+- [x] Additional years extracted: 2020 (4), 2021 (3), 2022 (33), 2023 (83)
 - [x] Data normalized to compatible format (Name, Type, Date, Link columns)
 - [x] NEEDS_REVIEW tab created for manual classification (46 Presentations & Guest videos)
 - [x] Software Defined Interviews episodes 83-111 scraped with correct URLs (softwaredefinedinterviews.com/{episode})
@@ -246,73 +273,87 @@ Each milestone is a **completely separate effort**. Complete one milestone fully
 - [x] Year filtering implemented (2025 content automatically excluded)
 - [x] FINAL CSVs generated (6 files: by year + combined)
 - [x] **Completeness verification**: All videos from 2024_Work_Details spreadsheet verified - 98.2% complete (55/56 videos, 1 inaccessible)
-- [ ] New tabs `2024`, `2023`, `2022`, `2021`, `2020` created in 2025_Content_Created spreadsheet
-- [ ] Historical content rows imported to yearly tabs
-- [ ] Sync script updated to read multiple tabs (Sheet1 + yearly tabs)
-- [ ] Cross-posting disabled for historical import (requires sync script update)
-- [ ] Visual approval from user on imported data
-- [ ] Learnings documented for next milestone
+- [x] Enlightning title cleanup (removed prefix variations)
+- [x] NEEDS_REVIEW corrections applied (62 manual classifications imported)
+- [x] Additional playlists integrated (Two Friends Talking Tanzu, VMware Tanzu YouTube)
+- [x] Blog posts tracked separately (other-content-2024.csv)
+- [x] Final data statistics: 234 total videos (2020: 4, 2021: 3, 2022: 33, 2023: 83, 2024: 111)
+- [x] Learnings documented
+
+**Note**: Google Sheets import deferred to Milestone 6.6 (after all extractions complete)
 
 ---
 
-### Milestone 6.2: 2024_Events Integration
+### Milestone 6.2: 2024_Events Spreadsheet Extraction (PHASE A)
 
-**Goal**: Migrate 2024 events (conferences, webinars, podcasts) to `2024` tab
+**Goal**: Extract 2024 events (conferences, webinars, podcasts) from spreadsheet and merge with FINAL-2024.csv
+
+**Status**: Pending
 
 **Sources**:
-- Primary: 2024_Events spreadsheet (61 rows, 18 columns)
-- Supplementary: Presentations & Guest Appearances playlist (verification)
+- Primary: 2024_Events spreadsheet (61 rows, 18 columns) - https://docs.google.com/spreadsheets/d/1nz_v9_WfFanJcvC5WRcZ6S9JPLSGlYdwsyzRxNUGjjE
+- Supplementary: Presentations & Guest Appearances playlist (verification/deduplication)
 
 **Open Questions** (to be resolved during this milestone):
 - Use "EXPORT INDICATOR" to filter rows?
 - Which event types to include? (conferences, webinars, podcasts, vs internal events)
 - How to extract URLs from hyperlinks in NAME and CONTENT LINK columns?
 - Content type mapping strategy for various EVENT TYPEs
-- Merge with 6.1 data in same `2024` tab or keep separate?
+- Deduplicate against existing FINAL-2024.csv entries (playlists already extracted)
 
-**Success Criteria**:
-- 2024 events data extracted and filtered
-- Hyperlinks extracted from NAME and CONTENT LINK columns
-- Event types mapped to standard taxonomy (Podcast, Video, Presentations, Guest, Blog)
-- Data merged into `2024` tab (or added if tab doesn't exist yet)
-- Cross-posting disabled
-- Learnings documented
+**Success Criteria** (Extraction Phase):
+- [ ] 2024_Events data extracted from spreadsheet (Google Sheets API)
+- [ ] Hyperlinks extracted from NAME and CONTENT LINK columns
+- [ ] Event types mapped to standard taxonomy (Podcast, Video, Presentations, Guest, Blog)
+- [ ] Duplicates detected (compare with existing FINAL-2024.csv by title+date)
+- [ ] Data merged into FINAL-2024.csv (updated count)
+- [ ] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated with new 2024 data
+- [ ] Learnings documented
+
+**Note**: Google Sheets import deferred to Milestone 6.6 (after all extractions complete)
 
 ---
 
-### Milestone 6.3: 2023 Content Integration
+### Milestone 6.3: 2023 Content Spreadsheet Extraction (PHASE A)
 
-**Goal**: Migrate 2023 content to `2023` tab
+**Goal**: Extract 2023 content from spreadsheet and merge with FINAL-2023.csv
+
+**Status**: Pending
 
 **Sources**:
-- Primary: 2023 Content spreadsheet (63 rows, 14 columns)
+- Primary: 2023 Content spreadsheet (63 rows, 14 columns) - https://docs.google.com/spreadsheets/d/1pwJz_r91m_zJWOI6XuqsMRQpwLnxAN32j-aIiJYuZm0
 - Note: May also include "2023_Work_Details + Enlightnings" sources (TBD during implementation)
-- Supplementary: YouTube playlists for verification (Software Defined Interviews ep 83+, ⚡️ Enlightning)
+- Supplementary: YouTube playlists for verification/deduplication (Software Defined Interviews ep 83+, ⚡️ Enlightning)
 
 **Open Questions** (to be resolved during this milestone):
 - Clarify "2023_Work_Details + Enlightnings" - separate sources or within main sheet?
 - Selective filtering approach (fewer rows = easier curation)?
 - URL extraction from Event and Video columns
 - Type mapping for "Type of content or engagement" values
-- Use YouTube playlists to verify completeness?
+- Deduplicate against existing FINAL-2023.csv entries (playlists already extracted)
 
-**Success Criteria**:
-- 2023 content sources identified and extracted
-- Data normalized to compatible format
-- New tab `2023` created in 2025_Content_Created spreadsheet
-- Selected content migrated to `2023` tab
-- Cross-posting disabled
-- Learnings documented
-- Apply lessons from Milestones 6.1 and 6.2
+**Success Criteria** (Extraction Phase):
+- [ ] 2023 content data extracted from spreadsheet (Google Sheets API)
+- [ ] Hyperlinks extracted from Event and Video columns
+- [ ] Content types mapped to standard taxonomy (Podcast, Video, Presentations, Guest, Blog)
+- [ ] Duplicates detected (compare with existing FINAL-2023.csv by title+date)
+- [ ] Data merged into FINAL-2023.csv (updated count)
+- [ ] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated with new 2023 data
+- [ ] Learnings documented
+- [ ] Apply lessons from Milestones 6.1 and 6.2
+
+**Note**: Google Sheets import deferred to Milestone 6.6 (after all extractions complete)
 
 ---
 
-### Milestone 6.4: 2022 Content Integration
+### Milestone 6.4: 2022 Content Spreadsheet Extraction (PHASE A)
 
-**Goal**: Migrate ~4 key items from 2022 to `2022` tab
+**Goal**: Extract ~4 key items from 2022 spreadsheet and merge with FINAL-2022.csv
+
+**Status**: Pending
 
 **Sources**:
-- Primary: 2022 Content spreadsheet (94 rows, 13 columns)
+- Primary: 2022 Content spreadsheet (94 rows, 13 columns) - https://docs.google.com/spreadsheets/d/1y5oxniWuw2R4UOOL00_oEQ1xRO1uaQPIQbvG_nt7vXc
 - Estimated inclusion: ~4 key items (highly selective)
 
 **Open Questions** (to be resolved during this milestone):
@@ -321,37 +362,87 @@ Each milestone is a **completely separate effort**. Complete one milestone fully
 - URL extraction from Event and Video columns
 - Type mapping for 2022 "Type" values
 - Content still accessible (VMware blog posts → Broadcom transition)?
+- Deduplicate against existing FINAL-2022.csv entries (playlists already extracted)
 
-**Success Criteria**:
-- ~4 key items identified and extracted
-- Data normalized to compatible format
-- New tab `2022` created in 2025_Content_Created spreadsheet
-- Selected content migrated to `2022` tab
-- Cross-posting disabled
-- Learnings documented
-- Most selective milestone (fewest rows migrated)
+**Success Criteria** (Extraction Phase):
+- [ ] ~4 key items identified and extracted from spreadsheet
+- [ ] Hyperlinks extracted from Event and Video columns
+- [ ] Content types mapped to standard taxonomy (Podcast, Video, Presentations, Guest, Blog)
+- [ ] Duplicates detected (compare with existing FINAL-2022.csv by title+date)
+- [ ] Data merged into FINAL-2022.csv (updated count)
+- [ ] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated with new 2022 data
+- [ ] Learnings documented
+- [ ] Most selective milestone (fewest rows added)
+
+**Note**: Google Sheets import deferred to Milestone 6.6 (after all extractions complete)
 
 ---
 
-### Milestone 6.5: IBM Videos Integration
+### Milestone 6.5: IBM Videos Extraction (PHASE A)
 
-**Goal**: Extract 7 IBM videos from YouTube playlist and integrate
+**Goal**: Extract 7 IBM videos from YouTube playlist
+
+**Status**: ✅ COMPLETE (extracted in Milestone 6.1)
 
 **Sources**:
 - YouTube Playlist: https://www.youtube.com/playlist?list=PLBexUsYDijaz14Mot8_6rAbxkoF4iS6PZ (7 videos)
 
-**Open Questions** (to be resolved during this milestone):
-- Extract to which year tab? (based on video publish dates)
-- YouTube metadata extraction: titles, dates, URLs
-- Content type: "Video" or "Guest"?
-- Manual entry vs. YouTube API script?
+**Decision Record** (resolved 2025-10-25):
+- ✅ **Extraction method**: yt-dlp (same as other playlists)
+- ✅ **Content type**: "Video"
+- ✅ **Show name**: "IBM Cloud" (renamed from "IBM Videos")
+- ✅ **Distribution**: 2020 (4 videos), 2021 (3 videos)
+
+**Success Criteria** (Complete):
+- [x] 7 video metadata extracted (title, date, URL)
+- [x] Content type determined: "Video"
+- [x] Videos added to FINAL CSVs by year (2020: 4, 2021: 3)
+- [x] Process documented (yt-dlp extraction pipeline)
+
+**Note**: This milestone was completed as part of Milestone 6.1's YouTube extraction phase
+
+---
+
+### Milestone 6.6: Google Sheets Import (PHASE B)
+
+**Goal**: Import ALL FINAL CSVs to Google Sheets yearly tabs in ONE comprehensive operation
+
+**Status**: Pending (blocked by Milestones 6.2-6.4 extractions)
+
+**Prerequisites**:
+- ✅ Milestone 6.1 complete (YouTube playlists extracted)
+- [ ] Milestone 6.2 complete (2024_Events spreadsheet extracted and merged)
+- [ ] Milestone 6.3 complete (2023 spreadsheet extracted and merged)
+- [ ] Milestone 6.4 complete (2022 spreadsheet extracted and merged)
+- ✅ Milestone 6.5 complete (IBM videos extracted)
+
+**Approach**:
+1. Create 5 new tabs in 2025_Content_Created spreadsheet: `2020`, `2021`, `2022`, `2023`, `2024`
+2. Import respective FINAL CSVs to each tab using Google Sheets API
+3. Update sync script (src/sync-content.js) to read multiple tabs:
+   - Sheet1 (current/ongoing content)
+   - 2020, 2021, 2022, 2023, 2024 (historical content)
+4. Configure cross-posting disabled for all historical tabs
+5. Test sync locally before deploying
+6. Visual approval from user on imported data
 
 **Success Criteria**:
-- 7 video metadata extracted (title, date, URL)
-- Content type determined
-- Videos added to appropriate year tab (likely 2024 or 2022 based on dates)
-- Cross-posting disabled
-- Process documented (in case more playlists need extraction in future)
+- [ ] 5 yearly tabs created in 2025_Content_Created spreadsheet
+- [ ] ALL historical content imported (FINAL-2020.csv through FINAL-2024.csv)
+- [ ] Sync script reads multiple tabs successfully
+- [ ] Cross-posting disabled for historical content
+- [ ] Local sync test passes
+- [ ] User visual approval of imported data
+- [ ] Historical content appears on Micro.blog categories
+- [ ] Process documented for future reference
+
+**Estimated Content Counts** (will be finalized after Milestones 6.2-6.4):
+- 2020 tab: 4 videos (IBM Cloud)
+- 2021 tab: 3 videos (IBM Cloud)
+- 2022 tab: ~33+ videos (Enlightning, Presentations, + spreadsheet additions)
+- 2023 tab: ~83+ videos (multiple sources + spreadsheet additions)
+- 2024 tab: ~111+ videos (playlists + events spreadsheet + other content)
+- **Total**: ~234+ historical videos
 
 ## Dependencies & Risks
 
