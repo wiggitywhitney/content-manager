@@ -168,17 +168,17 @@ The following questions will be answered during each milestone's implementation 
 ## Technical Requirements
 
 ### Format Normalization Needs
-- [ ] Analyze all 4 spreadsheet structures (column names, data types, formats)
-- [ ] Extract URLs from title hyperlinks programmatically
-- [ ] Map historical Type values to standardized taxonomy (Podcast, Video, Blog, Presentation, Guest)
-- [ ] Handle missing required fields (Date, Type, Link)
-- [ ] Detect and flag low-quality links (conference pages, defunct URLs)
+- [x] Analyze all 4 spreadsheet structures (column names, data types, formats) → **Decision: Used YouTube playlists instead**
+- [x] Extract URLs from sources programmatically → **yt-dlp metadata extraction + SDI website scraping**
+- [x] Map historical Type values to standardized taxonomy (Podcast, Video, Blog, Presentation, Guest) → **Implemented in process-youtube-playlist.js**
+- [x] Handle missing required fields (Date, Type, Link) → **NEEDS_REVIEW for Presentations & Guest, manual classification**
+- [x] Detect and flag low-quality links (conference pages, defunct URLs) → **Manual review via NEEDS_REVIEW tab**
 
 ### Integration Options
 - [ ] **Option A**: Append historical rows to main spreadsheet (one-time migration)
 - [ ] **Option B**: Extend sync script to read multiple spreadsheets (ongoing multi-source)
 - [ ] **Option C**: Manual curation into dedicated "Archive" tab in main spreadsheet
-- [ ] **Option D**: Consolidate into tabs within single source-of-truth spreadsheet
+- [x] **Option D**: Consolidate into tabs within single source-of-truth spreadsheet → **Selected: FINAL CSVs ready for yearly tab import**
 
 ### Selective Inclusion Mechanism
 - [ ] Add "Include" column to historical sheets (if manual marking approach chosen)
@@ -188,9 +188,9 @@ The following questions will be answered during each milestone's implementation 
 
 ### Content Validation
 - [ ] URL accessibility checking (HTTP status codes)
-- [ ] Link quality scoring (direct content vs. conference/blog homepage)
-- [ ] Duplicate detection (across historical + current spreadsheets)
-- [ ] Date parsing for various historical formats
+- [ ] Link quality scoring (direct content vs. conference/blog homepage) → **Manual review via NEEDS_REVIEW tab**
+- [x] Duplicate detection (across historical + current spreadsheets) → **Implemented: title+date normalization, found 14 duplicates**
+- [x] Date parsing for various historical formats → **Implemented: M/D/YYYY + ordinal dates (1st, 2nd, 3rd)**
 
 ## User Experience
 
@@ -224,20 +224,33 @@ Each milestone is a **completely separate effort**. Complete one milestone fully
 - Helper: 2024 ⚡️ Enlightning Tracking spreadsheet (Aug-Dec updates)
 - Alternative: Extract from YouTube playlists (You Choose!, ⚡️ Enlightning)
 
-**Open Questions** (to be resolved during this milestone):
-- Use spreadsheet data vs. extract fresh from YouTube playlists?
-- Filter by "EXPORT INDICATOR" column?
-- Include all 116 Enlightning streams or be selective?
-- How to handle Aug-Dec gap: merge helper sheet or use playlists?
-- Content type mapping: "live stream" → "Video"?
+**Decision Record** (resolved 2025-10-25):
+- ✅ **Data source**: YouTube playlists chosen (yt-dlp extraction)
+- ✅ **EXPORT INDICATOR**: N/A (didn't use spreadsheets)
+- ✅ **Content inclusion**: All videos from playlists included (220 total historical videos 2020-2024)
+- ✅ **Aug-Dec gap**: Playlists provided complete data
+- ✅ **Content type mapping**:
+  - ⚡️Enlightning, You Choose!, Cloud Native Live → "Video"
+  - Software Defined Interviews → "Podcast" (episodes 83-111 scraped from website)
+  - Presentations & Guest → "NEEDS_REVIEW" (manual classification via spreadsheet tab)
+  - IBM Cloud → "Video"
+- ✅ **Show name formatting**: ⚡️Enlightning (no space between emoji and text), IBM Cloud (renamed from IBM Videos)
 
 **Success Criteria**:
-- 2024 work/content data extracted from chosen source(s)
-- Data normalized to compatible format (Name, Type, Date, Link columns)
-- New tab `2024` created in 2025_Content_Created spreadsheet
-- Selected content rows migrated to `2024` tab
-- Cross-posting disabled for historical import
-- Learnings documented for next milestone
+- [x] 2024 work/content data extracted from YouTube playlists (98 videos for 2024)
+- [x] Additional years extracted: 2020 (4), 2021 (3), 2022 (33), 2023 (82)
+- [x] Data normalized to compatible format (Name, Type, Date, Link columns)
+- [x] NEEDS_REVIEW tab created for manual classification (46 Presentations & Guest videos)
+- [x] Software Defined Interviews episodes 83-111 scraped with correct URLs (softwaredefinedinterviews.com/{episode})
+- [x] Deduplication logic implemented (found 14 unique videos in Enlightning alternate playlist)
+- [x] Year filtering implemented (2025 content automatically excluded)
+- [x] FINAL CSVs generated (6 files: by year + combined)
+- [ ] New tabs `2024`, `2023`, `2022`, `2021`, `2020` created in 2025_Content_Created spreadsheet
+- [ ] Historical content rows imported to yearly tabs
+- [ ] Sync script updated to read multiple tabs (Sheet1 + yearly tabs)
+- [ ] Cross-posting disabled for historical import (requires sync script update)
+- [ ] Visual approval from user on imported data
+- [ ] Learnings documented for next milestone
 
 ---
 
@@ -401,6 +414,65 @@ Each milestone is a **completely separate effort**. Complete one milestone fully
 - Enables parallel design discussion without blocking implementation
 
 ## Progress Log
+
+### 2025-10-25 (Milestone 6.1: YouTube Extraction Complete)
+**Duration**: ~4-5 hours (based on conversation timestamps)
+**Branch**: feature/prd-6-milestone-6.1-youtube-extraction
+**Primary Focus**: YouTube playlist extraction and CSV generation
+
+**Completed Work**:
+- [x] **YouTube playlist extraction pipeline**: 6 playlists processed with yt-dlp
+  - You Choose!: 45 videos
+  - ⚡️Enlightning (primary + alternate): 77 + 69 videos (14 unique in alternate)
+  - Presentations & Guest: 58 videos
+  - IBM Cloud: 7 videos
+  - Cloud Native Live: 34 videos
+- [x] **Software Defined Interviews scraping**: Episodes 83-111 from website
+  - 29 episodes extracted with ordinal date parsing
+  - URLs point to softwaredefinedinterviews.com/{episode}
+  - Episodes 83-90 (2024) included in historical data, 91-111 (2025) correctly excluded
+- [x] **Deduplication and merging**: merge-all-playlists.js
+  - Normalize by title+date
+  - Automatic year filtering (2020-2024 only)
+  - 220 unique historical videos generated
+- [x] **NEEDS_REVIEW workflow**: 46 Presentations & Guest videos flagged for manual type classification
+- [x] **Data outputs**: 6 FINAL CSVs created (2020, 2021, 2022, 2023, 2024, ALL)
+  - FINAL-2020.csv: 4 videos (IBM Cloud)
+  - FINAL-2021.csv: 3 videos (IBM Cloud)
+  - FINAL-2022.csv: 33 videos (⚡️Enlightning, Presentations & Guest)
+  - FINAL-2023.csv: 82 videos (multiple sources)
+  - FINAL-2024.csv: 98 videos (includes 8 SDI episodes Oct-Dec 2024)
+  - FINAL-ALL-HISTORICAL-2020-2024.csv: 220 videos total
+
+**Scripts Created**:
+1. `src/process-youtube-playlist.js` - Extract yt-dlp JSONL to CSV
+2. `src/compare-playlists.js` - Find unique videos between playlists
+3. `src/merge-all-playlists.js` - Deduplicate and merge by year
+4. `src/verify-2025-data.js` - Verify Sheet1 completeness
+5. `src/scrape-sdi.js` - Scrape SDI website for episodes 83-111
+6. `src/create-review-tab.js` - Generate NEEDS_REVIEW tab
+
+**Key Learnings**:
+- **yt-dlp works without API**: Public playlists don't need YouTube API keys
+- **Playlists more reliable than spreadsheets**: Complete, accurate metadata
+- **Deduplication essential**: Found 14 duplicate videos across Enlightning playlists
+- **Type validation critical**: NEEDS_REVIEW pattern prevents incorrect auto-sync
+- **Year filtering automatic**: SDI 2025 episodes (91-111) correctly excluded from historical data
+- **Show name formatting**: ⚡️Enlightning (no space), IBM Cloud (not IBM Videos)
+- **URL accuracy matters**: SDI links must point to softwaredefinedinterviews.com, not YouTube
+
+**Remaining Milestone 6.1 Work**:
+- [ ] Import FINAL CSVs to create yearly tabs in Google Sheets
+- [ ] Update sync script to read multiple tabs (Sheet1 + yearly tabs)
+- [ ] Visual approval from user on imported data
+- [ ] Document complete process for future reference
+- [ ] Commit and push feature branch
+
+**Next Session Priorities**:
+1. Create tabs 2020, 2021, 2022, 2023, 2024 in 2025_Content_Created spreadsheet
+2. Import respective FINAL CSVs to each tab
+3. Test sync script with multiple tabs
+4. Document Milestone 6.1 learnings before starting 6.2
 
 ### 2025-10-24 (Major Decisions & Structure Defined)
 - **✅ Historical spreadsheet analysis completed**: All 4 spreadsheets analyzed (2022, 2023, 2024-1, 2024-2)
