@@ -6,7 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "sync": "teller run -- $(which node) src/sync-content.js",
-    "analyze-historical": "teller run -- $(which node) src/analyze-historical-sheets.js"
+    "analyze-historical": "teller run -- $(which node) src/analyze-historical-sheets.js",
+    "import-historical": "TEST_MODE=true teller run -- $(which node) src/import-to-sheets.js",
+    "import-historical-full": "TEST_MODE=false teller run -- $(which node) src/import-to-sheets.js",
+    "delete-old-posts": "teller run -- $(which node) src/delete-old-posts.js"
   },
   "keywords": [],
   "author": "",

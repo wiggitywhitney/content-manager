@@ -443,9 +443,9 @@ function log(message, level = 'INFO', data = null) {
  * @param {string} url - Micro.blog post URL from Location header
  * @returns {Promise<boolean>} - True if successful, false otherwise
  */
-async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
+async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url) {
   try {
-    const range = `${SHEET_NAME}!H${rowIndex}`;  // e.g., "Sheet1!H15"
+    const range = `${tabName}!H${rowIndex}`;  // e.g., "Sheet1!H15" or "2024 & earlier!H42"
     await withRetry(
       () => sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -453,13 +453,13 @@ async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
         valueInputOption: 'USER_ENTERED',
         resource: { values: [[url]] }
       }),
-      `Write URL to spreadsheet row ${rowIndex}`
+      `Write URL to ${tabName} row ${rowIndex}`
     );
-    log(`Wrote URL to row ${rowIndex}: ${url}`, 'DEBUG');
+    log(`Wrote URL to ${tabName} row ${rowIndex}: ${url}`, 'DEBUG');
     return true;
   } catch (error) {
     // Don't fail entire sync if write fails (after retries exhausted)
-    log(`Failed to write URL to row ${rowIndex}: ${error.message}`, 'WARN');
+    log(`Failed to write URL to ${tabName} row ${rowIndex}: ${error.message}`, 'WARN');
     return false;
   }
 }
@@ -470,19 +470,25 @@ async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
  * @param {number} rowIndex - Original row index (for debugging)
  * @returns {Object|null} - Parsed content object or null if header row
  */
-function parseRow(row, rowIndex) {
-  // Handle header row (first row with column names)
-  if (rowIndex === 0 && row[0] === 'Name') {
+function parseRow(row, rowIndex, isHeaderRow = false) {
+  // Handle header row (column names)
+  if (isHeaderRow || (row[0] === 'Name' && row[1] === 'Type' && row[2] === 'Show')) {
     return null;
   }
 
   // Extract fields by column position (A-H)
   const [name, type, show, date, location, confirmed, link, microblogUrl] = row;
 
+  // Normalize type: "Presentation" (singular) → "Presentations" (plural)
+  let normalizedType = (type || '').trim();
+  if (normalizedType === 'Presentation') {
+    normalizedType = 'Presentations';
+  }
+
   // Return structured object
   return {
     name: (name || '').trim(),
-    type: (type || '').trim(),
+    type: normalizedType,
     show: (show || '').trim(),
     date: (date || '').trim(),
     location: (location || '').trim(),
@@ -575,14 +581,13 @@ function isNonTitleUrl(url) {
 function formatPostContent(content) {
   const { name, type, show, link, confirmed } = content;
 
-  // Determine show name
+  // Determine show name from Column C (Show)
   let showName = '';
-  if (type === 'Podcast') {
-    // Podcasts are always "Software Defined Interviews"
-    showName = 'Software Defined Interviews';
-  } else if (show) {
-    // Use Column C (Show) for other types if available
+  if (show) {
     showName = show;
+  } else if (type === 'Podcast') {
+    // Default to "Software Defined Interviews" only if Show column is empty
+    showName = 'Software Defined Interviews';
   }
 
   // Check if this is a keynote (Column F contains "KEYNOTE", case-insensitive)
@@ -958,18 +963,56 @@ async function syncContent() {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Read spreadsheet data with retry logic
+    // Read spreadsheet data with retry logic from multiple tabs
     log(`Reading spreadsheet: ${SPREADSHEET_ID}`);
-    const response = await withRetry(
+
+    // Read current content from Sheet1
+    log(`  Reading Sheet1...`);
+    const sheet1Response = await withRetry(
       () => sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
         range: RANGE,
       }),
-      'Read spreadsheet'
+      'Read Sheet1'
     );
+    const sheet1Rows = sheet1Response.data.values || [];
+    log(`  Found ${sheet1Rows.length} rows in Sheet1`);
 
-    const rows = response.data.values || [];
-    log(`Found ${rows.length} total rows (including header)\n`);
+    // Read historical content from "2024 & earlier"
+    log(`  Reading 2024 & earlier...`);
+    const historicalResponse = await withRetry(
+      () => sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: '2024 & earlier!A:H',
+      }),
+      'Read 2024 & earlier'
+    );
+    const historicalRows = historicalResponse.data.values || [];
+    log(`  Found ${historicalRows.length} rows in 2024 & earlier`);
+
+    // Combine rows with tab tracking
+    // Each item: { row: [...], tabName: 'Sheet1' | '2024 & earlier', tabRowIndex: N }
+    const rowsWithMetadata = [];
+
+    // Add Sheet1 rows (including header row for parsing, will be skipped during validation)
+    sheet1Rows.forEach((row, idx) => {
+      rowsWithMetadata.push({
+        row: row,
+        tabName: SHEET_NAME,
+        tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
+      });
+    });
+
+    // Add historical rows (including header row for parsing, will be skipped during validation)
+    historicalRows.forEach((row, idx) => {
+      rowsWithMetadata.push({
+        row: row,
+        tabName: '2024 & earlier',
+        tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
+      });
+    });
+
+    log(`Found ${rowsWithMetadata.length} total rows (including header)\n`);
 
     // Parse and validate rows
     const validRows = [];
@@ -989,8 +1032,16 @@ async function syncContent() {
       }
     };
 
-    for (let i = 0; i < rows.length; i++) {
-      const parsed = parseRow(rows[i], i);
+    for (let i = 0; i < rowsWithMetadata.length; i++) {
+      const { row, tabName, tabRowIndex } = rowsWithMetadata[i];
+      const isHeaderRow = (tabRowIndex === 1);  // Row 1 in each tab is the header
+      const parsed = parseRow(row, i, isHeaderRow);
+
+      // Add tab metadata to parsed object
+      if (parsed) {
+        parsed.tabName = tabName;
+        parsed.tabRowIndex = tabRowIndex;
+      }
 
       // Skip header row
       if (parsed === null) {
@@ -1097,20 +1148,24 @@ async function syncContent() {
         log(`✅ Post created: ${postUrl}`, 'INFO');
 
         // Write URL back to spreadsheet Column H
-        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.rowIndex, postUrl);
+        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
 
         if (writeSuccess) {
           postStats.successful++;
-          log(`✅ URL written to row ${row.rowIndex}`, 'DEBUG');
+          log(`✅ URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
         } else {
           // Post created but URL write failed (non-fatal)
           postStats.successful++;
-          log(`⚠️  Post created but failed to write URL to row ${row.rowIndex}`, 'WARN');
+          log(`⚠️  Post created but failed to write URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
         }
 
         // Update in-memory row data regardless of write success
         // This prevents orphan detection from deleting the post we just created
         row.microblogUrl = postUrl;
+
+        // Rate limiting: delay between writes to stay under Google Sheets limit (60 writes/min)
+        // 1500ms = 40 writes/min = 67% of limit with 33% buffer for retries and timing variance
+        await sleep(1500);
 
       } catch (error) {
         postStats.failed++;
@@ -1191,7 +1246,7 @@ async function syncContent() {
         log(`  ✓ New post created: ${newUrl} (slug: ${newSlug})`, 'INFO');
 
         // Write new URL to spreadsheet
-        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.rowIndex, newUrl);
+        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, newUrl);
 
         if (writeSuccess) {
           regenStats.successful++;

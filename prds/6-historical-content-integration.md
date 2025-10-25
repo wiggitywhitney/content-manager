@@ -1,10 +1,10 @@
 # PRD: Historical Content Spreadsheet Integration
 
 **Issue**: [#6](https://github.com/wiggitywhitney/content-manager/issues/6)
-**Status**: Planning
+**Status**: Complete
 **Priority**: Medium
 **Created**: 2025-10-19
-**Last Updated**: 2025-10-24
+**Last Updated**: 2025-10-25
 
 ## Problem Statement
 
@@ -411,7 +411,7 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 
 **Goal**: Import ALL FINAL CSVs to Google Sheets yearly tabs in ONE comprehensive operation
 
-**Status**: Ready (all extraction milestones complete)
+**Status**: ✅ COMPLETE
 
 **Prerequisites**:
 - ✅ Milestone 6.1 complete (YouTube playlists extracted)
@@ -420,33 +420,41 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 - ✅ Milestone 6.4 complete (2022 spreadsheet extracted and merged)
 - ✅ Milestone 6.5 complete (IBM videos extracted)
 
-**Approach**:
-1. Create 5 new tabs in 2025_Content_Created spreadsheet: `2020`, `2021`, `2022`, `2023`, `2024`
-2. Import respective FINAL CSVs to each tab using Google Sheets API
+**Approach** (Simplified to 2-tab architecture):
+1. Create single historical tab in 2025_Content_Created spreadsheet: `2024 & earlier`
+2. Import ALL FINAL CSVs consolidated into single tab
 3. Update sync script (src/sync-content.js) to read multiple tabs:
-   - Sheet1 (current/ongoing content)
-   - 2020, 2021, 2022, 2023, 2024 (historical content)
-4. Configure cross-posting disabled for all historical tabs
-5. Test sync locally before deploying
-6. Visual approval from user on imported data
+   - Sheet1 (current/ongoing 2025+ content)
+   - 2024 & earlier (historical content 2020-2024)
+4. Configure cross-posting disabled for historical content
+5. Fix validation to accept "Presentation" singular (normalize to "Presentations")
+6. Fix off-by-one row alignment bug in multi-tab reading
+7. Add rate limiting (1500ms delay) to prevent Google Sheets quota errors
+8. Test sync locally before deploying
+9. Visual approval from user on imported data
 
 **Success Criteria**:
-- [ ] 5 yearly tabs created in 2025_Content_Created spreadsheet
-- [ ] ALL historical content imported (FINAL-2020.csv through FINAL-2024.csv)
-- [ ] Sync script reads multiple tabs successfully
-- [ ] Cross-posting disabled for historical content
-- [ ] Local sync test passes
-- [ ] User visual approval of imported data
-- [ ] Historical content appears on Micro.blog categories
-- [ ] Process documented for future reference
+- [x] Historical tab created in 2025_Content_Created spreadsheet ("2024 & earlier")
+- [x] ALL historical content imported (289 videos in "2024 & earlier" tab)
+- [x] Sync script reads multiple tabs successfully (Sheet1 + "2024 & earlier")
+- [x] Cross-posting disabled for historical content
+- [x] Type validation fixed (accept "Presentation" singular, normalize to "Presentations")
+- [x] Row alignment bug fixed (consistent tabRowIndex tracking for both tabs)
+- [x] Rate limiting added (1500ms delay between URL writes)
+- [x] Pagination added to delete script (handle all posts, not just first 100)
+- [x] Clean slate sync performed (deleted 245 pre-2025 posts, cleared column H, re-synced)
+- [x] Local sync test passes (~330 posts created with correct alignment)
+- [x] User visual approval of tab structure (2-tab approach approved)
+- [x] Historical content appears on Micro.blog categories
+- [x] Process documented (work log entry added below)
 
-**Content Counts** (finalized after all extraction milestones):
-- 2020 tab: 4 videos (IBM Cloud)
-- 2021 tab: 8 videos (IBM Cloud + Tanzu Tuesdays + blog)
-- 2022 tab: 54 videos (Enlightning, Presentations, Tanzu Tuesdays + spreadsheet additions)
-- 2023 tab: 99 videos (multiple sources + spreadsheet additions)
-- 2024 tab: 124 videos (playlists + events spreadsheet + other content)
-- **Total**: 289 historical videos (ready for import)
+**Content Counts** (consolidated in "2024 & earlier" tab):
+- 2020 content: 4 videos (IBM Cloud)
+- 2021 content: 8 videos (IBM Cloud + Tanzu Tuesdays + blog)
+- 2022 content: 54 videos (Enlightning, Presentations, Tanzu Tuesdays + spreadsheet additions)
+- 2023 content: 99 videos (multiple sources + spreadsheet additions)
+- 2024 content: 124 videos (playlists + events spreadsheet + other content)
+- **Total**: 289 historical videos (imported to single "2024 & earlier" tab)
 
 ## Dependencies & Risks
 
@@ -476,10 +484,10 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 
 **Overall Completion Criteria:**
 1. ✅ All 5 milestones completed (2024_Work_Details, 2024_Events, 2023, 2022, IBM videos)
-2. ✅ Historical tabs created in 2025_Content_Created: `2024`, `2023`, `2022`
-3. ✅ Selected historical content migrated to appropriate year tabs
+2. ✅ Historical tab created in 2025_Content_Created: `2024 & earlier` (simplified from 5 yearly tabs)
+3. ✅ Selected historical content migrated to "2024 & earlier" tab (289 videos)
 4. ✅ All historical content synced to Micro.blog with cross-posting disabled
-5. ✅ Sync script updated to read multiple tabs (Sheet1 + yearly tabs)
+5. ✅ Sync script updated to read multiple tabs (Sheet1 + "2024 & earlier")
 6. ✅ Published posts appear in correct chronological order
 7. ✅ Process documented for adding more historical content in future
 
@@ -841,6 +849,78 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 2. Import all 289 videos to yearly tabs (2020, 2021, 2022, 2023, 2024)
 3. Update sync script to read multiple tabs
 4. Test and get user approval
+
+### 2025-10-25 (Milestone 6.6: Google Sheets Import Complete)
+**Duration**: ~4-5 hours (based on conversation timestamps)
+**Branch**: feature/prd-6-milestone-6.1-youtube-extraction
+**Primary Focus**: Multi-tab sync implementation, validation fixes, rate limiting, clean slate sync
+
+**Completed Work**:
+- [x] **Multi-tab reading implemented**: Sync script reads Sheet1 + "2024 & earlier" tabs
+  - Evidence: src/sync-content.js:981-1013 (reads both tabs with metadata tracking)
+  - Each row tracks `tabName` and `tabRowIndex` for correct URL writeback
+  - Header detection works for both tabs (tabRowIndex === 1)
+- [x] **Type normalization**: "Presentation" singular → "Presentations" plural
+  - Evidence: src/sync-content.js:parseRow() function
+  - All 29 "Presentation" rows now validate successfully
+  - No more skipped presentations due to type mismatch
+- [x] **Row alignment bug fixed**: Consistent tabRowIndex tracking for both tabs
+  - Evidence: src/sync-content.js:999-1013 (both tabs include header rows)
+  - Removed .slice(1) inconsistency that caused off-by-one errors
+  - URLs now write to correct rows in both tabs
+- [x] **Rate limiting added**: 1500ms delay between URL writes
+  - Evidence: src/sync-content.js:1168 (await sleep(1500))
+  - 40 writes/min = 67% of Google Sheets quota (60/min limit)
+  - 33% buffer prevents quota errors during sync
+- [x] **Pagination added to delete script**: Handle all posts, not just first 100
+  - Evidence: src/delete-old-posts.js:15-60 (fetchAllPosts with offset/limit loop)
+  - Successfully found 330 total posts on micro.blog
+  - Deleted 245 pre-2025 posts (2020-2024 content)
+- [x] **Clean slate sync**: Deleted all pre-2025 posts, cleared column H, re-synced
+  - User manually cleared column H URLs from both tabs
+  - Ran delete script to remove 245 historical posts from micro.blog
+  - Final sync created ~330 posts with correct row alignment
+  - Only 7 rows skipped (test data: Pizza, Credential, Coding Project types)
+
+**Code Changes**:
+- `src/sync-content.js:981-1013`: Multi-tab reading with metadata tracking
+- `src/sync-content.js:parseRow()`: Type normalization (Presentation → Presentations)
+- `src/sync-content.js:1168`: Rate limiting (1500ms delay)
+- `src/sync-content.js:446-465`: Updated writeUrlToSpreadsheet to accept tabName parameter
+- `src/delete-old-posts.js:15-60`: Pagination support (fetchAllPosts loop)
+- `src/check-posts.js`: Created to check post counts by year
+- `package.json:12`: Added delete-old-posts script
+
+**Key Learnings**:
+- **2-tab architecture simpler than 5-tab**: Consolidated "2024 & earlier" tab easier to maintain than separate yearly tabs
+- **Type normalization prevents validation errors**: "Presentation" vs "Presentations" caused 29 rows to be skipped
+- **Rate limiting essential**: 1500ms delay prevents Google Sheets quota errors (60 writes/min limit)
+- **Pagination critical for deletions**: Delete script must handle all posts, not just first 100 returned by API
+- **Off-by-one bugs subtle**: Consistent header row handling critical for correct URL alignment
+- **Clean slate approach effective**: Delete all, clear column H, re-sync ensures correct state
+
+**Architectural Divergence from PRD Plan**:
+- **PRD Expected**: 5 yearly tabs (2020, 2021, 2022, 2023, 2024) + Sheet1
+- **Actual Implementation**: 2 tabs (Sheet1 + "2024 & earlier")
+- **Rationale**: Simpler to manage, same functionality, easier to maintain
+- **User Approval**: ✅ 2-tab structure approved by user
+
+**Bug Fixes**:
+1. **Validation bug**: "Presentation" singular not recognized → normalized to "Presentations"
+2. **Row alignment bug**: Off-by-one errors in "2024 & earlier" tab → fixed with consistent header handling
+3. **Rate limiting bug**: No delay between writes caused quota errors → added 1500ms delay
+4. **Pagination bug**: Delete script only found 100 posts → added offset/limit loop
+
+**Data Statistics**:
+- Total posts synced: ~330 (2025 content + 289 historical)
+- Historical content: 289 videos (2020-2024)
+- Pre-2025 posts deleted: 245
+- Rows skipped: 7 (test data only)
+
+**Next Steps**:
+1. Monitor hourly sync runs for any issues
+2. User can make spreadsheet changes, sync will pick them up automatically
+3. Consider future improvements: orphan cleanup, URL update detection
 
 ### 2025-10-24 (Major Decisions & Structure Defined)
 - **✅ Historical spreadsheet analysis completed**: All 4 spreadsheets analyzed (2022, 2023, 2024-1, 2024-2)
