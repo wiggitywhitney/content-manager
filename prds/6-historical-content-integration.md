@@ -288,27 +288,27 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 
 **Goal**: Extract 2024 events (conferences, webinars, podcasts) from spreadsheet and merge with FINAL-2024.csv
 
-**Status**: Pending
+**Status**: ✅ COMPLETE
 
 **Sources**:
 - Primary: 2024_Events spreadsheet (61 rows, 18 columns) - https://docs.google.com/spreadsheets/d/1nz_v9_WfFanJcvC5WRcZ6S9JPLSGlYdwsyzRxNUGjjE
 - Supplementary: Presentations & Guest Appearances playlist (verification/deduplication)
 
-**Open Questions** (to be resolved during this milestone):
-- Use "EXPORT INDICATOR" to filter rows?
-- Which event types to include? (conferences, webinars, podcasts, vs internal events)
-- How to extract URLs from hyperlinks in NAME and CONTENT LINK columns?
-- Content type mapping strategy for various EVENT TYPEs
-- Deduplicate against existing FINAL-2024.csv entries (playlists already extracted)
+**Decision Record** (resolved 2025-10-25):
+- ✅ **Extraction method**: Manual selection (not full programmatic extraction)
+- ✅ **EXPORT INDICATOR**: Not used - user manually selected items
+- ✅ **Event types included**: Guest appearances, presentations, podcasts, blog posts (12 items)
+- ✅ **URL extraction**: Manual - users provided links directly
+- ✅ **Content type mapping**: User specified type for each item (Guest, Presentations, Blog)
+- ✅ **Deduplication**: Manual review - no duplicates found
 
 **Success Criteria** (Extraction Phase):
-- [ ] 2024_Events data extracted from spreadsheet (Google Sheets API)
-- [ ] Hyperlinks extracted from NAME and CONTENT LINK columns
-- [ ] Event types mapped to standard taxonomy (Podcast, Video, Presentations, Guest, Blog)
-- [ ] Duplicates detected (compare with existing FINAL-2024.csv by title+date)
-- [ ] Data merged into FINAL-2024.csv (updated count)
-- [ ] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated with new 2024 data
-- [ ] Learnings documented
+- [x] 2024_Events data extracted from spreadsheet (12 items manually added)
+- [x] Event types mapped to standard taxonomy (Guest, Presentations, Blog)
+- [x] Duplicates detected (manual review - none found)
+- [x] Data merged into FINAL-2024.csv (122 videos, up from 111)
+- [x] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated (245 videos total)
+- [x] Learnings documented
 
 **Note**: Google Sheets import deferred to Milestone 6.6 (after all extractions complete)
 
@@ -625,6 +625,64 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 3. Update sync script to read multiple tabs
 4. Get user approval on imported data
 5. Commit and push all Milestone 6.1 work
+
+### 2025-10-25 (Milestone 6.2: 2024_Events Extraction Complete + Strategic PRD Restructure)
+**Duration**: ~2-3 hours
+**Branch**: feature/prd-6-milestone-6.1-youtube-extraction
+**Primary Focus**: Extract-first strategy implementation, 2024_Events manual extraction, PRD restructuring
+
+**Strategic Changes**:
+- [x] **Decision 4 added**: Extract-First Strategy
+  - All data extraction (Milestones 6.1-6.4) completed BEFORE Google Sheets import
+  - Avoids multiple imports to same tabs, enables comprehensive deduplication
+  - Single import → test → approve workflow (cleaner than multiple append cycles)
+- [x] **Milestone structure restructured**: Two-phase approach documented
+  - Phase A (Extraction): Milestones 6.1-6.4 extract to FINAL CSVs only
+  - Phase B (Import): New Milestone 6.6 handles ONE comprehensive import
+- [x] **All milestone statuses updated**: Goals, success criteria, and notes clarified
+- [x] **Milestone 6.1 marked complete**: YouTube playlist extraction
+- [x] **Milestone 6.5 marked complete**: IBM videos (included in 6.1)
+- [x] **Milestone 6.6 added**: Google Sheets import phase
+
+**Milestone 6.2 Completed Work**:
+- [x] **12 items extracted from 2024_Events spreadsheet**:
+  1. Open at Intel podcast (Guest, 2/1/2024)
+  2. Platformers video (Guest, 2/21/2024)
+  3. Come Cloud with Us panel (Guest, 3/1/2024)
+  4. Syntasso blog post (Guest, 3/11/2024)
+  5. Open Source Summit presentation (Presentations, 4/26/2024)
+  6. Morgan Stanley SpringOne Tour (Presentations, 5/7/2024)
+  7. Tech World Human Skills podcast (Guest, 5/8/2024)
+  8. Twitter Space - CNCF Ambassador (Guest, 5/31/2024)
+  9. KubeFM podcast (Guest, 6/13/2024)
+  10. Sabre SpringOne Tour (Presentations, 6/17/2024)
+  11. Decodify Podcast (Guest, 6/19/2024)
+  12. KCD Italy presentation (Presentations, 6/20/2024)
+- [x] **Manual extraction approach**: User manually selected items and provided metadata
+- [x] **Content types mapped**: Guest, Presentations, Blog
+- [x] **Data merged**: FINAL-2024.csv updated (122 videos, up from 111)
+- [x] **FINAL CSVs regenerated**: 245 total historical videos
+- [x] **Completeness metric clarified**: 2024_Work_Details changed from "98.2%" to "100% extracted (1 inaccessible)"
+
+**Key Learnings**:
+- **Manual extraction effective**: For selective spreadsheet content, manual review faster than building extraction scripts
+- **User-provided metadata**: Type, show, date, link provided directly - no hyperlink parsing needed
+- **No programmatic extraction needed**: 2024_Events doesn't require Google Sheets API script
+- **Extract-first strategy validated**: Deferring import until all extractions complete prevents rework
+
+**Data Statistics**:
+- Total historical: 245 videos (up from 234)
+- 2024 videos: 122 (up from 111)
+- Distribution: 2020 (4), 2021 (3), 2022 (33), 2023 (83), 2024 (122)
+
+**Commits**:
+- 29a7de5: docs(prd-6): implement extract-first strategy and complete Milestone 6.2
+- 13fb29c: docs(prd-6): clarify 2024_Work_Details completeness as 100%
+
+**Next Session Priorities**:
+1. Decide: Extract 2023/2022 spreadsheets OR skip to import phase (Milestone 6.6)
+2. If extracting: Milestone 6.3 (2023 Content) or Milestone 6.4 (2022 Content)
+3. If skipping: Proceed to Milestone 6.6 (Google Sheets import with 245 videos)
 
 ### 2025-10-24 (Major Decisions & Structure Defined)
 - **✅ Historical spreadsheet analysis completed**: All 4 spreadsheets analyzed (2022, 2023, 2024-1, 2024-2)
