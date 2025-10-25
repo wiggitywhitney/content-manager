@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "sync": "teller run -- /opt/homebrew/bin/node src/sync-content.js"
+    "sync": "teller run -- $(which node) src/sync-content.js",
+    "analyze-historical": "teller run -- $(which node) src/analyze-historical-sheets.js"
   },
   "keywords": [],
   "author": "",
