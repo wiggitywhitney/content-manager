@@ -10,3 +10,6 @@ node_modules/
 
 # Journal entries (managed by commit-story MCP)
 journal/
+
+# Temporary CSV files (working files for manual review)
+data/temp-*.csv
