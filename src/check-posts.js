@@ -1,32 +1,57 @@
 const https = require('https');
 
-async function fetchAllPosts() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'micro.blog',
-      path: '/micropub?q=source',
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${process.env.MICROBLOG_APP_TOKEN}`,
-        'Accept': 'application/json'
-      }
-    };
+const HOSTNAME = 'micro.blog';
+const TOKEN = process.env.MICROBLOG_APP_TOKEN;
 
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve(JSON.parse(data));
-        } else {
-          reject(new Error(`Failed: ${res.statusCode}`));
+async function fetchAllPosts() {
+  if (!TOKEN) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  const allItems = [];
+  let offset = 0;
+  const limit = 100;
+  let hasMore = true;
+
+  while (hasMore) {
+    const items = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: HOSTNAME,
+        path: `/micropub?q=source&limit=${limit}&offset=${offset}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${TOKEN}`,
+          'Accept': 'application/json'
         }
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            return reject(new Error(`Failed: ${res.statusCode} ${data}`));
+          }
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed.items || []);
+          } catch (e) {
+            reject(new Error(`Invalid JSON from Micropub: ${e.message}`));
+          }
+        });
       });
+
+      req.setTimeout(10000, () => req.destroy(new Error('Micropub request timeout')));
+      req.on('error', reject);
+      req.end();
     });
 
-    req.on('error', reject);
-    req.end();
-  });
+    allItems.push(...items);
+    hasMore = items.length === limit;
+    offset += limit;
+  }
+
+  return { items: allItems };
 }
 
 async function main() {
