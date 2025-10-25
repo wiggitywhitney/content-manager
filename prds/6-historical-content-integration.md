@@ -245,6 +245,7 @@ Each milestone is a **completely separate effort**. Complete one milestone fully
 - [x] Deduplication logic implemented (found 14 unique videos in Enlightning alternate playlist)
 - [x] Year filtering implemented (2025 content automatically excluded)
 - [x] FINAL CSVs generated (6 files: by year + combined)
+- [ ] **Completeness verification**: All videos from 2024_Work_Details spreadsheet (https://docs.google.com/spreadsheets/d/1m7DTzOMu3Bkba8Mp3z4mDL0BVyJTCuYWrc20GlsmIrs) must be represented in final 2024 tab
 - [ ] New tabs `2024`, `2023`, `2022`, `2021`, `2020` created in 2025_Content_Created spreadsheet
 - [ ] Historical content rows imported to yearly tabs
 - [ ] Sync script updated to read multiple tabs (Sheet1 + yearly tabs)
