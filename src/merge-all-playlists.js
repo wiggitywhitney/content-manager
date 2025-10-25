@@ -131,6 +131,7 @@ function main() {
     'Cloud Native Live': 'data/cloud-native-live',
     'Two Friends Talking Tanzu': 'data/two-friends-talking-tanzu',
     'VMware Tanzu YouTube': 'data/vmware-tanzu-youtube',
+    'Tanzu Tuesdays': 'data/tanzu-tuesdays',
     'Other Content': 'data/other-content'
   };
 

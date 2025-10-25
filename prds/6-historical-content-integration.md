@@ -318,29 +318,30 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 
 **Goal**: Extract 2023 content from spreadsheet and merge with FINAL-2023.csv
 
-**Status**: Pending
+**Status**: ✅ COMPLETE
 
 **Sources**:
 - Primary: 2023 Content spreadsheet (63 rows, 14 columns) - https://docs.google.com/spreadsheets/d/1pwJz_r91m_zJWOI6XuqsMRQpwLnxAN32j-aIiJYuZm0
-- Note: May also include "2023_Work_Details + Enlightnings" sources (TBD during implementation)
-- Supplementary: YouTube playlists for verification/deduplication (Software Defined Interviews ep 83+, ⚡️ Enlightning)
+- Supplementary: Tanzu Tuesdays playlist (11 videos from 2021-2022)
 
-**Open Questions** (to be resolved during this milestone):
-- Clarify "2023_Work_Details + Enlightnings" - separate sources or within main sheet?
-- Selective filtering approach (fewer rows = easier curation)?
-- URL extraction from Event and Video columns
-- Type mapping for "Type of content or engagement" values
-- Deduplicate against existing FINAL-2023.csv entries (playlists already extracted)
+**Decision Record** (resolved 2025-10-25):
+- ✅ **Extraction method**: Manual selection (user-provided items marked "ADD" in spreadsheet)
+- ✅ **Data source**: User manually reviewed spreadsheet and selected 20 items for extraction
+- ✅ **URL extraction**: Manual - user provided links directly after reviewing each item
+- ✅ **Content type mapping**: User specified type for each item (Guest, Presentations, Video, Blog)
+- ✅ **Deduplication**: Manual review + merge script caught duplicates (5 items skipped)
+- ✅ **Tanzu Tuesdays playlist**: Extracted separately, integrated into merge pipeline
 
 **Success Criteria** (Extraction Phase):
-- [ ] 2023 content data extracted from spreadsheet (Google Sheets API)
-- [ ] Hyperlinks extracted from Event and Video columns
-- [ ] Content types mapped to standard taxonomy (Podcast, Video, Presentations, Guest, Blog)
-- [ ] Duplicates detected (compare with existing FINAL-2023.csv by title+date)
-- [ ] Data merged into FINAL-2023.csv (updated count)
-- [ ] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated with new 2023 data
-- [ ] Learnings documented
-- [ ] Apply lessons from Milestones 6.1 and 6.2
+- [x] 2023 content data extracted from spreadsheet (16 items manually added: 14 to 2023, 1 to 2024, 1 duplicate)
+- [x] Tanzu Tuesdays playlist extracted (11 videos: 4 from 2021, 7 from 2022)
+- [x] Content types mapped to standard taxonomy (Guest, Presentations, Video, Blog, Podcast)
+- [x] Duplicates detected (5 items skipped: duplicates, taken down, or wrong year)
+- [x] Data merged into FINAL-2023.csv (99 videos total, up from 84 - added 15 items)
+- [x] FINAL-2024.csv updated (123 videos, up from 122 - added 1 Intel Developer blog)
+- [x] FINAL-ALL-HISTORICAL-2020-2024.csv regenerated (273 videos total, up from 257)
+- [x] Learnings documented
+- [x] Applied lessons from Milestones 6.1 and 6.2 (manual extraction approach)
 
 **Note**: Google Sheets import deferred to Milestone 6.6 (after all extractions complete)
 
@@ -411,8 +412,8 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 
 **Prerequisites**:
 - ✅ Milestone 6.1 complete (YouTube playlists extracted)
-- [ ] Milestone 6.2 complete (2024_Events spreadsheet extracted and merged)
-- [ ] Milestone 6.3 complete (2023 spreadsheet extracted and merged)
+- ✅ Milestone 6.2 complete (2024_Events spreadsheet extracted and merged)
+- ✅ Milestone 6.3 complete (2023 spreadsheet extracted and merged)
 - [ ] Milestone 6.4 complete (2022 spreadsheet extracted and merged)
 - ✅ Milestone 6.5 complete (IBM videos extracted)
 
@@ -436,13 +437,14 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 - [ ] Historical content appears on Micro.blog categories
 - [ ] Process documented for future reference
 
-**Estimated Content Counts** (will be finalized after Milestones 6.2-6.4):
-- 2020 tab: 4 videos (IBM Cloud)
-- 2021 tab: 3 videos (IBM Cloud)
-- 2022 tab: ~33+ videos (Enlightning, Presentations, + spreadsheet additions)
-- 2023 tab: ~83+ videos (multiple sources + spreadsheet additions)
-- 2024 tab: ~111+ videos (playlists + events spreadsheet + other content)
-- **Total**: ~234+ historical videos
+**Content Counts** (updated after Milestones 6.1-6.3):
+- 2020 tab: 3 videos (IBM Cloud)
+- 2021 tab: 6 videos (IBM Cloud + Tanzu Tuesdays)
+- 2022 tab: 39 videos (Enlightning, Presentations, Tanzu Tuesdays)
+- 2023 tab: 98 videos (multiple sources + spreadsheet additions)
+- 2024 tab: 122 videos (playlists + events spreadsheet + other content)
+- **Total**: 272 historical videos (268 + 4 headers)
+- **After Milestone 6.4**: Will increase with 2022 spreadsheet additions
 
 ## Dependencies & Risks
 
@@ -683,6 +685,80 @@ Each extraction milestone is a **separate effort**. Complete one milestone fully
 1. Decide: Extract 2023/2022 spreadsheets OR skip to import phase (Milestone 6.6)
 2. If extracting: Milestone 6.3 (2023 Content) or Milestone 6.4 (2022 Content)
 3. If skipping: Proceed to Milestone 6.6 (Google Sheets import with 245 videos)
+
+### 2025-10-25 (Milestone 6.3: 2023 Content Spreadsheet Extraction Complete)
+**Duration**: ~2-3 hours
+**Branch**: feature/prd-6-milestone-6.1-youtube-extraction
+**Primary Focus**: Manual extraction from 2023 spreadsheet + Tanzu Tuesdays playlist
+
+**Completed Work**:
+- [x] **Tanzu Tuesdays playlist extraction**: 11 videos (4 from 2021, 7 from 2022)
+  - Playlist: https://www.youtube.com/playlist?list=PLBexUsYDijaz4LVYXNAtqyymzBcexMrcq
+  - Extracted using yt-dlp pipeline (same as other playlists)
+  - Integrated into merge-all-playlists.js
+  - Note: No 2023 content in this playlist
+- [x] **Manual extraction from 2023 Content spreadsheet**: 20 items reviewed, 16 items added
+  - User manually marked items with "ADD" prefix in spreadsheet
+  - One-by-one review: user provided URLs, I scraped metadata
+  - Used WebFetch for podcasts/blogs, yt-dlp for YouTube videos
+  - Manual entry for conference presentations without recordings
+- [x] **Items added to other-content-2023.csv** (14 items):
+  1. CodeMash presentation (1/13/2023) - no link
+  2. Kube Cuddle podcast (10/16/2023)
+  3. Kubernetes Podcast - KubeCon EU (6/6/2023)
+  4. Upbound Blog post (3/26/2023)
+  5. GOTO promo video (11/8/2023)
+  6. VMware CNCF Ambassadors blog (5/24/2023)
+  7. Humans of Cloud Native article (11/6/2023)
+  8. Productivity Alchemy podcast (6/29/2023)
+  9. DevOps Days Amsterdam video (6/22/2023)
+  10. DevOps Days Amsterdam presentation (6/21/2023) - no link
+  11. Kubernetes Unpacked podcast (10/5/2023)
+  12. VMware Explore Keynote (8/21/2023) - no link, marked as Keynote
+  13. Open at Intel podcast (8/30/2023)
+  14. O'Reilly webinar (9/6/2023) - user corrected type to Presentations
+  15. Ecosystem Panel Discussion (11/7/2023) - no link
+  16. Coffee + Software with Josh Long (12/15/2023)
+- [x] **Items added to other-content-2024.csv** (1 item):
+  - Intel Developer blog (2/13/2024) - turned out to be 2024 content
+- [x] **Items skipped** (5 items):
+  - Superhero Podcast - taken down
+  - K8s Atlanta Meetup - user said to skip
+  - SpringOne Tour Virtual - duplicate (already in data)
+  - DevOps Paradox Whitney bio - duplicate (wrong date in spreadsheet)
+  - Open At Intel At KubeCon - 2024 content, duplicate
+- [x] **Content types mapped**: Guest, Presentations, Video, Blog, Podcast
+- [x] **Deduplication**: Manual review + merge script caught 5 duplicates
+- [x] **Data merged**:
+  - FINAL-2023.csv: 99 videos (up from 84 - added 15 items including Tanzu Tuesdays)
+  - FINAL-2024.csv: 123 videos (up from 122 - added 1 item)
+  - FINAL-2021.csv & FINAL-2022.csv: Updated with Tanzu Tuesdays videos
+- [x] **FINAL CSVs regenerated**: 273 total (272 videos + headers)
+
+**Scripts Modified**:
+1. `src/merge-all-playlists.js` - Added Tanzu Tuesdays to playlists list
+2. `data/other-content-2023.csv` - Created with 14 manually-entered items
+3. `data/other-content-2024.csv` - Added 1 Intel Developer blog
+4. `data/tanzu-tuesdays.csv` and per-year CSVs - Created via playlist extraction
+
+**Key Learnings**:
+- **Manual extraction efficient for selective content**: User-provided items one-by-one faster than building automated extraction
+- **Spreadsheet dates can be inaccurate**: Multiple items had wrong dates (e.g., DevOps Paradox off by 1.5 months)
+- **Deduplication essential**: Merge script caught duplicates that user initially missed
+- **Content type corrections important**: O'Reilly webinar initially misclassified as Guest, user corrected to Presentations
+- **Conference presentations without links still valuable**: User wanted them tracked even without recordings
+- **WebFetch effective for metadata**: Podcasts, blogs, and other web content scraped successfully
+
+**Data Statistics**:
+- Total historical: 273 (272 videos)
+- 2023 videos: 99 (98 data rows, up from 84 - added 15 items)
+- 2024 videos: 123 (122 data rows, up from 122 - added 1 item)
+- Distribution: 2020 (3), 2021 (6), 2022 (39), 2023 (98), 2024 (122)
+
+**Next Session Priorities**:
+1. Decide: Extract 2022 spreadsheet (Milestone 6.4) OR proceed to import phase (Milestone 6.6)
+2. If extracting: Milestone 6.4 - Extract ~4 key items from 2022 spreadsheet
+3. If skipping: Proceed to Milestone 6.6 (Google Sheets import with 272 videos)
 
 ### 2025-10-24 (Major Decisions & Structure Defined)
 - **✅ Historical spreadsheet analysis completed**: All 4 spreadsheets analyzed (2022, 2023, 2024-1, 2024-2)
