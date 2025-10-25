@@ -108,6 +108,19 @@ function writeCSV(videos, outputPath) {
 function main() {
   console.log('Merging all playlists...\n');
 
+  // Read corrected NEEDS_REVIEW data
+  const correctedData = new Map();
+  if (fs.existsSync('data/needs-review-corrected.csv')) {
+    console.log('Loading corrected NEEDS_REVIEW data...\n');
+    const corrected = readCSV('data/needs-review-corrected.csv');
+    corrected.forEach(video => {
+      if (video.Link) {
+        correctedData.set(video.Link, video);
+      }
+    });
+    console.log(`Loaded ${correctedData.size} corrected entries\n`);
+  }
+
   // Read all playlist CSVs by year
   const playlists = {
     'You Choose!': 'data/you-choose',
@@ -115,7 +128,10 @@ function main() {
     '⚡️Enlightning (alternate)': 'data/enlightning-alt',
     'Presentations & Guest': 'data/presentations-guest',
     'IBM Cloud': 'data/ibm-videos',
-    'Cloud Native Live': 'data/cloud-native-live'
+    'Cloud Native Live': 'data/cloud-native-live',
+    'Two Friends Talking Tanzu': 'data/two-friends-talking-tanzu',
+    'VMware Tanzu YouTube': 'data/vmware-tanzu-youtube',
+    'Other Content': 'data/other-content'
   };
 
   const years = [2020, 2021, 2022, 2023, 2024]; // Exclude 2025
@@ -159,6 +175,15 @@ function main() {
       const key = createKey(video);
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
+
+        // Apply corrected data if available
+        if (correctedData.has(video.Link)) {
+          const corrected = correctedData.get(video.Link);
+          video.Type = corrected.Type;
+          video.Show = corrected.Show;
+          video.Confirmed = corrected.Confirmed || '';
+        }
+
         unique.push(video);
       }
     }

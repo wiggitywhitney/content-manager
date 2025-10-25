@@ -93,10 +93,22 @@ function processPlaylist(inputPath, playlistName) {
       const video = JSON.parse(line);
 
       // Extract required fields
-      const title = video.title || '';
+      let title = video.title || '';
       const uploadDate = video.upload_date || '';
       const url = video.webpage_url || '';
       const year = extractYear(uploadDate);
+
+      // Clean up Enlightning titles - remove various prefix patterns
+      if (playlistName.includes('Enlightning')) {
+        title = title
+          .replace(/^ϟ\s*Enlightning[\s:-]+/i, '')
+          .replace(/^⚡️\s*Enlightning[\s:-]+/i, '')
+          .replace(/^⚡\s*Enlightning[\s:-]+/i, '')
+          .replace(/\s*ϟ\s*$/,
+
+ '')  // Remove trailing ϟ
+          .trim();
+      }
 
       // Skip if missing critical fields
       if (!title || !uploadDate || !url) {
