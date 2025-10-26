@@ -75,7 +75,7 @@ Implement rate limiting through simple daily publishing schedule:
 
 **Code Changes**:
 - Modify `sync-content.js` line ~980: Add sorting and limit to 1 row
-- Change GitHub Actions schedule: hourly (`0 * * * *`) → daily 10am Central (`0 15 * * *` UTC)
+- Change GitHub Actions schedule: hourly (`0 * * * *`) → daily 10:30am Central (`30 15 * * *` UTC)
 
 **Date Parsing**:
 - Reuse existing date parsing logic from sync-content.js

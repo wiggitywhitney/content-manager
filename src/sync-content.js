@@ -13,7 +13,8 @@ const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // Dry-run mode: when enabled, logs actions without making actual API calls
-const DRY_RUN = process.env.DRY_RUN === 'true';
+// Defaults to true (safe) unless explicitly disabled with DRY_RUN=false
+const DRY_RUN = (process.env.DRY_RUN ?? 'true').toLowerCase() !== 'false';
 
 // ============================================================================
 // Error Classification & Recovery
