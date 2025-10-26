@@ -9,6 +9,7 @@ const SHEETS_WRITE_DELAY_MS = 1500;
 // Spreadsheet configuration
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
+const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // ============================================================================
@@ -853,17 +854,17 @@ async function syncContent() {
     const sheet1Rows = sheet1Response.data.values || [];
     log(`  Found ${sheet1Rows.length} rows in Sheet1`);
 
-    // Read historical content from "2024 & earlier"
-    log(`  Reading 2024 & earlier...`);
+    // Read historical content
+    log(`  Reading ${HISTORICAL_TAB_NAME}...`);
     const historicalResponse = await withRetry(
       () => sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: '2024 & earlier!A:H',
+        range: `${HISTORICAL_TAB_NAME}!A:H`,
       }),
-      'Read 2024 & earlier'
+      `Read ${HISTORICAL_TAB_NAME}`
     );
     const historicalRows = historicalResponse.data.values || [];
-    log(`  Found ${historicalRows.length} rows in 2024 & earlier`);
+    log(`  Found ${historicalRows.length} rows in ${HISTORICAL_TAB_NAME}`);
 
     // Combine rows with tab tracking
     // Each item: { row: [...], tabName: 'Sheet1' | '2024 & earlier', tabRowIndex: N }
@@ -882,7 +883,7 @@ async function syncContent() {
     historicalRows.forEach((row, idx) => {
       rowsWithMetadata.push({
         row: row,
-        tabName: '2024 & earlier',
+        tabName: HISTORICAL_TAB_NAME,
         tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
       });
     });
