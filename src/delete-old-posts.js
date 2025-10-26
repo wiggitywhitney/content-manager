@@ -44,15 +44,19 @@ async function fetchAllPosts() {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
-          if (res.statusCode === 200) {
+          if (res.statusCode !== 200) {
+            return reject(new Error(`Failed to fetch posts: ${res.statusCode} ${data}`));
+          }
+          try {
             const parsed = JSON.parse(data);
             resolve(parsed.items || []);
-          } else {
-            reject(new Error(`Failed to fetch posts: ${res.statusCode} ${data}`));
+          } catch (e) {
+            reject(new Error(`Invalid JSON from Micropub: ${e.message}`));
           }
         });
       });
 
+      req.setTimeout(10000, () => req.destroy(new Error('Micropub request timeout')));
       req.on('error', reject);
       req.end();
     });
