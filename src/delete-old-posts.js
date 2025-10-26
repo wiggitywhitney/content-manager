@@ -6,10 +6,19 @@ const https = require('https');
 
 const MICROBLOG_APP_TOKEN = process.env.MICROBLOG_APP_TOKEN;
 const HOSTNAME = 'micro.blog';
+const DRY_RUN = (process.env.DRY_RUN ?? 'true').toLowerCase() !== 'false';
+const CONFIRM_DELETE = (process.env.CONFIRM_DELETE === 'YES');
 
 if (!MICROBLOG_APP_TOKEN) {
   console.error('Error: MICROBLOG_APP_TOKEN environment variable not set');
   process.exit(1);
+}
+
+if (!DRY_RUN && !CONFIRM_DELETE) {
+  console.error('Error: Refusing to delete without CONFIRM_DELETE=YES');
+  console.error('To perform actual deletions, run: CONFIRM_DELETE=YES npm run delete-old-posts');
+  console.error('To preview deletions, run: npm run delete-old-posts (dry-run mode)');
+  process.exit(2);
 }
 
 // Fetch all posts from micro.blog with pagination support
@@ -119,6 +128,12 @@ async function main() {
     return;
   }
 
+  if (DRY_RUN) {
+    console.log('🔍 DRY RUN MODE - No posts will be deleted\n');
+  } else {
+    console.log('⚠️  DELETION MODE - Posts will be permanently deleted\n');
+  }
+
   console.log('\nStarting deletion...\n');
 
   let deleted = 0;
@@ -132,11 +147,18 @@ async function main() {
       : content?.html?.substring(0, 50) || 'No content';
 
     try {
-      console.log(`Deleting: ${url}`);
-      console.log(`  Preview: ${preview}...`);
-      await deletePost(url);
-      deleted++;
-      console.log(`  ✅ Deleted\n`);
+      if (DRY_RUN) {
+        console.log(`Would delete: ${url}`);
+        console.log(`  Preview: ${preview}...`);
+        deleted++;
+        console.log(`  ✓ (dry-run)\n`);
+      } else {
+        console.log(`Deleting: ${url}`);
+        console.log(`  Preview: ${preview}...`);
+        await deletePost(url);
+        deleted++;
+        console.log(`  ✅ Deleted\n`);
+      }
     } catch (error) {
       failed++;
       console.log(`  ❌ Failed: ${error.message}\n`);
