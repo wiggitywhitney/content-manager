@@ -63,7 +63,7 @@ async function main() {
   posts.forEach(post => {
     const url = post.url || post.properties?.url?.[0];
     if (url) {
-      const match = url.match(/\/(\d{4})\//);
+      const match = url.match(/\/(\d{4})\/\d{2}\/\d{2}\//);
       if (match) {
         const year = match[1];
         byYear[year] = (byYear[year] || 0) + 1;
