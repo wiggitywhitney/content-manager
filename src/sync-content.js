@@ -2,6 +2,10 @@ const { google } = require('googleapis');
 const https = require('https');
 const { CATEGORY_PAGES } = require('./config/category-pages');
 
+// Rate limiting for Google Sheets writes (60 writes/min quota)
+// 1500ms = 40 writes/min = 67% of limit with 33% buffer
+const SHEETS_WRITE_DELAY_MS = 1500;
+
 // Spreadsheet configuration
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
@@ -655,11 +659,16 @@ function detectChanges(row, existingPost) {
   // Generate expected published date and normalize both for comparison
   const expectedPublished = parseDateToISO(row.date);
   if (expectedPublished) {
-    const normalizedExpected = normalizeTimestamp(expectedPublished);
-    const normalizedExisting = normalizeTimestamp(existingPost.published);
+    try {
+      const normalizedExpected = normalizeTimestamp(expectedPublished);
+      const normalizedExisting = normalizeTimestamp(existingPost.published);
 
-    if (normalizedExpected !== normalizedExisting) {
-      changes.published = expectedPublished;
+      if (normalizedExpected !== normalizedExisting) {
+        changes.published = expectedPublished;
+      }
+    } catch (error) {
+      // Log but don't crash if existing post has invalid date
+      log(`Warning: Invalid date in post comparison - ${error.message}`, 'WARN');
     }
   }
 
@@ -1029,9 +1038,8 @@ async function syncContent() {
         // This prevents orphan detection from deleting the post we just created
         row.microblogUrl = postUrl;
 
-        // Rate limiting: delay between writes to stay under Google Sheets limit (60 writes/min)
-        // 1500ms = 40 writes/min = 67% of limit with 33% buffer for retries and timing variance
-        await sleep(1500);
+        // Rate limiting: delay between writes to stay under Google Sheets quota
+        await sleep(SHEETS_WRITE_DELAY_MS);
 
       } catch (error) {
         postStats.failed++;
@@ -1124,6 +1132,9 @@ async function syncContent() {
 
         // Update in-memory row data
         row.microblogUrl = newUrl;
+
+        // Rate limiting: delay between writes to stay under Google Sheets quota
+        await sleep(SHEETS_WRITE_DELAY_MS);
 
       } catch (error) {
         regenStats.failed++;
