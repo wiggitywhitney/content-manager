@@ -359,14 +359,14 @@ function validateContent(content) {
 
 /**
  * Calculate last post date and activity status for each category
- * Uses today's date from OS to determine if categories are inactive (4+ months)
+ * Uses today's date from OS to determine if categories are inactive (6+ months)
  * @param {Array} validRows - Array of validated content rows
  * @returns {Object} - Activity data by category
  */
 function calculateCategoryActivity(validRows) {
   const activity = {};
   const today = new Date(); // Get today's date from OS
-  const INACTIVE_THRESHOLD_DAYS = 120; // 4 months
+  const INACTIVE_THRESHOLD_DAYS = 180; // 6 months
 
   // Initialize all 5 managed categories
   const categories = ['Podcast', 'Video', 'Blog', 'Presentations', 'Guest'];
@@ -429,7 +429,7 @@ function calculateCategoryActivity(validRows) {
  * Algorithm:
  * 1. Read Google Sheets to get all posts with Type and Date
  * 2. Get today's date from OS
- * 3. Calculate which categories are inactive (4+ months since last post)
+ * 3. Calculate which categories are inactive (6+ months since last post)
  * 4. Make 5 XML-RPC calls to update page visibility on Micro.blog
  */
 async function updatePageVisibility() {
@@ -499,7 +499,7 @@ async function updatePageVisibility() {
       } else {
         console.log(`  Posts: ${activity.postCount}`);
         console.log(`  Last post: ${activity.lastPostDateString} (${activity.daysSincePost} days ago)`);
-        console.log(`  Status: ${activity.isInactive ? '✗ Inactive (4+ months)' : '✓ Active'}`);
+        console.log(`  Status: ${activity.isInactive ? '✗ Inactive (6+ months)' : '✓ Active'}`);
       }
       console.log('');
     }
@@ -547,7 +547,7 @@ async function updatePageVisibility() {
             console.log(`  ✓ Page visible in navigation (active category)`);
           } else {
             updateStats.hidden++;
-            console.log(`  ✗ Page hidden from navigation (inactive 4+ months)`);
+            console.log(`  ✗ Page hidden from navigation (inactive 6+ months)`);
           }
         } else {
           updateStats.failed++;

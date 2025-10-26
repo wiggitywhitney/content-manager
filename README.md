@@ -10,7 +10,7 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 - ✅ Full CRUD operations (create, update, delete posts)
 - ✅ Automatic URL regeneration for SEO-friendly slugs
 - ✅ Hourly content sync via GitHub Actions
-- ✅ Daily automatic page visibility management (4-month inactivity threshold)
+- ✅ Daily automatic page visibility management (6-month inactivity threshold)
 - ✅ Smart error handling with retry logic
 - ✅ Spreadsheet as single source of truth
 - ✅ 96% API efficiency improvement (120→5 calls/day for visibility)
@@ -25,7 +25,7 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 
 ### Page Visibility (Daily)
 1. System checks category activity daily at 3 AM UTC
-2. Categories inactive for 4+ months are automatically hidden from navigation
+2. Categories inactive for 6+ months are automatically hidden from navigation
 3. Categories become visible again when new content is added
 4. Keeps site navigation clean without manual intervention
 
@@ -98,7 +98,7 @@ Google Sheets ←→ GitHub Actions ←→ Micro.blog
 
 **Page Visibility Flow:**
 1. Read spreadsheet data to calculate category activity
-2. Identify categories inactive for 4+ months
+2. Identify categories inactive for 6+ months
 3. Update page visibility via XML-RPC API (5 pages)
 4. Hide inactive categories, show active ones
 
