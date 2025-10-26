@@ -21,6 +21,18 @@ async function removeTestRows() {
 
   const sheets = google.sheets({ version: 'v4', auth });
 
+  // Resolve sheet ID by name
+  console.log(`Resolving sheet ID for: ${SHEET_NAME}...`);
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID
+  });
+  const targetSheet = (meta.data.sheets || []).find(s => s.properties.title === SHEET_NAME);
+  if (!targetSheet) {
+    throw new Error(`Sheet not found: ${SHEET_NAME}`);
+  }
+  const SHEET_ID = targetSheet.properties.sheetId;
+  console.log(`Found sheet ID: ${SHEET_ID}\n`);
+
   // Read all rows to find test rows
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
@@ -59,7 +71,7 @@ async function removeTestRows() {
           {
             deleteDimension: {
               range: {
-                sheetId: 0, // Sheet1 has ID 0
+                sheetId: SHEET_ID,
                 dimension: 'ROWS',
                 startIndex: rowIndex,
                 endIndex: rowIndex + 1

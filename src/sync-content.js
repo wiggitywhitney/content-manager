@@ -506,11 +506,6 @@ function formatPostContent(content) {
  * @returns {Promise<string>} - Post URL from Location header
  */
 async function createMicroblogPost(content, postContent, publishedDate) {
-  const token = process.env.MICROBLOG_APP_TOKEN;
-  if (!token) {
-    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
-  }
-
   // Map content type to Micro.blog category
   const categoryMap = {
     'Podcast': 'Podcast',
@@ -528,6 +523,11 @@ async function createMicroblogPost(content, postContent, publishedDate) {
     log(`  Published: ${publishedDate}`, 'INFO');
     log(`  Content: ${postContent.substring(0, 100)}...`, 'INFO');
     return `https://whitneylee.com/dry-run/${Date.now()}`;
+  }
+
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
   }
 
   // Build form-encoded request body
@@ -710,6 +710,12 @@ function detectChanges(row, existingPost) {
  * @returns {Promise<void>}
  */
 async function updateMicroblogPost(postUrl, changes) {
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would update Micro.blog post: ${postUrl}`, 'INFO');
+    log(`  Changes: ${JSON.stringify(changes, null, 2)}`, 'INFO');
+    return;
+  }
+
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) {
     throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
@@ -727,12 +733,6 @@ async function updateMicroblogPost(postUrl, changes) {
   }
   if (changes.published !== undefined) {
     replace.published = [changes.published];
-  }
-
-  if (DRY_RUN) {
-    log(`[DRY-RUN] Would update Micro.blog post: ${postUrl}`, 'INFO');
-    log(`  Changes: ${JSON.stringify(changes, null, 2)}`, 'INFO');
-    return;
   }
 
   // Make JSON POST request with update action
@@ -762,14 +762,14 @@ async function updateMicroblogPost(postUrl, changes) {
  * @returns {Promise<boolean>} - True if deleted successfully, false otherwise
  */
 async function deleteMicroblogPost(postUrl) {
-  const token = process.env.MICROBLOG_APP_TOKEN;
-  if (!token) {
-    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
-  }
-
   if (DRY_RUN) {
     log(`[DRY-RUN] Would delete Micro.blog post: ${postUrl}`, 'INFO');
     return true;
+  }
+
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
   }
 
   // Make JSON POST request with delete action
@@ -820,14 +820,23 @@ function parseDateToISO(dateString) {
     return isoDate;
   }
 
-  // Try "Month Day, Year" format (e.g., "January 9, 2025")
+  // Try "Month Day, Year" format (e.g., "January 9, 2025" or "Oct 26, 2025")
   const monthNames = {
-    'january': '01', 'february': '02', 'march': '03', 'april': '04',
-    'may': '05', 'june': '06', 'july': '07', 'august': '08',
-    'september': '09', 'october': '10', 'november': '11', 'december': '12'
+    'january': '01', 'jan': '01',
+    'february': '02', 'feb': '02',
+    'march': '03', 'mar': '03',
+    'april': '04', 'apr': '04',
+    'may': '05',
+    'june': '06', 'jun': '06',
+    'july': '07', 'jul': '07',
+    'august': '08', 'aug': '08',
+    'september': '09', 'sep': '09', 'sept': '09',
+    'october': '10', 'oct': '10',
+    'november': '11', 'nov': '11',
+    'december': '12', 'dec': '12'
   };
 
-  const textMatch = trimmed.match(/^([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
+  const textMatch = trimmed.match(/^([a-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
   if (textMatch) {
     const [, monthName, day, year] = textMatch;
     const month = monthNames[monthName.toLowerCase()];
