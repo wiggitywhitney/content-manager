@@ -2,13 +2,14 @@ const { google } = require('googleapis');
 const https = require('https');
 const { CATEGORY_PAGES } = require('./config/category-pages');
 
-// XML-RPC configuration
-const XMLRPC_TIMEOUT_MS = parseInt(process.env.XMLRPC_TIMEOUT_MS || '10000', 10);
-const XMLRPC_MAX_RETRIES = parseInt(process.env.XMLRPC_MAX_RETRIES || '3', 10);
+// Rate limiting for Google Sheets writes (60 writes/min quota)
+// 1500ms = 40 writes/min = 67% of limit with 33% buffer
+const SHEETS_WRITE_DELAY_MS = 1500;
 
 // Spreadsheet configuration
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
+const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
 // ============================================================================
@@ -54,142 +55,6 @@ const ErrorType = {
   DATA: 'DATA',           // Unexpected data format or parsing issues
   UNKNOWN: 'UNKNOWN'      // Unclassified errors
 };
-
-// ============================================================================
-// XML-RPC Utilities for Page Management
-// ============================================================================
-
-/**
- * Escape special XML characters
- * @param {string} str - String to escape
- * @returns {string} - Escaped string
- */
-function escapeXml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-/**
- * Make XML-RPC request to Micro.blog
- * @param {string} methodName - XML-RPC method name (e.g., 'microblog.editPage')
- * @param {Array} params - Method parameters
- * @returns {Promise<Object>} - Response with statusCode and body
- */
-function xmlrpcRequest(methodName, params) {
-  return new Promise((resolve, reject) => {
-    // Early auth validation
-    if (!process.env.MICROBLOG_XMLRPC_TOKEN) {
-      return reject(new Error('MICROBLOG_XMLRPC_TOKEN not set'));
-    }
-    const username = process.env.MICROBLOG_USERNAME || 'wiggitywhitney';
-
-    // Build XML-RPC request body
-    const paramsXml = params.map(param => {
-      if (typeof param === 'string') {
-        return `<param><value><string>${escapeXml(param)}</string></value></param>`;
-      } else if (typeof param === 'number') {
-        return `<param><value><int>${param}</int></value></param>`;
-      } else if (typeof param === 'boolean') {
-        return `<param><value><boolean>${param ? 1 : 0}</boolean></value></param>`;
-      } else if (param && typeof param === 'object' && !Array.isArray(param)) {
-        const members = Object.entries(param).map(([key, value]) => {
-          let valueXml = '<string></string>';
-          if (typeof value === 'string') {
-            valueXml = `<string>${escapeXml(value)}</string>`;
-          } else if (typeof value === 'boolean') {
-            valueXml = `<boolean>${value ? 1 : 0}</boolean>`;
-          } else if (typeof value === 'number') {
-            valueXml = `<int>${value}</int>`;
-          }
-          return `<member><name>${key}</name><value>${valueXml}</value></member>`;
-        }).join('');
-        return `<param><value><struct>${members}</struct></value></param>`;
-      }
-    }).join('');
-
-    const requestBody = `<?xml version="1.0"?>
-<methodCall>
-  <methodName>${methodName}</methodName>
-  <params>
-    ${paramsXml}
-  </params>
-</methodCall>`;
-
-    // XML-RPC uses HTTP Basic Auth
-    const auth = Buffer.from(`${username}:${process.env.MICROBLOG_XMLRPC_TOKEN}`).toString('base64');
-
-    const options = {
-      hostname: 'micro.blog',
-      path: '/xmlrpc',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml',
-        'Content-Length': Buffer.byteLength(requestBody),
-        'Authorization': 'Basic ' + auth
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-        } else {
-          resolve({ statusCode: res.statusCode, body: data });
-        }
-      });
-    });
-
-    req.setTimeout(XMLRPC_TIMEOUT_MS, () => {
-      req.destroy(new Error(`Request timeout after ${XMLRPC_TIMEOUT_MS}ms`));
-    });
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
-  });
-}
-
-/**
- * Edit a page's navigation visibility
- * @param {number} pageId - Micro.blog page ID
- * @param {string} title - Page title
- * @param {string} description - Page description/URL
- * @param {boolean} isNavigation - Whether page should appear in navigation
- * @returns {Promise<boolean>} - Success status
- */
-async function setPageNavigationVisibility(pageId, title, description, isNavigation) {
-  const params = [
-    pageId,
-    process.env.MICROBLOG_USERNAME || 'wiggitywhitney',
-    process.env.MICROBLOG_XMLRPC_TOKEN,
-    {
-      title: title,
-      description: description,
-      is_navigation: isNavigation
-    }
-  ];
-
-  for (let attempt = 1; attempt <= XMLRPC_MAX_RETRIES; attempt++) {
-    try {
-      const response = await xmlrpcRequest('microblog.editPage', params);
-      // Check for success (no fault in response)
-      return !response.body.includes('<fault>');
-    } catch (error) {
-      if (attempt === XMLRPC_MAX_RETRIES) {
-        log(`XML-RPC error for page ${pageId}: ${error.message}`, 'ERROR');
-        return false;
-      }
-      const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-      log(`editPage failed (attempt ${attempt}); retrying in ${backoff}ms`, 'WARN');
-      await new Promise(r => setTimeout(r, backoff));
-    }
-  }
-}
 
 /**
  * Classify an error by type
@@ -443,9 +308,9 @@ function log(message, level = 'INFO', data = null) {
  * @param {string} url - Micro.blog post URL from Location header
  * @returns {Promise<boolean>} - True if successful, false otherwise
  */
-async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
+async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url) {
   try {
-    const range = `${SHEET_NAME}!H${rowIndex}`;  // e.g., "Sheet1!H15"
+    const range = `${tabName}!H${rowIndex}`;  // e.g., "Sheet1!H15" or "2024 & earlier!H42"
     await withRetry(
       () => sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -453,13 +318,13 @@ async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
         valueInputOption: 'USER_ENTERED',
         resource: { values: [[url]] }
       }),
-      `Write URL to spreadsheet row ${rowIndex}`
+      `Write URL to ${tabName} row ${rowIndex}`
     );
-    log(`Wrote URL to row ${rowIndex}: ${url}`, 'DEBUG');
+    log(`Wrote URL to ${tabName} row ${rowIndex}: ${url}`, 'DEBUG');
     return true;
   } catch (error) {
     // Don't fail entire sync if write fails (after retries exhausted)
-    log(`Failed to write URL to row ${rowIndex}: ${error.message}`, 'WARN');
+    log(`Failed to write URL to ${tabName} row ${rowIndex}: ${error.message}`, 'WARN');
     return false;
   }
 }
@@ -470,19 +335,25 @@ async function writeUrlToSpreadsheet(sheets, spreadsheetId, rowIndex, url) {
  * @param {number} rowIndex - Original row index (for debugging)
  * @returns {Object|null} - Parsed content object or null if header row
  */
-function parseRow(row, rowIndex) {
-  // Handle header row (first row with column names)
-  if (rowIndex === 0 && row[0] === 'Name') {
+function parseRow(row, rowIndex, isHeaderRow = false) {
+  // Handle header row (column names)
+  if (isHeaderRow || (row[0] === 'Name' && row[1] === 'Type' && row[2] === 'Show')) {
     return null;
   }
 
   // Extract fields by column position (A-H)
   const [name, type, show, date, location, confirmed, link, microblogUrl] = row;
 
+  // Normalize type: "Presentation" (singular) → "Presentations" (plural)
+  let normalizedType = (type || '').trim();
+  if (normalizedType === 'Presentation') {
+    normalizedType = 'Presentations';
+  }
+
   // Return structured object
   return {
     name: (name || '').trim(),
-    type: (type || '').trim(),
+    type: normalizedType,
     show: (show || '').trim(),
     date: (date || '').trim(),
     location: (location || '').trim(),
@@ -575,14 +446,13 @@ function isNonTitleUrl(url) {
 function formatPostContent(content) {
   const { name, type, show, link, confirmed } = content;
 
-  // Determine show name
+  // Determine show name from Column C (Show)
   let showName = '';
-  if (type === 'Podcast') {
-    // Podcasts are always "Software Defined Interviews"
-    showName = 'Software Defined Interviews';
-  } else if (show) {
-    // Use Column C (Show) for other types if available
+  if (show) {
     showName = show;
+  } else if (type === 'Podcast') {
+    // Default to "Software Defined Interviews" only if Show column is empty
+    showName = 'Software Defined Interviews';
   }
 
   // Check if this is a keynote (Column F contains "KEYNOTE", case-insensitive)
@@ -747,6 +617,12 @@ function normalizeTimestamp(dateString) {
 
   // Parse to Date object and back to ISO string (always uses Z format)
   const date = new Date(dateString);
+
+  // Validate that the date is valid
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid date: ${dateString}`);
+  }
+
   return date.toISOString();
 }
 
@@ -784,11 +660,16 @@ function detectChanges(row, existingPost) {
   // Generate expected published date and normalize both for comparison
   const expectedPublished = parseDateToISO(row.date);
   if (expectedPublished) {
-    const normalizedExpected = normalizeTimestamp(expectedPublished);
-    const normalizedExisting = normalizeTimestamp(existingPost.published);
+    try {
+      const normalizedExpected = normalizeTimestamp(expectedPublished);
+      const normalizedExisting = normalizeTimestamp(existingPost.published);
 
-    if (normalizedExpected !== normalizedExisting) {
-      changes.published = expectedPublished;
+      if (normalizedExpected !== normalizedExisting) {
+        changes.published = expectedPublished;
+      }
+    } catch (error) {
+      // Log but don't crash if existing post has invalid date
+      log(`Warning: Invalid date in post comparison - ${error.message}`, 'WARN');
     }
   }
 
@@ -917,7 +798,7 @@ function parseDateToISO(dateString) {
     'september': '09', 'october': '10', 'november': '11', 'december': '12'
   };
 
-  const textMatch = trimmed.match(/^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$/i);
+  const textMatch = trimmed.match(/^([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
   if (textMatch) {
     const [, monthName, day, year] = textMatch;
     const month = monthNames[monthName.toLowerCase()];
@@ -958,18 +839,56 @@ async function syncContent() {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Read spreadsheet data with retry logic
+    // Read spreadsheet data with retry logic from multiple tabs
     log(`Reading spreadsheet: ${SPREADSHEET_ID}`);
-    const response = await withRetry(
+
+    // Read current content from Sheet1
+    log(`  Reading Sheet1...`);
+    const sheet1Response = await withRetry(
       () => sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
         range: RANGE,
       }),
-      'Read spreadsheet'
+      'Read Sheet1'
     );
+    const sheet1Rows = sheet1Response.data.values || [];
+    log(`  Found ${sheet1Rows.length} rows in Sheet1`);
 
-    const rows = response.data.values || [];
-    log(`Found ${rows.length} total rows (including header)\n`);
+    // Read historical content
+    log(`  Reading ${HISTORICAL_TAB_NAME}...`);
+    const historicalResponse = await withRetry(
+      () => sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${HISTORICAL_TAB_NAME}!A:H`,
+      }),
+      `Read ${HISTORICAL_TAB_NAME}`
+    );
+    const historicalRows = historicalResponse.data.values || [];
+    log(`  Found ${historicalRows.length} rows in ${HISTORICAL_TAB_NAME}`);
+
+    // Combine rows with tab tracking
+    // Each item: { row: [...], tabName: 'Sheet1' | '2024 & earlier', tabRowIndex: N }
+    const rowsWithMetadata = [];
+
+    // Add Sheet1 rows (including header row for parsing, will be skipped during validation)
+    sheet1Rows.forEach((row, idx) => {
+      rowsWithMetadata.push({
+        row: row,
+        tabName: SHEET_NAME,
+        tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
+      });
+    });
+
+    // Add historical rows (including header row for parsing, will be skipped during validation)
+    historicalRows.forEach((row, idx) => {
+      rowsWithMetadata.push({
+        row: row,
+        tabName: HISTORICAL_TAB_NAME,
+        tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
+      });
+    });
+
+    log(`Found ${rowsWithMetadata.length} total rows (including header)\n`);
 
     // Parse and validate rows
     const validRows = [];
@@ -989,8 +908,16 @@ async function syncContent() {
       }
     };
 
-    for (let i = 0; i < rows.length; i++) {
-      const parsed = parseRow(rows[i], i);
+    for (let i = 0; i < rowsWithMetadata.length; i++) {
+      const { row, tabName, tabRowIndex } = rowsWithMetadata[i];
+      const isHeaderRow = (tabRowIndex === 1);  // Row 1 in each tab is the header
+      const parsed = parseRow(row, i, isHeaderRow);
+
+      // Add tab metadata to parsed object
+      if (parsed) {
+        parsed.tabName = tabName;
+        parsed.tabRowIndex = tabRowIndex;
+      }
 
       // Skip header row
       if (parsed === null) {
@@ -1010,7 +937,7 @@ async function syncContent() {
         // Log valid content row with format-aware output
         if (logConfig.format === 'json') {
           // Structured JSON logging
-          log(`Processing row ${parsed.rowIndex}/${stats.total}`, 'DEBUG', {
+          log(`Processing ${parsed.tabName} row ${parsed.tabRowIndex}`, 'DEBUG', {
             rowIndex: parsed.rowIndex,
             title: parsed.name,
             type: parsed.type,
@@ -1020,7 +947,7 @@ async function syncContent() {
           });
         } else {
           // Pretty formatted output for local dev
-          log(`Processing row ${parsed.rowIndex}/${stats.total}`);
+          log(`Processing ${parsed.tabName} row ${parsed.tabRowIndex}`);
           console.log(`  Title: ${parsed.name}`);
           console.log(`  Type:  ${parsed.type} → /${parsed.type.toLowerCase()}`);
           console.log(`  Date:  ${parsed.date}`);
@@ -1097,20 +1024,23 @@ async function syncContent() {
         log(`✅ Post created: ${postUrl}`, 'INFO');
 
         // Write URL back to spreadsheet Column H
-        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.rowIndex, postUrl);
+        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
 
         if (writeSuccess) {
           postStats.successful++;
-          log(`✅ URL written to row ${row.rowIndex}`, 'DEBUG');
+          log(`✅ URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
         } else {
           // Post created but URL write failed (non-fatal)
           postStats.successful++;
-          log(`⚠️  Post created but failed to write URL to row ${row.rowIndex}`, 'WARN');
+          log(`⚠️  Post created but failed to write URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
         }
 
         // Update in-memory row data regardless of write success
         // This prevents orphan detection from deleting the post we just created
         row.microblogUrl = postUrl;
+
+        // Rate limiting: delay between writes to stay under Google Sheets quota
+        await sleep(SHEETS_WRITE_DELAY_MS);
 
       } catch (error) {
         postStats.failed++;
@@ -1191,7 +1121,7 @@ async function syncContent() {
         log(`  ✓ New post created: ${newUrl} (slug: ${newSlug})`, 'INFO');
 
         // Write new URL to spreadsheet
-        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.rowIndex, newUrl);
+        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, newUrl);
 
         if (writeSuccess) {
           regenStats.successful++;
@@ -1203,6 +1133,9 @@ async function syncContent() {
 
         // Update in-memory row data
         row.microblogUrl = newUrl;
+
+        // Rate limiting: delay between writes to stay under Google Sheets quota
+        await sleep(SHEETS_WRITE_DELAY_MS);
 
       } catch (error) {
         regenStats.failed++;
