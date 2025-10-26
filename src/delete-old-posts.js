@@ -97,6 +97,7 @@ async function deletePost(url) {
       }
     });
 
+    req.setTimeout(10000, () => req.destroy(new Error('Micropub delete timeout')));
     req.on('error', reject);
     req.write(postData);
     req.end();
