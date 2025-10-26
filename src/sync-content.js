@@ -12,6 +12,9 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
 const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
+// Dry-run mode: when enabled, logs actions without making actual API calls
+const DRY_RUN = process.env.DRY_RUN === 'true';
+
 // ============================================================================
 // Error Classification & Recovery
 // ============================================================================
@@ -311,6 +314,12 @@ function log(message, level = 'INFO', data = null) {
 async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url) {
   try {
     const range = `${tabName}!H${rowIndex}`;  // e.g., "Sheet1!H15" or "2024 & earlier!H42"
+
+    if (DRY_RUN) {
+      log(`[DRY-RUN] Would write URL to ${tabName} row ${rowIndex}: ${url}`, 'INFO');
+      return true;
+    }
+
     await withRetry(
       () => sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -512,6 +521,15 @@ async function createMicroblogPost(content, postContent, publishedDate) {
   };
   const category = categoryMap[content.type];
 
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would create Micro.blog post:`, 'INFO');
+    log(`  Title: ${content.name}`, 'INFO');
+    log(`  Category: ${category}`, 'INFO');
+    log(`  Published: ${publishedDate}`, 'INFO');
+    log(`  Content: ${postContent.substring(0, 100)}...`, 'INFO');
+    return `https://whitneylee.com/dry-run/${Date.now()}`;
+  }
+
   // Build form-encoded request body
   const params = new URLSearchParams();
   params.append('h', 'entry');
@@ -711,6 +729,12 @@ async function updateMicroblogPost(postUrl, changes) {
     replace.published = [changes.published];
   }
 
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would update Micro.blog post: ${postUrl}`, 'INFO');
+    log(`  Changes: ${JSON.stringify(changes, null, 2)}`, 'INFO');
+    return;
+  }
+
   // Make JSON POST request with update action
   const response = await fetch('https://micro.blog/micropub', {
     method: 'POST',
@@ -741,6 +765,11 @@ async function deleteMicroblogPost(postUrl) {
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) {
     throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would delete Micro.blog post: ${postUrl}`, 'INFO');
+    return true;
   }
 
   // Make JSON POST request with delete action
@@ -825,6 +854,13 @@ function parseDateToISO(dateString) {
  */
 async function syncContent() {
   try {
+    // Show DRY_RUN mode indicator
+    if (DRY_RUN) {
+      console.log('\n' + '='.repeat(60));
+      console.log('🔍 DRY-RUN MODE ENABLED - No actual API calls will be made');
+      console.log('='.repeat(60) + '\n');
+    }
+
     // Authenticate with Google Sheets API
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountJson) {
