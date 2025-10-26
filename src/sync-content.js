@@ -12,6 +12,10 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
 const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
 
+// Dry-run mode: when enabled, logs actions without making actual API calls
+// Defaults to true (safe) unless explicitly disabled with DRY_RUN=false
+const DRY_RUN = (process.env.DRY_RUN ?? 'true').toLowerCase() !== 'false';
+
 // ============================================================================
 // Error Classification & Recovery
 // ============================================================================
@@ -311,6 +315,12 @@ function log(message, level = 'INFO', data = null) {
 async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url) {
   try {
     const range = `${tabName}!H${rowIndex}`;  // e.g., "Sheet1!H15" or "2024 & earlier!H42"
+
+    if (DRY_RUN) {
+      log(`[DRY-RUN] Would write URL to ${tabName} row ${rowIndex}: ${url}`, 'INFO');
+      return true;
+    }
+
     await withRetry(
       () => sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -497,11 +507,6 @@ function formatPostContent(content) {
  * @returns {Promise<string>} - Post URL from Location header
  */
 async function createMicroblogPost(content, postContent, publishedDate) {
-  const token = process.env.MICROBLOG_APP_TOKEN;
-  if (!token) {
-    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
-  }
-
   // Map content type to Micro.blog category
   const categoryMap = {
     'Podcast': 'Podcast',
@@ -511,6 +516,20 @@ async function createMicroblogPost(content, postContent, publishedDate) {
     'Guest': 'Guest'
   };
   const category = categoryMap[content.type];
+
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would create Micro.blog post:`, 'INFO');
+    log(`  Title: ${content.name}`, 'INFO');
+    log(`  Category: ${category}`, 'INFO');
+    log(`  Published: ${publishedDate}`, 'INFO');
+    log(`  Content: ${postContent.substring(0, 100)}...`, 'INFO');
+    return `https://whitneylee.com/dry-run/${Date.now()}`;
+  }
+
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
 
   // Build form-encoded request body
   const params = new URLSearchParams();
@@ -692,6 +711,12 @@ function detectChanges(row, existingPost) {
  * @returns {Promise<void>}
  */
 async function updateMicroblogPost(postUrl, changes) {
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would update Micro.blog post: ${postUrl}`, 'INFO');
+    log(`  Changes: ${JSON.stringify(changes, null, 2)}`, 'INFO');
+    return;
+  }
+
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) {
     throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
@@ -738,6 +763,11 @@ async function updateMicroblogPost(postUrl, changes) {
  * @returns {Promise<boolean>} - True if deleted successfully, false otherwise
  */
 async function deleteMicroblogPost(postUrl) {
+  if (DRY_RUN) {
+    log(`[DRY-RUN] Would delete Micro.blog post: ${postUrl}`, 'INFO');
+    return true;
+  }
+
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) {
     throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
@@ -791,14 +821,23 @@ function parseDateToISO(dateString) {
     return isoDate;
   }
 
-  // Try "Month Day, Year" format (e.g., "January 9, 2025")
+  // Try "Month Day, Year" format (e.g., "January 9, 2025" or "Oct 26, 2025")
   const monthNames = {
-    'january': '01', 'february': '02', 'march': '03', 'april': '04',
-    'may': '05', 'june': '06', 'july': '07', 'august': '08',
-    'september': '09', 'october': '10', 'november': '11', 'december': '12'
+    'january': '01', 'jan': '01',
+    'february': '02', 'feb': '02',
+    'march': '03', 'mar': '03',
+    'april': '04', 'apr': '04',
+    'may': '05',
+    'june': '06', 'jun': '06',
+    'july': '07', 'jul': '07',
+    'august': '08', 'aug': '08',
+    'september': '09', 'sep': '09', 'sept': '09',
+    'october': '10', 'oct': '10',
+    'november': '11', 'nov': '11',
+    'december': '12', 'dec': '12'
   };
 
-  const textMatch = trimmed.match(/^([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
+  const textMatch = trimmed.match(/^([a-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
   if (textMatch) {
     const [, monthName, day, year] = textMatch;
     const month = monthNames[monthName.toLowerCase()];
@@ -825,6 +864,13 @@ function parseDateToISO(dateString) {
  */
 async function syncContent() {
   try {
+    // Show DRY_RUN mode indicator
+    if (DRY_RUN) {
+      console.log('\n' + '='.repeat(60));
+      console.log('🔍 DRY-RUN MODE ENABLED - No actual API calls will be made');
+      console.log('='.repeat(60) + '\n');
+    }
+
     // Authenticate with Google Sheets API
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountJson) {
@@ -979,7 +1025,35 @@ async function syncContent() {
     // Filter rows that need to be posted (empty Column H)
     const rowsToPost = validRows.filter(row => !row.microblogUrl);
 
-    log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
+    // Rate limiting: Sort by date (oldest first) and limit to 1 post per run
+    if (rowsToPost.length > 0) {
+      // Sort chronologically using the same date parsing used throughout codebase
+      rowsToPost.sort((a, b) => {
+        const dateA = parseDateToISO(a.date);
+        const dateB = parseDateToISO(b.date);
+
+        // Handle invalid dates (put them at the end)
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+
+        // ISO 8601 strings sort correctly lexicographically
+        return dateA.localeCompare(dateB);
+      });
+
+      // Limit to oldest unpublished row only (rate limiting)
+      const totalUnpublished = rowsToPost.length;
+      const oldestRow = rowsToPost[0];
+      rowsToPost.length = 0;
+      rowsToPost.push(oldestRow);
+
+      log(`\nRate limiting: Publishing oldest unpublished post`);
+      log(`  Date: ${oldestRow.date}`);
+      log(`  Progress: 1 of ${totalUnpublished} unpublished posts will be published`);
+      log(`  Remaining: ${totalUnpublished - 1} posts will publish over next ${totalUnpublished - 1} days`);
+    } else {
+      log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
+    }
 
     // Track post creation statistics
     const postStats = {

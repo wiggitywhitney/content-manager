@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "sync": "teller run -- $(which node) src/sync-content.js",
     "delete-old-posts": "teller run -- $(which node) src/delete-old-posts.js",
-    "check-posts": "teller run -- $(which node) src/check-posts.js"
+    "check-posts": "teller run -- $(which node) src/check-posts.js",
+    "add-test-rows": "teller run -- $(which node) src/add-test-rows.js",
+    "remove-test-rows": "teller run -- $(which node) src/remove-test-rows.js"
   },
   "keywords": [],
   "author": "",
