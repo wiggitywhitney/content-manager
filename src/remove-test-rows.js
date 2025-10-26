@@ -60,29 +60,33 @@ async function removeTestRows() {
     console.log(`  Row ${index + 1}: ${row[0]} (${row[3]})`);
   });
 
-  // Delete rows in reverse order (to maintain correct indices)
+  // Build delete requests for all rows (in reverse order to maintain correct indices)
   console.log('\nDeleting rows...');
-  for (let i = testRowIndices.length - 1; i >= 0; i--) {
-    const rowIndex = testRowIndices[i];
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      resource: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: SHEET_ID,
-                dimension: 'ROWS',
-                startIndex: rowIndex,
-                endIndex: rowIndex + 1
-              }
-            }
-          }
-        ]
+  const deleteRequests = testRowIndices
+    .slice()
+    .reverse()
+    .map(rowIndex => ({
+      deleteDimension: {
+        range: {
+          sheetId: SHEET_ID,
+          dimension: 'ROWS',
+          startIndex: rowIndex,
+          endIndex: rowIndex + 1
+        }
       }
-    });
+    }));
+
+  // Execute all deletes in a single batch API call
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    resource: {
+      requests: deleteRequests
+    }
+  });
+
+  testRowIndices.forEach(rowIndex => {
     console.log(`  ✓ Deleted row ${rowIndex + 1}`);
-  }
+  });
 
   console.log(`\n✅ Removed ${testRowIndices.length} test rows from ${SHEET_NAME}\n`);
 }

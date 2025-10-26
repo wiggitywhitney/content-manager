@@ -20,7 +20,7 @@ When bulk adding recent content to the spreadsheet (2025_Content_Created), the a
 
 Implement rate limiting through simple daily publishing schedule:
 
-1. **Daily Schedule**: Change sync script from hourly to daily (10am US Central)
+1. **Daily Schedule**: Change sync script from hourly to daily (10:30am US Central)
 2. **Single Post Per Day**: Publish only the oldest unpublished row per run
 3. **Chronological Order**: Sort by Date column (oldest first) before publishing
 4. **No State Files**: Use existing Column H (Micro.blog URL) as state tracker
