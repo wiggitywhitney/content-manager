@@ -979,7 +979,35 @@ async function syncContent() {
     // Filter rows that need to be posted (empty Column H)
     const rowsToPost = validRows.filter(row => !row.microblogUrl);
 
-    log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
+    // Rate limiting: Sort by date (oldest first) and limit to 1 post per run
+    if (rowsToPost.length > 0) {
+      // Sort chronologically using the same date parsing used throughout codebase
+      rowsToPost.sort((a, b) => {
+        const dateA = parseDateToISO(a.date);
+        const dateB = parseDateToISO(b.date);
+
+        // Handle invalid dates (put them at the end)
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+
+        // ISO 8601 strings sort correctly lexicographically
+        return dateA.localeCompare(dateB);
+      });
+
+      // Limit to oldest unpublished row only (rate limiting)
+      const totalUnpublished = rowsToPost.length;
+      const oldestRow = rowsToPost[0];
+      rowsToPost.length = 0;
+      rowsToPost.push(oldestRow);
+
+      log(`\nRate limiting: Publishing oldest unpublished post`);
+      log(`  Date: ${oldestRow.date}`);
+      log(`  Progress: 1 of ${totalUnpublished} unpublished posts will be published`);
+      log(`  Remaining: ${totalUnpublished - 1} posts will publish over next ${totalUnpublished - 1} days`);
+    } else {
+      log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
+    }
 
     // Track post creation statistics
     const postStats = {
