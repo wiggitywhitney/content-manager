@@ -1,10 +1,10 @@
 # PRD: Rate-Limited Content Publishing
 
-**Issue**: [#8](https://github.com/wiggitywhitney/content-manager/issues/8)
-**Status**: In Progress
+**Issue**: [#8](https://github.com/wiggitywhitney/content-manager/issues/8) (Reopened)
+**Status**: Core Complete / Optional Polish Tasks Remaining (Milestone 4)
 **Priority**: Medium
 **Created**: 2025-10-19
-**Last Updated**: 2025-10-26
+**Last Updated**: 2025-10-27
 
 ## Problem Statement
 
@@ -166,22 +166,28 @@ Implement rate limiting through simple daily publishing schedule:
 
 **Note**: Updates/deletes testing deferred - these operations already tested in prior PRD work and continue to function correctly on daily schedule.
 
-### Milestone 4: (Optional) Combine Workflows into Single Daily Sync
+### Milestone 4: (Optional) Polish & Optimization
+**Estimated Time**: ~45 minutes
+**Status**: Not Started
+
+This milestone includes optional enhancements that improve efficiency and user experience but aren't blocking for core functionality.
+
+#### Task 4.1: Combine Workflows into Single Daily Sync
 **Estimated Time**: ~30 minutes
 
-This milestone consolidates the two daily workflows (sync-content and update-page-visibility) into a single daily workflow for better efficiency and simpler maintenance.
+Consolidates the two daily workflows (sync-content and update-page-visibility) into a single daily workflow for better efficiency and simpler maintenance.
 
 **Current State**:
-- `sync-content.yml`: Daily at 10am Central (after PRD-8)
+- `sync-content.yml`: Daily at 15:30 UTC (10:30am Central)
 - `update-page-visibility.yml`: Daily at 3am UTC
 
 **Proposed Change**:
-- Combine into single `daily-sync.yml` at 10am Central
+- Combine into single `daily-sync.yml` at 15:30 UTC (10:30am Central)
 - Run both scripts sequentially: sync-content.js → update-page-visibility.js
 
 **Tasks**:
 - [ ] Create new `.github/workflows/daily-sync.yml`
-  - Set schedule to `0 15 * * *` (10am Central / 3pm UTC)
+  - Set schedule to `30 15 * * *` (10:30am Central / 3:30pm UTC)
   - Add step to run `node src/sync-content.js`
   - Add step to run `node src/update-page-visibility.js`
   - Include all required secrets (GOOGLE_SERVICE_ACCOUNT_JSON, MICROBLOG_APP_TOKEN, MICROBLOG_XMLRPC_TOKEN, MICROBLOG_USERNAME)
@@ -199,7 +205,26 @@ This milestone consolidates the two daily workflows (sync-content and update-pag
 - Atomic daily sync operation
 - Clearer architecture
 
-**Success Criteria**: Single workflow runs both sync and visibility scripts successfully at 10am Central daily
+**Success Criteria**: Single workflow runs both sync and visibility scripts successfully at 10:30am Central daily
+
+#### Task 4.2: Add Production Spreadsheet Warning
+**Estimated Time**: ~15 minutes
+
+Add prominent warning row to production spreadsheet to prevent accidental changes.
+
+**Tasks**:
+- [ ] Open production spreadsheet: [2025_Content_Created](https://docs.google.com/spreadsheets/d/1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs/edit)
+- [ ] Insert new row at top (above header row)
+- [ ] Add warning text: "⚠️ LIVE PRODUCTION - Changes to this spreadsheet directly affect whitneylee.com"
+- [ ] Format row (red background, bold text, centered)
+- [ ] Document staging spreadsheet workflow in project README if not already documented
+
+**Benefits**:
+- Prevents accidental changes to live production data
+- Increases awareness of automated publishing
+- Encourages use of staging spreadsheet for drafts
+
+**Success Criteria**: Warning row visible and clearly formatted at top of production spreadsheet
 
 ## Dependencies & Risks
 
@@ -388,6 +413,32 @@ PRD-8 (Rate Limiting - This PRD) - After POSSE complete (prevents timeline spam 
 - **Milestone 3**: Complete remaining testing (edge cases, updates/deletes validation)
 - **Push to GitHub**: Deploy workflow change and verify scheduled execution
 - **Production validation**: Monitor first few daily runs for any issues
+
+### 2025-10-27: Production Validation - Workflows Running Successfully
+
+**Overnight Success Summary**:
+- ✅ **Sync Content workflow**: Running on daily schedule successfully
+  - Schedule: 15:30 UTC (10:30am Central) via cron `30 15 * * *`
+  - Latest run: 2025-10-27T15:34:38Z (completed successfully in 41s)
+  - Processing 69 validated content rows
+  - Rate limiting active (publishes max 1 post per day)
+- ✅ **Update Page Visibility workflow**: Running successfully
+  - Schedule: 03:27 UTC daily
+  - Latest run: 2025-10-27T03:27:01Z (completed successfully in 24s)
+  - Status: All 5 category pages checked and updated
+  - All categories ACTIVE (within 90-day threshold)
+  - All pages visible in navigation
+
+**Core Functionality**: ✅ COMPLETE
+- Rate limiting working as designed
+- Daily schedule running reliably
+- No errors or failures in production runs
+
+**Outstanding Optional Work**:
+1. **Task 4.1**: Combine workflows into single daily sync (optional efficiency improvement)
+2. **Task 4.2**: Add warning row to production spreadsheet (best practice, not blocking)
+
+**Resolution**: Issue #8 reopened to track optional Milestone 4 polish tasks. Core functionality complete and working in production; remaining work can be completed at any time or deferred indefinitely.
 
 ---
 
