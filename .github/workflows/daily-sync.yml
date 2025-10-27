@@ -1,0 +1,48 @@
+name: Daily Content Sync
+
+on:
+  # Manual trigger for testing
+  workflow_dispatch:
+
+  # Scheduled run (daily at 15:30 UTC = 10:30am CDT / 9:30am CST)
+  schedule:
+    - cron: '30 15 * * *'  # Run at 3:30pm UTC = 10:30am Central (CDT) / 9:30am Central (CST)
+
+jobs:
+  daily-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    concurrency:
+      group: daily-sync-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+
+      - name: Sync content to Micro.blog
+        env:
+          DRY_RUN: 'false'  # Explicitly disable dry-run mode for production
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MICROBLOG_APP_TOKEN: ${{ secrets.MICROBLOG_APP_TOKEN }}
+          MICROBLOG_XMLRPC_TOKEN: ${{ secrets.MICROBLOG_XMLRPC_TOKEN }}
+          MICROBLOG_USERNAME: ${{ secrets.MICROBLOG_USERNAME }}
+        run: node src/sync-content.js
+
+      - name: Update page visibility
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          MICROBLOG_XMLRPC_TOKEN: ${{ secrets.MICROBLOG_XMLRPC_TOKEN }}
+          MICROBLOG_USERNAME: ${{ secrets.MICROBLOG_USERNAME }}
+        run: node src/update-page-visibility.js
