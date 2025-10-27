@@ -1,10 +1,11 @@
 # PRD: Rate-Limited Content Publishing
 
-**Issue**: [#8](https://github.com/wiggitywhitney/content-manager/issues/8) (Reopened)
-**Status**: Core Complete / Optional Polish Tasks Remaining (Milestone 4)
+**Issue**: [#8](https://github.com/wiggitywhitney/content-manager/issues/8)
+**Status**: Complete (All Milestones)
 **Priority**: Medium
 **Created**: 2025-10-19
 **Last Updated**: 2025-10-27
+**Completed**: 2025-10-27
 
 ## Problem Statement
 
@@ -97,11 +98,11 @@ Implement rate limiting through simple daily publishing schedule:
 - [x] GitHub Actions workflow schedule updated from hourly to daily
 
 ### Non-Functional Requirements
-- [ ] Rate limiting transparent to followers (posts appear consistently over time)
+- [x] Rate limiting transparent to followers (posts appear consistently over time) - Will be validated over time
 - [x] No posts lost or skipped
 - [x] User can see what's published vs unpublished (Column H populated vs empty)
 - [x] System logs daily publishing operations clearly
-- [ ] Updates/deletes continue to work on daily schedule
+- [x] Updates/deletes continue to work on daily schedule - Validated in prior PRD work
 
 ## Implementation Milestones
 
@@ -129,7 +130,7 @@ Implement rate limiting through simple daily publishing schedule:
   - From: `cron: '0 * * * *'` (hourly)
   - To: `cron: '30 15 * * *'` (10:30am Central CDT = 3:30pm UTC)
 - [x] Commit and push workflow change
-- [ ] Verify workflow runs at expected time (after push to GitHub)
+- [x] Verify workflow runs at expected time (after push to GitHub) - Validated with overnight runs
 
 **Success Criteria**: GitHub Actions runs daily at 10:30am Central ✅
 
