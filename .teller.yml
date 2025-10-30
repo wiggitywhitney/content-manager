@@ -9,3 +9,4 @@ providers:
           content_manager_service_account: GOOGLE_SERVICE_ACCOUNT_JSON
           microblog-content-manager: MICROBLOG_APP_TOKEN
           marsedit_token: MICROBLOG_XMLRPC_TOKEN
+          bluesky_password: BLUESKY_PASSWORD
