@@ -623,6 +623,7 @@ async function checkPublishedToday() {
     }
 
     // Find the most recent post that has actually been published (not scheduled for future)
+    // Note: Assumes API returns posts in reverse chronological order (most recent first)
     let mostRecentPublishedPost = null;
     for (const post of posts) {
       const publishedDate = post.properties?.published?.[0];
@@ -706,7 +707,7 @@ async function checkBlueskyPostToday() {
     const posts = response.data.feed || [];
 
     if (posts.length === 0) {
-      log(`No posts found on Bluesky`, 'DEBUG');
+      log(`No posts found on Bluesky`, 'INFO');
       return false;
     }
 
@@ -733,7 +734,7 @@ async function checkBlueskyPostToday() {
     }
 
     // No posts from today found
-    log(`Most recent Bluesky post is from earlier (not today) - will publish`, 'DEBUG');
+    log(`Most recent Bluesky post is from earlier (not today) - will publish`, 'INFO');
     return false;
   } catch (error) {
     log(`Error checking Bluesky posts: ${error.message}`, 'WARN');
@@ -1242,8 +1243,10 @@ async function syncContent() {
     // manually or via automation), skip posting the next scheduled post to maintain
     // max 1/day limit across all platforms
     if (rowsToPost.length > 0) {
-      const mbPostedToday = await checkPublishedToday();
-      const bskyPostedToday = await checkBlueskyPostToday();
+      const [mbPostedToday, bskyPostedToday] = await Promise.all([
+        checkPublishedToday(),
+        checkBlueskyPostToday()
+      ]);
 
       if (mbPostedToday || bskyPostedToday) {
         const platforms = [];
