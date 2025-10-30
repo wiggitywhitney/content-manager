@@ -682,7 +682,8 @@ async function checkBlueskyPostToday() {
   try {
     const now = new Date();
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-    const nowISO = now.toISOString();
+    const nowTime = now.getTime();
+    const todayStartTime = todayStart.getTime();
 
     log(`Daily publish guard: Checking Bluesky for posts published today (${todayStart.toISOString().substring(0, 10)} UTC, up to now)`, 'DEBUG');
 
@@ -710,14 +711,19 @@ async function checkBlueskyPostToday() {
     }
 
     // Check if most recent top-level post (not a reply) is from today
-    const todayStartISO = todayStart.toISOString();
     for (const post of posts) {
       const createdAt = post.post?.record?.createdAt;
       const isReply = post.post?.record?.reply;  // Replies have a reply field
 
       if (createdAt && !isReply) {  // Only count top-level posts, not replies
-        // createdAt is ISO 8601 timestamp - check if posted from today's start up to now
-        if (createdAt >= todayStartISO && createdAt <= nowISO) {
+        // Convert createdAt to numeric timestamp for consistent comparison
+        const createdTime = new Date(createdAt).getTime();
+        if (!Number.isFinite(createdTime)) {
+          log(`Invalid Bluesky post timestamp (${createdAt}) - skipping`, 'DEBUG');
+          continue;
+        }
+        // Check if posted from today's start up to now using numeric comparison
+        if (createdTime >= todayStartTime && createdTime <= nowTime) {
           const postText = post.post?.record?.text?.substring(0, 50) || 'Untitled';
           log(`✓ Already posted on Bluesky today: "${postText}" at ${createdAt}`, 'INFO');
           log(`Daily publish guard: SKIPPING new post (max 1 per day)`, 'WARN');

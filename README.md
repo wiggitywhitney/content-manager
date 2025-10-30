@@ -127,7 +127,7 @@ Regeneration happens during daily sync with natural retry for edge cases.
 
 ## Project Structure
 
-```
+```text
 content-manager/
 ├── src/
 │   ├── sync-content.js              # Daily content sync with rate limiting
