@@ -595,6 +595,8 @@ async function checkPublishedToday() {
 
   try {
     const { start, end } = getTodayDateRange();
+    const startTime = new Date(start).getTime();
+    const endTime = new Date(end).getTime();
     const now = new Date().toISOString();
 
     // Query the most recent 20 posts to find the most recent one that's actually published
@@ -637,8 +639,15 @@ async function checkPublishedToday() {
 
     const publishedDate = mostRecentPublishedPost.properties?.published?.[0];
 
-    // Check if published date is within today's range
-    if (publishedDate >= start && publishedDate <= end) {
+    // Convert publishedDate to timestamp for numeric comparison (handles timezone offsets)
+    const publishedTime = new Date(publishedDate).getTime();
+    if (!Number.isFinite(publishedTime)) {
+      log(`Most recent post has invalid published date (${publishedDate}) - will publish`, 'WARN');
+      return false;
+    }
+
+    // Check if published date is within today's range using numeric comparison
+    if (publishedTime >= startTime && publishedTime <= endTime) {
       const postUrl = mostRecentPublishedPost.properties?.url?.[0] || 'unknown';
       const postTitle = mostRecentPublishedPost.properties?.name?.[0] || mostRecentPublishedPost.properties?.content?.[0]?.substring(0, 50) || 'Untitled';
       log(`✓ Post exists for today (published): "${postTitle}" at ${publishedDate}`, 'INFO');
