@@ -597,7 +597,9 @@ async function checkPublishedToday() {
     const { start, end } = getTodayDateRange();
     const startTime = new Date(start).getTime();
     const endTime = new Date(end).getTime();
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowTime = now.getTime();
+    const nowISO = now.toISOString();
 
     // Query the most recent 20 posts to find the most recent one that's actually published
     const url = `https://micro.blog/micropub?q=source&limit=20&offset=0`;
@@ -627,9 +629,12 @@ async function checkPublishedToday() {
     let mostRecentPublishedPost = null;
     for (const post of posts) {
       const publishedDate = post.properties?.published?.[0];
-      if (publishedDate && publishedDate <= now) {
-        mostRecentPublishedPost = post;
-        break;  // First one we find is the most recent published
+      if (publishedDate) {
+        const publishedTime = new Date(publishedDate).getTime();
+        if (Number.isFinite(publishedTime) && publishedTime <= nowTime) {
+          mostRecentPublishedPost = post;
+          break;  // First one we find is the most recent published
+        }
       }
     }
 
@@ -669,6 +674,11 @@ async function checkPublishedToday() {
 
 /**
  * Check if a post was published to Bluesky today
+ *
+ * Note: Uses time range from 00:00:00 UTC to current time (not 23:59:59 UTC like Micro.blog).
+ * This is intentional: Bluesky has no scheduled posts, so we only check what's been posted so far today.
+ * Micro.blog check uses full day to respect scheduled posts that may be for later today.
+ *
  * @returns {Promise<boolean>} - True if a post was published today, false otherwise
  */
 async function checkBlueskyPostToday() {
