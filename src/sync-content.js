@@ -837,21 +837,54 @@ function normalizeTimestamp(dateString) {
 }
 
 /**
+ * Extract date from ISO format for day comparison
+ * @param {string} dateString - ISO format date string
+ * @returns {string} - Date in YYYY-MM-DD format
+ */
+function extractDateOnly(dateString) {
+  try {
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Detect changes between spreadsheet row and existing Micro.blog post
+ * Fields that affect URL slug (require delete+recreate): date, title, show, keynote
  * @param {Object} row - Spreadsheet row data
  * @param {Object} existingPost - Existing post data from Micro.blog
- * @returns {Object} - {needsUpdate: boolean, changes: {content?, category?, published?}}
+ * @returns {Object} - {needsUpdate: boolean, needsRegeneration: boolean, changes: {content?, category?, published?}, regenerationReason?: string}
  */
 function detectChanges(row, existingPost) {
   const changes = {};
+  let needsRegeneration = false;
+  let regenerationReason = null;
 
   // Normalize whitespace for comparison (reduces false positives from formatting differences)
   const normalizeWhitespace = (s) => String(s || '').trim().replace(/\s+/g, ' ');
 
-  // Generate expected content
+  // Generate expected content (includes title, show, keynote)
   const expectedContent = formatPostContent(row);
-  if (normalizeWhitespace(expectedContent) !== normalizeWhitespace(existingPost.content)) {
+  const contentNormalized = normalizeWhitespace(expectedContent);
+  const existingContentNormalized = normalizeWhitespace(existingPost.content);
+
+  if (contentNormalized !== existingContentNormalized) {
     changes.content = expectedContent;
+
+    // Check which slug-affecting field changed: title, show, or keynote
+    const expectedKeynote = row.confirmed ? String(row.confirmed).toUpperCase().includes('KEYNOTE') : false;
+    const existingHasKeynote = existingPost.content.includes('[Keynote]');
+
+    if (expectedKeynote !== existingHasKeynote) {
+      needsRegeneration = true;
+      regenerationReason = 'keynote status changed (URL slug affected)';
+    } else {
+      // Title or show changed - both affect URL slug
+      needsRegeneration = true;
+      regenerationReason = 'title or show changed (URL slug affected)';
+    }
   }
 
   // Generate expected category
@@ -867,15 +900,19 @@ function detectChanges(row, existingPost) {
     changes.category = expectedCategory;
   }
 
-  // Generate expected published date and normalize both for comparison
+  // Generate expected published date and check if date changed
   const expectedPublished = parseDateToISO(row.date);
   if (expectedPublished) {
     try {
-      const normalizedExpected = normalizeTimestamp(expectedPublished);
-      const normalizedExisting = normalizeTimestamp(existingPost.published);
+      const expectedDateOnly = extractDateOnly(expectedPublished);
+      const existingDateOnly = extractDateOnly(existingPost.published);
 
-      if (normalizedExpected !== normalizedExisting) {
+      if (expectedDateOnly !== existingDateOnly) {
         changes.published = expectedPublished;
+
+        // Date changes always require regeneration (URL includes date)
+        needsRegeneration = true;
+        regenerationReason = 'date changed (URL slug affected)';
       }
     } catch (error) {
       // Log but don't crash if existing post has invalid date
@@ -885,6 +922,8 @@ function detectChanges(row, existingPost) {
 
   return {
     needsUpdate: Object.keys(changes).length > 0,
+    needsRegeneration,
+    regenerationReason,
     changes
   };
 }
@@ -1492,25 +1531,73 @@ async function syncContent() {
           changes: changeDetection.changes
         });
 
-        try {
-          // Apply updates to Micro.blog
-          await withRetry(
-            () => updateMicroblogPost(row.microblogUrl, changeDetection.changes),
-            `Update post for row ${row.rowIndex}`
-          );
+        // If URL slug-affecting fields changed, delete post and clear URL for regeneration
+        if (changeDetection.needsRegeneration) {
+          log(`  Reason: ${changeDetection.regenerationReason}`, 'INFO');
+          log(`  Deleting post for regeneration on next sync...`, 'DEBUG');
 
-          updateStats.successful++;
-          log(`✅ Post updated: ${row.microblogUrl}`, 'INFO');
+          try {
+            // Delete the old post from Micro.blog
+            await withRetry(
+              () => deleteMicroblogPost(row.microblogUrl),
+              `Delete post for regeneration (row ${row.rowIndex})`
+            );
+            log(`  ✓ Post deleted`, 'DEBUG');
 
-        } catch (error) {
-          updateStats.failed++;
-          updateStats.errors.push({
-            row: row.rowIndex,
-            title: row.name,
-            error: error.message
-          });
-          log(`❌ Failed to update post for row ${row.rowIndex}: ${error.message}`, 'ERROR');
-          // Continue with next row (partial failure handling)
+            // Clear URL from spreadsheet (column H) so it will be recreated as new post
+            const clearSuccess = await writeUrlToSpreadsheet(
+              sheets,
+              SPREADSHEET_ID,
+              row.tabName,
+              row.tabRowIndex,
+              '' // Empty string clears the column
+            );
+
+            if (clearSuccess) {
+              updateStats.successful++;
+              log(`✅ Post marked for regeneration (URL cleared)`, 'INFO');
+            } else {
+              updateStats.successful++;
+              log(`⚠️  Post deleted but failed to clear URL in spreadsheet`, 'WARN');
+            }
+
+            // Update in-memory row data so it's treated as new post in future syncs
+            row.microblogUrl = '';
+
+            // Rate limiting: delay between writes to stay under Google Sheets quota
+            await sleep(SHEETS_WRITE_DELAY_MS);
+
+          } catch (error) {
+            updateStats.failed++;
+            updateStats.errors.push({
+              row: row.rowIndex,
+              title: row.name,
+              error: error.message
+            });
+            log(`❌ Failed to regenerate post for row ${row.rowIndex}: ${error.message}`, 'ERROR');
+          }
+        } else {
+          // No URL slug change - just update the post in place
+          try {
+            // Apply updates to Micro.blog
+            await withRetry(
+              () => updateMicroblogPost(row.microblogUrl, changeDetection.changes),
+              `Update post for row ${row.rowIndex}`
+            );
+
+            updateStats.successful++;
+            log(`✅ Post updated: ${row.microblogUrl}`, 'INFO');
+
+          } catch (error) {
+            updateStats.failed++;
+            updateStats.errors.push({
+              row: row.rowIndex,
+              title: row.name,
+              error: error.message
+            });
+            log(`❌ Failed to update post for row ${row.rowIndex}: ${error.message}`, 'ERROR');
+            // Continue with next row (partial failure handling)
+          }
         }
       }
     }
