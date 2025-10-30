@@ -564,6 +564,88 @@ async function createMicroblogPost(content, postContent, publishedDate) {
 }
 
 /**
+ * Get today's date range for checking published posts
+ * @returns {Object} - { start: ISO string at 00:00 UTC, end: ISO string at 23:59:59 UTC }
+ */
+function getTodayDateRange() {
+  const now = new Date();
+
+  // Today's date at 00:00:00 UTC
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+
+  // Today's date at 23:59:59 UTC
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59));
+
+  return {
+    start: start.toISOString(),
+    end: end.toISOString()
+  };
+}
+
+/**
+ * Check if a post was published to Micro.blog today
+ * @returns {Promise<boolean>} - True if a post was published today, false otherwise
+ */
+async function checkPublishedToday() {
+  const token = process.env.MICROBLOG_APP_TOKEN;
+  if (!token) {
+    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  }
+
+  try {
+    const { start, end } = getTodayDateRange();
+
+    // Query the most recent post (limit=1, offset=0)
+    const url = `https://micro.blog/micropub?q=source&limit=1&offset=0`;
+    log(`Daily publish guard: Checking for posts published today (${start.substring(0, 10)} UTC)`, 'INFO');
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to query posts (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const posts = data.items || [];
+
+    if (posts.length === 0) {
+      log(`No posts found on Micro.blog - will publish`, 'INFO');
+      return false;
+    }
+
+    const mostRecentPost = posts[0];
+    const publishedDate = mostRecentPost.properties?.published?.[0];
+
+    if (!publishedDate) {
+      log(`Most recent post has no published date - will publish`, 'INFO');
+      return false;
+    }
+
+    // Check if published date is within today's range
+    if (publishedDate >= start && publishedDate <= end) {
+      const postUrl = mostRecentPost.properties?.url?.[0] || 'unknown';
+      const postTitle = mostRecentPost.properties?.name?.[0] || mostRecentPost.properties?.content?.[0]?.substring(0, 50) || 'Untitled';
+      log(`✓ Already published today: "${postTitle}" at ${publishedDate}`, 'INFO');
+      log(`Daily publish guard: SKIPPING new post (max 1 per day)`, 'WARN');
+      return true;
+    } else {
+      log(`Most recent post is from ${publishedDate.substring(0, 10)} (not today) - will publish`, 'INFO');
+      return false;
+    }
+  } catch (error) {
+    log(`Error checking for today's posts: ${error.message}`, 'WARN');
+    // Don't fail the entire sync if this check fails - just log and continue with publish
+    log(`Continuing with publish (unable to verify daily limit)`, 'INFO');
+    return false;
+  }
+}
+
+/**
  * Query all posts from Micro.blog across all categories
  * @returns {Promise<Map>} - Map of postUrl -> {content, category, published}
  */
@@ -1053,6 +1135,19 @@ async function syncContent() {
       log(`  Remaining: ${totalUnpublished - 1} posts will publish over next ${totalUnpublished - 1} days`);
     } else {
       log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
+    }
+
+    // ========================================================================
+    // Daily Publish Guard: Check if already posted today
+    // ========================================================================
+    // If a post has already been published to Micro.blog today (either manually or
+    // via automation), skip posting the next scheduled post to maintain max 1/day limit
+    if (rowsToPost.length > 0) {
+      const alreadyPublishedToday = await checkPublishedToday();
+      if (alreadyPublishedToday) {
+        log(`\nDaily limit reached: Already have a post from today`, 'WARN');
+        rowsToPost.length = 0;  // Clear the array - don't post
+      }
     }
 
     // Track post creation statistics
