@@ -4,9 +4,9 @@ on:
   # Manual trigger for testing
   workflow_dispatch:
 
-  # Scheduled run (daily at 19:00 UTC = ~2pm/1pm Central, shifts with DST)
+  # Scheduled run (daily at 16:15 UTC = 11:15am CDT / 10:15am CST, never before 10am)
   schedule:
-    - cron: '0 19 * * *'  # Run at 7pm UTC = 2pm Central (CDT) / 1pm Central (CST)
+    - cron: '15 16 * * *'  # Run at 16:15 UTC (fixed time, naturally adjusts with DST)
 
 jobs:
   daily-sync:
@@ -38,6 +38,8 @@ jobs:
           MICROBLOG_APP_TOKEN: ${{ secrets.MICROBLOG_APP_TOKEN }}
           MICROBLOG_XMLRPC_TOKEN: ${{ secrets.MICROBLOG_XMLRPC_TOKEN }}
           MICROBLOG_USERNAME: ${{ secrets.MICROBLOG_USERNAME }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_PASSWORD: ${{ secrets.BLUESKY_PASSWORD }}
         run: node src/sync-content.js
 
       - name: Update page visibility

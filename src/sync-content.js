@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const https = require('https');
+const { BskyAgent } = require('@atproto/api');
 const { CATEGORY_PAGES } = require('./config/category-pages');
 
 // Rate limiting for Google Sheets writes (60 writes/min quota)
@@ -594,9 +595,10 @@ async function checkPublishedToday() {
 
   try {
     const { start, end } = getTodayDateRange();
+    const now = new Date().toISOString();
 
-    // Query the most recent post (limit=1, offset=0)
-    const url = `https://micro.blog/micropub?q=source&limit=1&offset=0`;
+    // Query the most recent 20 posts to find the most recent one that's actually published
+    const url = `https://micro.blog/micropub?q=source&limit=20&offset=0`;
     log(`Daily publish guard: Checking for posts published today (${start.substring(0, 10)} UTC)`, 'INFO');
 
     const response = await fetch(url, {
@@ -618,29 +620,110 @@ async function checkPublishedToday() {
       return false;
     }
 
-    const mostRecentPost = posts[0];
-    const publishedDate = mostRecentPost.properties?.published?.[0];
+    // Find the most recent post that has actually been published (not scheduled for future)
+    let mostRecentPublishedPost = null;
+    for (const post of posts) {
+      const publishedDate = post.properties?.published?.[0];
+      if (publishedDate && publishedDate <= now) {
+        mostRecentPublishedPost = post;
+        break;  // First one we find is the most recent published
+      }
+    }
 
-    if (!publishedDate) {
-      log(`Most recent post has no published date - will publish`, 'INFO');
+    if (!mostRecentPublishedPost) {
+      log(`No published posts found (only scheduled posts) - will publish`, 'INFO');
       return false;
     }
 
+    const publishedDate = mostRecentPublishedPost.properties?.published?.[0];
+
     // Check if published date is within today's range
     if (publishedDate >= start && publishedDate <= end) {
-      const postUrl = mostRecentPost.properties?.url?.[0] || 'unknown';
-      const postTitle = mostRecentPost.properties?.name?.[0] || mostRecentPost.properties?.content?.[0]?.substring(0, 50) || 'Untitled';
-      log(`✓ Already published today: "${postTitle}" at ${publishedDate}`, 'INFO');
+      const postUrl = mostRecentPublishedPost.properties?.url?.[0] || 'unknown';
+      const postTitle = mostRecentPublishedPost.properties?.name?.[0] || mostRecentPublishedPost.properties?.content?.[0]?.substring(0, 50) || 'Untitled';
+      log(`✓ Post exists for today (published): "${postTitle}" at ${publishedDate}`, 'INFO');
       log(`Daily publish guard: SKIPPING new post (max 1 per day)`, 'WARN');
       return true;
     } else {
-      log(`Most recent post is from ${publishedDate.substring(0, 10)} (not today) - will publish`, 'INFO');
+      // Post is from the past (not today)
+      log(`Most recent published post is from ${publishedDate.substring(0, 10)} (not today) - will publish`, 'INFO');
       return false;
     }
   } catch (error) {
     log(`Error checking for today's posts: ${error.message}`, 'WARN');
     // Don't fail the entire sync if this check fails - just log and continue with publish
     log(`Continuing with publish (unable to verify daily limit)`, 'INFO');
+    return false;
+  }
+}
+
+/**
+ * Check if a post was published to Bluesky today
+ * @returns {Promise<boolean>} - True if a post was published today, false otherwise
+ */
+async function checkBlueskyPostToday() {
+  const handle = process.env.BLUESKY_HANDLE;
+  const password = process.env.BLUESKY_PASSWORD;
+
+  if (!handle || !password) {
+    log(`Bluesky credentials not configured (BLUESKY_HANDLE, BLUESKY_PASSWORD) - skipping check`, 'DEBUG');
+    return false;
+  }
+
+  try {
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+    const nowISO = now.toISOString();
+
+    log(`Daily publish guard: Checking Bluesky for posts published today (${todayStart.toISOString().substring(0, 10)} UTC, up to now)`, 'DEBUG');
+
+    // Create agent and authenticate
+    const agent = new BskyAgent({
+      service: 'https://bsky.social'
+    });
+
+    await agent.login({
+      identifier: handle,
+      password: password
+    });
+
+    // Get user's recent posts (limit 10 to check quickly)
+    const response = await agent.getAuthorFeed({
+      actor: handle,
+      limit: 10
+    });
+
+    const posts = response.data.feed || [];
+
+    if (posts.length === 0) {
+      log(`No posts found on Bluesky`, 'DEBUG');
+      return false;
+    }
+
+    // Check if most recent top-level post (not a reply) is from today
+    const todayStartISO = todayStart.toISOString();
+    for (const post of posts) {
+      const createdAt = post.post?.record?.createdAt;
+      const isReply = post.post?.record?.reply;  // Replies have a reply field
+
+      if (createdAt && !isReply) {  // Only count top-level posts, not replies
+        // createdAt is ISO 8601 timestamp - check if posted from today's start up to now
+        if (createdAt >= todayStartISO && createdAt <= nowISO) {
+          const postText = post.post?.record?.text?.substring(0, 50) || 'Untitled';
+          log(`✓ Already posted on Bluesky today: "${postText}" at ${createdAt}`, 'INFO');
+          log(`Daily publish guard: SKIPPING new post (max 1 per day)`, 'WARN');
+          return true;
+        }
+      }
+    }
+
+    // No posts from today found
+    log(`Most recent Bluesky post is from earlier (not today) - will publish`, 'DEBUG');
+    return false;
+  } catch (error) {
+    log(`Error checking Bluesky posts: ${error.message}`, 'WARN');
+    // Don't fail the entire sync if this check fails - just log and continue with publish
+    log(`Continuing with publish (unable to verify Bluesky daily limit)`, 'INFO');
     return false;
   }
 }
@@ -1140,12 +1223,18 @@ async function syncContent() {
     // ========================================================================
     // Daily Publish Guard: Check if already posted today
     // ========================================================================
-    // If a post has already been published to Micro.blog today (either manually or
-    // via automation), skip posting the next scheduled post to maintain max 1/day limit
+    // If a post has already been published to Micro.blog or Bluesky today (either
+    // manually or via automation), skip posting the next scheduled post to maintain
+    // max 1/day limit across all platforms
     if (rowsToPost.length > 0) {
-      const alreadyPublishedToday = await checkPublishedToday();
-      if (alreadyPublishedToday) {
-        log(`\nDaily limit reached: Already have a post from today`, 'WARN');
+      const mbPostedToday = await checkPublishedToday();
+      const bskyPostedToday = await checkBlueskyPostToday();
+
+      if (mbPostedToday || bskyPostedToday) {
+        const platforms = [];
+        if (mbPostedToday) platforms.push('Micro.blog');
+        if (bskyPostedToday) platforms.push('Bluesky');
+        log(`\nDaily limit reached: Already posted on ${platforms.join(' and ')}`, 'WARN');
         rowsToPost.length = 0;  // Clear the array - don't post
       }
     }

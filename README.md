@@ -9,25 +9,29 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 **Key Features:**
 - ✅ Full CRUD operations (create, update, delete posts)
 - ✅ Automatic URL regeneration for SEO-friendly slugs
-- ✅ Hourly content sync via GitHub Actions
-- ✅ Daily automatic page visibility management (6-month inactivity threshold)
+- ✅ Daily content sync via GitHub Actions (16:15 UTC = 11:15 am CDT / 10:15 am CST)
+- ✅ Daily page visibility management (6-month inactivity threshold)
+- ✅ Rate-limited publishing (max 1 post/day across Micro.blog + Bluesky)
 - ✅ Smart error handling with retry logic
 - ✅ Spreadsheet as single source of truth
 - ✅ 96% API efficiency improvement (120→5 calls/day for visibility)
 
 ## How It Works
 
-### Content Sync (Hourly)
+### Content Sync (Daily)
 1. Add/edit content in Google Sheets (Name, Type, Show, Date, Link)
-2. System syncs hourly via GitHub Actions
-3. Posts automatically appear on whitneylee.com in the correct category
-4. Column H tracks Micro.blog URLs for update/delete operations
+2. System syncs daily at 16:15 UTC (11:15 am CDT / 10:15 am CST) via GitHub Actions
+3. Rate limiting: max 1 post per day across all platforms
+4. Before posting, checks Micro.blog and Bluesky for posts published today
+5. Posts automatically appear on whitneylee.com in the correct category
+6. Column H tracks Micro.blog URLs for update/delete operations
 
 ### Page Visibility (Daily)
-1. System checks category activity daily at 3 AM UTC
-2. Categories inactive for 6+ months are automatically hidden from navigation
-3. Categories become visible again when new content is added
-4. Keeps site navigation clean without manual intervention
+1. System runs alongside content sync
+2. Checks category activity and calculates inactivity
+3. Categories inactive for 6+ months are automatically hidden from navigation
+4. Categories become visible again when new content is added
+5. Keeps site navigation clean without manual intervention
 
 ## Content Categories
 
@@ -65,21 +69,20 @@ npm run sync
 
 ### GitHub Actions
 
-Two automated workflows run via GitHub Actions:
+Automated workflow runs via GitHub Actions:
 
-**Content Sync** (`.github/workflows/sync-content.yml`):
-- Runs every hour
-- Syncs spreadsheet content to Micro.blog posts
-
-**Page Visibility** (`.github/workflows/update-page-visibility.yml`):
-- Runs daily at 3 AM UTC
+**Daily Sync** (`.github/workflows/daily-sync.yml`):
+- Runs daily at 16:15 UTC (11:15 am CDT / 10:15 am CST)
+- Syncs spreadsheet content to Micro.blog posts with rate limiting
 - Manages category page visibility based on activity
 
 Required secrets:
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
-- `MICROBLOG_APP_TOKEN`
-- `MICROBLOG_XMLRPC_TOKEN`
-- `MICROBLOG_USERNAME`
+- `GOOGLE_SERVICE_ACCOUNT_JSON` - Google service account JSON
+- `MICROBLOG_APP_TOKEN` - Micro.blog Micropub API token
+- `MICROBLOG_XMLRPC_TOKEN` - Micro.blog XML-RPC token
+- `MICROBLOG_USERNAME` - Micro.blog username
+- `BLUESKY_HANDLE` - Bluesky handle (for daily publish guard)
+- `BLUESKY_PASSWORD` - Bluesky password (for daily publish guard)
 
 ## Architecture
 
@@ -120,22 +123,23 @@ The system automatically detects and regenerates posts with poor URL slugs:
 - **Short hex hashes** (e.g., `/8e237a.html`) → Regenerated
 - **Content-based slugs** (e.g., `/software-defined-interviews-learning-to.html`) → Kept
 
-Regeneration happens during hourly sync with natural retry for edge cases.
+Regeneration happens during daily sync with natural retry for edge cases.
 
 ## Project Structure
 
 ```
 content-manager/
 ├── src/
-│   ├── sync-content.js              # Hourly content sync
-│   ├── update-page-visibility.js    # Daily page visibility management
+│   ├── sync-content.js              # Daily content sync with rate limiting
+│   ├── update-page-visibility.js    # Page visibility management
 │   └── config/
 │       └── category-pages.js        # Page configuration
 ├── docs/
 │   └── microblog-api-capabilities.md      # API research
 ├── .github/workflows/
-│   ├── sync-content.yml             # Hourly sync automation
-│   └── update-page-visibility.yml   # Daily visibility automation
+│   └── daily-sync.yml               # Daily sync & visibility automation (combined)
+├── prds/                            # Project requirement documents
+│   └── 8-rate-limited-publishing.md # Rate limiting specification
 └── .teller.yml                      # Local secret configuration
 ```
 
