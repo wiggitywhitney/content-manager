@@ -116,14 +116,23 @@ Example:
 Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
 ```
 
+## Spreadsheet Workflow
+
+**Edit these columns** - changes auto-update on next sync:
+- Column A: Name (title)
+- Column B: Type (category)
+- Column C: Show
+- Column D: Date
+- Column E: Link
+- Column F: Confirmed (keynote)
+
+**⚠️ Never edit Column H (Micro.blog URL)** - This is auto-managed by the system.
+
+When you change Date, Name, Show, or Keynote: The old post is deleted and a new one is created with a new URL (Column H updates automatically).
+
 ## URL Regeneration
 
-The system automatically detects and regenerates posts with poor URL slugs:
-- **Timestamp URLs** (e.g., `/130000.html`) → Regenerated
-- **Short hex hashes** (e.g., `/8e237a.html`) → Regenerated
-- **Content-based slugs** (e.g., `/software-defined-interviews-learning-to.html`) → Kept
-
-Regeneration happens during daily sync with natural retry for edge cases.
+Posts with timestamp URLs (e.g., `/130000.html`) or hex hashes (e.g., `/8e237a.html`) are automatically regenerated with content-based slugs during daily sync.
 
 ## Project Structure
 
