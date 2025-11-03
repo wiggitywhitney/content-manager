@@ -747,6 +747,54 @@ Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://
 5. **Delete test posts**: Clean up via Micropub delete operation
 6. **Clear spreadsheet state**: Reset Column H after deleting test posts
 
+## Known Issues & Workarounds
+
+### Scheduled Post Rescheduling Bug
+
+**Research Date**: 2025-11-01
+**Status**: Known issue since 2023, unresolved
+
+#### Problem Description
+
+When rescheduling a post to a different publication time, Micro.blog may publish the post at **all scheduled times** instead of just the final scheduled time. This creates duplicate "phantom posts" that:
+- Appear on the live site at multiple dates
+- Cannot be deleted normally via the web UI or Micropub API
+- Return 404 when attempting to delete via Micropub API (backend knows they're deleted)
+- Still render in the static HTML (site generator includes them despite deletion)
+
+**Example**:
+- Schedule post "Pixie" for October 31
+- Reschedule to November 1
+- Reschedule again to November 2
+- **Result**: Post appears on all three dates (Oct 31, Nov 1, Nov 2)
+
+#### Root Cause
+
+Disconnect between backend database and static site generator:
+1. Backend database marks posts as deleted (Micropub API returns 404)
+2. Static site generator still includes deleted posts in HTML output
+3. Site rebuilds with phantom posts baked into HTML
+
+#### Solution
+
+**Force a full site rebuild** to clear phantom posts:
+
+1. Navigate to https://micro.blog/account/logs (requires login)
+2. Click the **"Rebuild"** button
+3. Wait 2-3 minutes for rebuild to complete
+4. Phantom posts should be removed from the site
+
+**Prevention**:
+- Avoid rescheduling posts multiple times if possible
+- If you must reschedule, be prepared to force a site rebuild
+- Consider deleting and recreating posts instead of rescheduling
+
+#### References
+
+- **Help Thread (2023)**: https://help.micro.blog/t/rescheduling-posts-is-creating-extra-phantom-posts/2071
+- **Support Contact**: help@micro.blog
+- **Site Rebuild**: https://micro.blog/account/logs
+
 ## References
 
 - **Micropub API**: https://help.micro.blog/t/posting-api/96
