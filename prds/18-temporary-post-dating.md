@@ -71,14 +71,15 @@ Implement a two-phase posting strategy:
 **Existing Post Update**:
 - Query post from Micro.blog via Micropub API
 - Compare Column D with post's current `published` field
-- If dates differ AND post URL was added to Column H 24+ hours ago → Update to Column D date
+- If dates differ AND post URL was added to Column H 24+ hours ago → Delete old post and recreate with correct date (avoids Micro.blog phantom post bug)
 
 ### Implementation Details
 
 **API Operations**:
 - Use existing `createMicroblogPost()` function with modified date logic
-- Use existing `updateMicroblogPost()` function to change `published` field
-- No delete/recreate needed - simple update operation
+- Use existing `deleteMicroblogPost()` function to remove temp-dated post
+- Use existing `createMicroblogPost()` function again to recreate with backdated date
+- Delete + recreate pattern avoids Micro.blog phantom post bug (see Design Decisions)
 
 **Date Comparison**:
 - Parse Column D date using existing `parseDateToISO()` function
@@ -157,6 +158,7 @@ Test current Micro.blog behavior to validate assumptions:
 | Backdating logic creates infinite update loop | High | Low | Careful comparison logic; only update if dates differ |
 | Daily post limit prevents backdated posts from being created initially | Medium | Medium | Document behavior; this is existing limitation |
 | Post gets backdated before social syndication completes | Medium | Low | 24-hour window should be sufficient; can increase if needed |
+| Micro.blog phantom post bug (UPDATE creates duplicates) | High | High | **MITIGATED**: Use DELETE+CREATE instead of UPDATE for backdating (Decision 1) |
 
 ---
 
@@ -226,6 +228,40 @@ Test current Micro.blog behavior to validate assumptions:
 - [ ] Feature ready for production use
 
 **Success Criteria**: Feature documented and actively handling backdated posts
+
+---
+
+## Design Decisions
+
+### Decision 1: Delete + Recreate Instead of Update for Backdating
+**Date**: 2025-11-19
+**Status**: Resolved
+
+**Problem**: Testing revealed that using Micropub UPDATE to change post dates triggers a known Micro.blog bug where posts appear at multiple dates ("phantom posts"). The UPDATE operation changes the date in the database but leaves stale HTML at the original date, requiring manual site rebuild.
+
+**Evidence from Testing**:
+- Test posts showed at both original date (2025-11-19) and backdated date (2020-01-01)
+- Micro.blog API showed only backdated versions (correct)
+- Live site HTML showed both versions (phantom post bug)
+- Bug documented in `microblog-api-capabilities.md:752-796`
+
+**Decision**: Use DELETE + CREATE instead of UPDATE for backdating operations.
+
+**Rationale**:
+- Avoids triggering the phantom post bug entirely
+- More reliable - no stale HTML artifacts
+- Consistent with existing URL regeneration approach (also uses delete+create)
+- Trade-off: Loses post edit history, but acceptable for automated backdating
+
+**Implementation Impact**:
+- Milestone 3 implementation needs modification
+- Change from `updateMicroblogPost(url, {published: newDate})`
+- To: `deleteMicroblogPost(oldUrl)` then `createMicroblogPost(..., newDate)`
+- URL will change (date in path changes), but content-matching already handles this
+
+**Code References**:
+- Current implementation: `src/sync-content.js:1571-1613` (uses UPDATE)
+- Should match pattern: `src/sync-content.js:1403-1474` (regeneration uses DELETE+CREATE)
 
 ---
 
