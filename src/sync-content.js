@@ -521,7 +521,7 @@ async function createMicroblogPost(content, postContent, publishedDate) {
   if (DRY_RUN) {
     log(`[DRY-RUN] Would create Micro.blog post:`, 'INFO');
     log(`  Title: ${content.name}`, 'INFO');
-    log(`  Category: ${category}`, 'INFO');
+    log(`  Category: ${category ?? '(none)'}`, 'INFO');
     log(`  Published: ${publishedDate}`, 'INFO');
     log(`  Content: ${postContent.substring(0, 100)}...`, 'INFO');
     return `https://whitneylee.com/dry-run/${Date.now()}`;
@@ -536,7 +536,9 @@ async function createMicroblogPost(content, postContent, publishedDate) {
   const params = new URLSearchParams();
   params.append('h', 'entry');
   params.append('content', postContent);
-  params.append('category', category);
+  if (category) {
+    params.append('category', category);
+  }
   params.append('published', publishedDate);
 
   // Make POST request to Micropub endpoint
@@ -1320,8 +1322,8 @@ async function syncContent() {
 
       try {
         // Parse date to ISO 8601
-        const publishedDate = parseDateToISO(row.date);
-        if (!publishedDate) {
+        const intendedDate = parseDateToISO(row.date);
+        if (!intendedDate) {
           postStats.failed++;
           postStats.errors.push({
             row: row.rowIndex,
@@ -1332,37 +1334,78 @@ async function syncContent() {
           continue;
         }
 
-        // Format post content
+        // Dual-post strategy: If intended date is in the past, create TWO posts
+        // 1. Archive post with correct backdate + category
+        // 2. Social post with today's date + NO category (triggers cross-posting)
+        const now = new Date();
+        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0));
+        const todayISO = today.toISOString();
+
+        const intendedDateOnly = extractDateOnly(intendedDate);
+        const todayDateOnly = extractDateOnly(todayISO);
+
+        const isPastDate = intendedDateOnly < todayDateOnly;
         const postContent = formatPostContent(row);
 
-        log(`Creating post for row ${row.rowIndex}: ${row.name}`, 'INFO');
-        log(`  Content: ${postContent}`, 'DEBUG');
-        log(`  Category: ${row.type.toLowerCase()}`, 'DEBUG');
-        log(`  Published: ${publishedDate}`, 'DEBUG');
+        if (isPastDate) {
+          log(`Row ${row.rowIndex}: Past date detected (${intendedDateOnly}) - creating dual posts (archive + social)`, 'INFO');
 
-        // Create post on Micro.blog with retry logic
-        const postUrl = await withRetry(
-          () => createMicroblogPost(row, postContent, publishedDate),
-          `Create post for row ${row.rowIndex}`
-        );
+          // POST 1: Archive post with correct backdate and category
+          log(`  Creating archive post with date ${intendedDateOnly}...`, 'DEBUG');
+          const archiveUrl = await withRetry(
+            () => createMicroblogPost(row, postContent, intendedDate),
+            `Create archive post for row ${row.rowIndex}`
+          );
+          log(`  ✅ Archive post created: ${archiveUrl}`, 'INFO');
 
-        log(`✅ Post created: ${postUrl}`, 'INFO');
+          // POST 2: Social post with today's date and NO category
+          log(`  Creating social post with date ${todayDateOnly} (no category)...`, 'DEBUG');
 
-        // Write URL back to spreadsheet Column H
-        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
+          // Create a modified row object without category for social post
+          const socialRow = { ...row, type: '' }; // Empty type = no category
+          const socialUrl = await withRetry(
+            () => createMicroblogPost(socialRow, postContent, todayISO),
+            `Create social post for row ${row.rowIndex}`
+          );
+          log(`  ✅ Social post created: ${socialUrl} (uncategorized, ephemeral)`, 'INFO');
 
-        if (writeSuccess) {
-          postStats.successful++;
-          log(`✅ URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
+          // Only track archive post URL in Column H
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, archiveUrl);
+
+          if (writeSuccess) {
+            postStats.successful++;
+            log(`✅ Archive URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
+          } else {
+            postStats.successful++;
+            log(`⚠️  Posts created but failed to write archive URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
+          }
+
+          // Update in-memory row data with archive URL
+          row.microblogUrl = archiveUrl;
+
         } else {
-          // Post created but URL write failed (non-fatal)
-          postStats.successful++;
-          log(`⚠️  Post created but failed to write URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
-        }
+          // Today or future date - create single post normally
+          log(`Row ${row.rowIndex}: Current/future date (${intendedDateOnly}) - creating single post`, 'DEBUG');
 
-        // Update in-memory row data regardless of write success
-        // This prevents orphan detection from deleting the post we just created
-        row.microblogUrl = postUrl;
+          const postUrl = await withRetry(
+            () => createMicroblogPost(row, postContent, intendedDate),
+            `Create post for row ${row.rowIndex}`
+          );
+          log(`✅ Post created: ${postUrl}`, 'INFO');
+
+          // Write URL to Column H
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
+
+          if (writeSuccess) {
+            postStats.successful++;
+            log(`✅ URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
+          } else {
+            postStats.successful++;
+            log(`⚠️  Post created but failed to write URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
+          }
+
+          row.microblogUrl = postUrl;
+        }
 
         // Rate limiting: delay between writes to stay under Google Sheets quota
         await sleep(SHEETS_WRITE_DELAY_MS);
@@ -1484,6 +1527,17 @@ async function syncContent() {
       'Query Micro.blog posts'
     );
 
+    // Build content-based index for finding posts after URL changes
+    const postsByContent = new Map();
+    for (const [url, post] of existingPosts.entries()) {
+      // Use first 100 chars of content as a simple key
+      const contentKey = post.content.substring(0, 100).trim();
+      if (!postsByContent.has(contentKey)) {
+        postsByContent.set(contentKey, []);
+      }
+      postsByContent.get(contentKey).push({ url, post });
+    }
+
     // Filter rows that already have Micro.blog URLs (existing posts)
     const rowsToCheck = validRows.filter(row => row.microblogUrl);
 
@@ -1504,15 +1558,38 @@ async function syncContent() {
     for (const row of rowsToCheck) {
       updateStats.checked++;
 
-      const existingPost = existingPosts.get(row.microblogUrl);
+      let existingPost = existingPosts.get(row.microblogUrl);
 
+      // If post not found by URL, try finding by content (handles URL changes after backdating)
       if (!existingPost) {
-        // Post exists in spreadsheet but not on Micro.blog (orphaned or deleted manually)
-        log(`Row ${row.rowIndex}: Post not found on Micro.blog (${row.microblogUrl})`, 'WARN');
-        continue;
+        const expectedContent = formatPostContent(row);
+        const contentKey = expectedContent.substring(0, 100).trim();
+        const candidates = postsByContent.get(contentKey) || [];
+
+        if (candidates.length === 1) {
+          // Found matching post by content - update row's URL
+          const { url: newUrl, post } = candidates[0];
+          log(`Row ${row.rowIndex}: Post URL changed (${row.microblogUrl} → ${newUrl})`, 'INFO');
+          existingPost = post;
+
+          // Update Column H with new URL
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, newUrl);
+          if (writeSuccess) {
+            row.microblogUrl = newUrl;  // Update in-memory data
+            log(`  ✓ Column H updated with new URL`, 'DEBUG');
+          }
+        } else if (candidates.length > 1) {
+          log(`Row ${row.rowIndex}: Multiple posts match content - cannot determine correct URL`, 'WARN');
+          continue;
+        } else {
+          // Post truly not found (orphaned or deleted manually)
+          log(`Row ${row.rowIndex}: Post not found on Micro.blog (${row.microblogUrl})`, 'WARN');
+          continue;
+        }
       }
 
-      // Detect changes
+      // Detect changes (content, category)
+      // Note: Backdating logic removed - dual-post strategy creates both posts correctly on day 1
       const changeDetection = detectChanges(row, existingPost);
 
       if (changeDetection.needsUpdate) {

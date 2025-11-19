@@ -12,6 +12,7 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 - ✅ Daily content sync via GitHub Actions (16:15 UTC = 11:15 am CDT / 10:15 am CST)
 - ✅ Daily page visibility management (6-month inactivity threshold)
 - ✅ Rate-limited publishing (max 1 post/day across Micro.blog + Bluesky)
+- ✅ Dual-post strategy for backdated content (prevents broken social links)
 - ✅ Smart error handling with retry logic
 - ✅ Spreadsheet as single source of truth
 - ✅ 96% API efficiency improvement (120→5 calls/day for visibility)
@@ -25,6 +26,13 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 4. Before posting, checks Micro.blog and Bluesky for posts published today
 5. Posts automatically appear on whitneylee.com in the correct category
 6. Column H tracks Micro.blog URLs for update/delete operations
+
+#### Backdated Content
+Past-dated posts (Column D < today) create **TWO posts**:
+- **Archive**: Backdated + categorized (URL tracked in Column H)
+- **Social**: Today's date + uncategorized (triggers social media cross-posting)
+
+Current/future dates create ONE post normally. This dual-post strategy prevents social media links from breaking when backdating changes URLs.
 
 ### Page Visibility (Daily)
 1. System runs alongside content sync
@@ -123,8 +131,9 @@ Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://
 - Column B: Type (category)
 - Column C: Show
 - Column D: Date
-- Column E: Link
+- Column E: Location
 - Column F: Confirmed (keynote)
+- Column G: Link
 
 **⚠️ Never edit Column H (Micro.blog URL)** - This is auto-managed by the system.
 
@@ -151,6 +160,17 @@ content-manager/
 │   └── 8-rate-limited-publishing.md # Rate limiting specification
 └── .teller.yml                      # Local secret configuration
 ```
+
+## Troubleshooting
+
+### Why are there two posts for my backdated content?
+Past-dated posts create both an archive post (correct historical date, categorized) and a social post (today's date, uncategorized). This ensures social media syndication works while maintaining accurate blog chronology.
+
+### Which URL should I share?
+Use the URL from Column H (the archive post). The social post URL triggers cross-posting but isn't tracked.
+
+### How do current/future dated posts work?
+Posts with today's date or future dates create ONE post normally. Dual-posting only applies to past dates.
 
 ## License
 
