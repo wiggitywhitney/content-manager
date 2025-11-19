@@ -24,13 +24,15 @@ When creating blog posts about past events (conferences, talks, etc.) with backd
 
 ## Solution Overview
 
-Implement a two-phase posting strategy:
+Implement a dual-post strategy:
 
-**Phase 1 (Initial Sync)**: When posting content with a past date, create the post with TODAY's date to trigger Micro.blog's social media syndication.
+**When posting content with a past date (Column D < today):**
 
-**Phase 2 (Next Daily Sync)**: Detect posts where the published date doesn't match the intended date (Column D), and update them to the correct backdate after 24+ hours have passed.
+**Post 1 - Archive Post**: Create post with intended backdate and category for proper chronological archiving.
 
-**Result**: Content gets social media exposure when first posted, then moves to its proper chronological position in the blog archive.
+**Post 2 - Social Post**: Create second post with TODAY's date and NO category to trigger social media syndication.
+
+**Result**: Content appears in correct archive position AND gets social media exposure without broken links.
 
 ---
 
@@ -47,15 +49,14 @@ Implement a two-phase posting strategy:
 ### After Feature
 1. User adds row to spreadsheet: "My Conference Talk" dated January 10, 2025
 2. Daily sync runs on January 17, 2025
-3. Post created on Micro.blog with **January 17 date** (today)
-4. ✅ Post appears at top of blog feed
-5. ✅ Social media syndication triggers → appears on Bluesky/Mastodon
-6. User's followers see the announcement
-7. Daily sync runs on January 18, 2025
-8. Script detects date mismatch (Column D = Jan 10, Published = Jan 17)
-9. Script updates post to January 10 date
-10. Post moves to proper historical position in blog archive
-11. Social media posts remain (mission accomplished)
+3. **TWO posts created simultaneously:**
+   - **Archive Post**: Dated January 10, has "Presentations" category, appears in `/presentations/` archive
+   - **Social Post**: Dated January 17 (today), NO category, appears in main feed only
+4. ✅ Social post at top of feed triggers social media syndication → appears on Bluesky/Mastodon
+5. ✅ User's followers see the announcement with working link (January 17 URL)
+6. ✅ Archive post in correct chronological position (January 10) for historical accuracy
+7. ✅ No future backdating needed - done on day 1
+8. ✅ Social media links never break (January 17 URL stays forever)
 
 ---
 
@@ -64,22 +65,29 @@ Implement a two-phase posting strategy:
 ### Detection Logic
 
 **New Post Creation**:
-- If Column D (intended date) < today → Create with TODAY's date
-- If Column D = today → Create with today's date (normal flow)
-- If Column D > today → Create with that future date (scheduled post)
+- If Column D (intended date) < today → Create TWO posts (archive + social)
+- If Column D = today → Create ONE post normally (today's date, with category)
+- If Column D > today → Create ONE post normally (future date, with category - scheduled post)
 
-**Existing Post Update**:
-- Query post from Micro.blog via Micropub API
-- Compare Column D with post's current `published` field
-- If dates differ AND post URL was added to Column H 24+ hours ago → Delete old post and recreate with correct date (avoids Micro.blog phantom post bug)
+**Archive Post (Past Dates Only)**:
+- Date: Column D (intended backdate)
+- Category: Column B (Presentations, Video, Podcast, Blog, Guest)
+- Content: Full formatted content
+- Track URL in Column H
+
+**Social Post (Past Dates Only)**:
+- Date: TODAY
+- Category: NONE (explicitly omit category parameter)
+- Content: Identical to archive post
+- URL: Not tracked
 
 ### Implementation Details
 
 **API Operations**:
-- Use existing `createMicroblogPost()` function with modified date logic
-- Use existing `deleteMicroblogPost()` function to remove temp-dated post
-- Use existing `createMicroblogPost()` function again to recreate with backdated date
-- Delete + recreate pattern avoids Micro.blog phantom post bug (see Design Decisions)
+- Use existing `createMicroblogPost()` function twice for past-dated posts
+- First call: with Column D date and category (archive post)
+- Second call: with TODAY's date and NO category (social post)
+- Single call for today/future dates (normal behavior unchanged)
 
 **Date Comparison**:
 - Parse Column D date using existing `parseDateToISO()` function
@@ -190,24 +198,29 @@ Test current Micro.blog behavior to validate assumptions:
 
 ---
 
-### Milestone 2: Implement Temporary Dating Logic
-- [x] Modify post creation flow to detect past dates
-- [x] Post with today's date when Column D < today
-- [x] Add logging to distinguish temp-dated posts
-- [x] Test with dry-run mode
+### Milestone 2: Implement Dual-Post Creation Logic
+- [ ] Modify post creation flow to detect past dates
+- [ ] When Column D < today, create TWO posts:
+  - Archive post: Column D date, WITH category
+  - Social post: TODAY's date, NO category (critical!)
+- [ ] When Column D >= today, create ONE post normally
+- [ ] Track only archive post URL in Column H
+- [ ] Add logging to distinguish archive vs social posts
+- [ ] Test with dry-run mode
 
-**Success Criteria**: New posts with past dates are created with today's date
+**Success Criteria**: Past-dated rows create two posts (archive + social), current-dated rows create one post
 
 ---
 
-### Milestone 3: Implement Backdate Detection & Update
-- [x] Add logic to query existing post dates from Micro.blog
-- [x] Compare Column D with published date
-- [x] Detect posts that need backdating (date mismatch + 24hrs elapsed)
-- [x] Update posts to correct backdate using `updateMicroblogPost()`
-- [x] Update Column H with new URL if changed
+### Milestone 3: ~~Implement Backdate Detection & Update~~ (No Longer Needed)
+- ~~Add logic to query existing post dates from Micro.blog~~
+- ~~Compare Column D with published date~~
+- ~~Detect posts that need backdating~~
+- ~~Update posts to correct backdate~~
 
-**Success Criteria**: Posts automatically backdate on next sync after 24 hours
+**Status**: REMOVED - Dual-post strategy eliminates need for backdating logic
+
+**Rationale**: Both posts created correctly on day 1, no subsequent updates needed
 
 ---
 
@@ -233,35 +246,64 @@ Test current Micro.blog behavior to validate assumptions:
 
 ## Design Decisions
 
-### Decision 1: Delete + Recreate Instead of Update for Backdating
+### Decision 1: Dual-Post Strategy (Archive + Social)
 **Date**: 2025-11-19
-**Status**: Resolved
+**Status**: Resolved (Supersedes Delete+Create approach)
 
-**Problem**: Testing revealed that using Micropub UPDATE to change post dates triggers a known Micro.blog bug where posts appear at multiple dates ("phantom posts"). The UPDATE operation changes the date in the database but leaves stale HTML at the original date, requiring manual site rebuild.
+**Problem**: Initial approach (temp-date then backdate) creates broken social media links:
+- Day 1: Post created with today's date → cross-posts with URL `whitneylee.com/2025/11/19/post.html`
+- Day 2: Post backdated → URL changes to `whitneylee.com/2020/11/12/post.html`
+- Result: Social media posts now have 404 broken links
 
-**Evidence from Testing**:
-- Test posts showed at both original date (2025-11-19) and backdated date (2020-01-01)
-- Micro.blog API showed only backdated versions (correct)
-- Live site HTML showed both versions (phantom post bug)
-- Bug documented in `microblog-api-capabilities.md:752-796`
+**Testing Evidence**:
+- DELETE+CREATE for backdating works but changes URL
+- URL embedded in social media posts becomes broken
+- Followers clicking from Bluesky/Mastodon get 404 errors
+- Defeats purpose of social media exposure
 
-**Decision**: Use DELETE + CREATE instead of UPDATE for backdating operations.
+**Decision**: Create TWO separate posts for each backdated entry.
+
+**Two-Post Strategy**:
+
+**Post 1: Archive Post (The Permanent Record)**
+- **Date**: Intended date from Column D (e.g., last week's actual date)
+- **Category**: YES - Column B value (Presentations, Video, Podcast, Blog, Guest)
+- **Title**: Column A
+- **Content**: Formatted post content from spreadsheet
+- **Purpose**: Proper chronological archive, category organization
+- **Appears on**: Category pages (`/presentations/`), blog archive at correct date
+- **URL Tracking**: Tracked in Column H (the "real" URL)
+
+**Post 2: Social Signal Post (The Ephemeral Announcement)**
+- **Date**: TODAY (when script runs)
+- **Category**: NONE - explicitly no category
+- **Title**: Column A (same as archive post)
+- **Content**: Identical to archive post
+- **Purpose**: Trigger social media cross-posting, stay in main feed
+- **Appears on**: Main Micro.blog feed only (not in category navigation)
+- **URL Tracking**: Not tracked - ephemeral, left forever
+- **Cleanup**: Never deleted, remains as announcement artifact
 
 **Rationale**:
-- Avoids triggering the phantom post bug entirely
-- More reliable - no stale HTML artifacts
-- Consistent with existing URL regeneration approach (also uses delete+create)
-- Trade-off: Loses post edit history, but acceptable for automated backdating
+- ✅ **No broken links** - Social post URL never changes
+- ✅ **Clean separation** - Archive is chronologically correct, social is current
+- ✅ **No timing complexity** - Both posts created same day, no multi-day logic
+- ✅ **Follows Micro.blog patterns** - Uncategorized posts stay in main feed only
+- ✅ **Simple implementation** - No backdate detection, no delete operations
+- ✅ **Social engagement preserved** - Links work forever
 
 **Implementation Impact**:
-- Milestone 3 implementation needs modification
-- Change from `updateMicroblogPost(url, {published: newDate})`
-- To: `deleteMicroblogPost(oldUrl)` then `createMicroblogPost(..., newDate)`
-- URL will change (date in path changes), but content-matching already handles this
+- Create TWO posts in post creation flow (not one)
+- Archive post: use Column D date, include category
+- Social post: use TODAY's date, **no category** (critical - ensures uncategorized)
+- Only track archive post URL in Column H
+- Social post URL is fire-and-forget
+- Eliminates need for Milestone 3 (backdate detection)
+- Simplifies code - no UPDATE, no DELETE operations needed
 
 **Code References**:
-- Current implementation: `src/sync-content.js:1571-1613` (uses UPDATE)
-- Should match pattern: `src/sync-content.js:1403-1474` (regeneration uses DELETE+CREATE)
+- Post creation: `src/sync-content.js:1318-1380` (modify to create two posts)
+- Backdate detection: `src/sync-content.js:1571-1638` (remove - no longer needed)
 
 ---
 
