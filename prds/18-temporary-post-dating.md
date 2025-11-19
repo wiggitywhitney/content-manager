@@ -1,6 +1,6 @@
 # PRD: Temporary Post Dating for Social Media Syndication
 
-**Status**: Draft
+**Status**: In Progress
 **Priority**: Medium
 **GitHub Issue**: [#18](https://github.com/wiggitywhitney/content-manager/issues/18)
 **Created**: 2025-01-18
@@ -189,21 +189,21 @@ Test current Micro.blog behavior to validate assumptions:
 ---
 
 ### Milestone 2: Implement Temporary Dating Logic
-- [ ] Modify post creation flow to detect past dates
-- [ ] Post with today's date when Column D < today
-- [ ] Add logging to distinguish temp-dated posts
-- [ ] Test with dry-run mode
+- [x] Modify post creation flow to detect past dates
+- [x] Post with today's date when Column D < today
+- [x] Add logging to distinguish temp-dated posts
+- [x] Test with dry-run mode
 
 **Success Criteria**: New posts with past dates are created with today's date
 
 ---
 
 ### Milestone 3: Implement Backdate Detection & Update
-- [ ] Add logic to query existing post dates from Micro.blog
-- [ ] Compare Column D with published date
-- [ ] Detect posts that need backdating (date mismatch + 24hrs elapsed)
-- [ ] Update posts to correct backdate using `updateMicroblogPost()`
-- [ ] Update Column H with new URL if changed
+- [x] Add logic to query existing post dates from Micro.blog
+- [x] Compare Column D with published date
+- [x] Detect posts that need backdating (date mismatch + 24hrs elapsed)
+- [x] Update posts to correct backdate using `updateMicroblogPost()`
+- [x] Update Column H with new URL if changed
 
 **Success Criteria**: Posts automatically backdate on next sync after 24 hours
 

@@ -1320,8 +1320,8 @@ async function syncContent() {
 
       try {
         // Parse date to ISO 8601
-        const publishedDate = parseDateToISO(row.date);
-        if (!publishedDate) {
+        const intendedDate = parseDateToISO(row.date);
+        if (!intendedDate) {
           postStats.failed++;
           postStats.errors.push({
             row: row.rowIndex,
@@ -1332,13 +1332,35 @@ async function syncContent() {
           continue;
         }
 
+        // Temporary dating logic: If intended date is in the past, use today's date
+        // to trigger social media syndication. Post will be backdated on next sync.
+        const now = new Date();
+        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0));
+        const todayISO = today.toISOString();
+
+        const intendedDateOnly = extractDateOnly(intendedDate);
+        const todayDateOnly = extractDateOnly(todayISO);
+
+        let publishedDate = intendedDate;
+        let isTemporaryDated = false;
+
+        if (intendedDateOnly < todayDateOnly) {
+          // Past date - use today to trigger cross-posting
+          publishedDate = todayISO;
+          isTemporaryDated = true;
+          log(`Row ${row.rowIndex}: Intended date (${intendedDateOnly}) is in past - using today's date (${todayDateOnly}) for initial post`, 'INFO');
+        } else {
+          // Today or future date - use as-is
+          log(`Row ${row.rowIndex}: Using intended date (${intendedDateOnly})`, 'DEBUG');
+        }
+
         // Format post content
         const postContent = formatPostContent(row);
 
         log(`Creating post for row ${row.rowIndex}: ${row.name}`, 'INFO');
         log(`  Content: ${postContent}`, 'DEBUG');
         log(`  Category: ${row.type.toLowerCase()}`, 'DEBUG');
-        log(`  Published: ${publishedDate}`, 'DEBUG');
+        log(`  Published: ${publishedDate}${isTemporaryDated ? ' (temporary - will backdate on next sync)' : ''}`, 'DEBUG');
 
         // Create post on Micro.blog with retry logic
         const postUrl = await withRetry(
@@ -1484,6 +1506,17 @@ async function syncContent() {
       'Query Micro.blog posts'
     );
 
+    // Build content-based index for finding posts after URL changes
+    const postsByContent = new Map();
+    for (const [url, post] of existingPosts.entries()) {
+      // Use first 100 chars of content as a simple key
+      const contentKey = post.content.substring(0, 100).trim();
+      if (!postsByContent.has(contentKey)) {
+        postsByContent.set(contentKey, []);
+      }
+      postsByContent.get(contentKey).push({ url, post });
+    }
+
     // Filter rows that already have Micro.blog URLs (existing posts)
     const rowsToCheck = validRows.filter(row => row.microblogUrl);
 
@@ -1493,6 +1526,7 @@ async function syncContent() {
     const updateStats = {
       checked: 0,
       needsUpdate: 0,
+      needsBackdate: 0,
       attempted: 0,
       successful: 0,
       failed: 0,
@@ -1504,15 +1538,82 @@ async function syncContent() {
     for (const row of rowsToCheck) {
       updateStats.checked++;
 
-      const existingPost = existingPosts.get(row.microblogUrl);
+      let existingPost = existingPosts.get(row.microblogUrl);
 
+      // If post not found by URL, try finding by content (handles URL changes after backdating)
       if (!existingPost) {
-        // Post exists in spreadsheet but not on Micro.blog (orphaned or deleted manually)
-        log(`Row ${row.rowIndex}: Post not found on Micro.blog (${row.microblogUrl})`, 'WARN');
-        continue;
+        const expectedContent = formatPostContent(row);
+        const contentKey = expectedContent.substring(0, 100).trim();
+        const candidates = postsByContent.get(contentKey) || [];
+
+        if (candidates.length === 1) {
+          // Found matching post by content - update row's URL
+          const { url: newUrl, post } = candidates[0];
+          log(`Row ${row.rowIndex}: Post URL changed (${row.microblogUrl} → ${newUrl})`, 'INFO');
+          existingPost = post;
+
+          // Update Column H with new URL
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, newUrl);
+          if (writeSuccess) {
+            row.microblogUrl = newUrl;  // Update in-memory data
+            log(`  ✓ Column H updated with new URL`, 'DEBUG');
+          }
+        } else if (candidates.length > 1) {
+          log(`Row ${row.rowIndex}: Multiple posts match content - cannot determine correct URL`, 'WARN');
+          continue;
+        } else {
+          // Post truly not found (orphaned or deleted manually)
+          log(`Row ${row.rowIndex}: Post not found on Micro.blog (${row.microblogUrl})`, 'WARN');
+          continue;
+        }
       }
 
-      // Detect changes
+      // Check if this post needs backdating (temp-dated post that should now be moved to past date)
+      const intendedDate = parseDateToISO(row.date);
+      if (intendedDate) {
+        const intendedDateOnly = extractDateOnly(intendedDate);
+        const publishedDateOnly = extractDateOnly(existingPost.published);
+
+        if (intendedDateOnly < publishedDateOnly) {
+          // Post has a future/today date but should be backdated to past date
+          updateStats.needsBackdate++;
+          updateStats.attempted++;
+
+          log(`Row ${row.rowIndex}: Post needs backdating from ${publishedDateOnly} to ${intendedDateOnly}`, 'INFO');
+
+          try {
+            // Update post to intended (backdated) date
+            await withRetry(
+              () => updateMicroblogPost(row.microblogUrl, { published: intendedDate }),
+              `Backdate post for row ${row.rowIndex}`
+            );
+
+            log(`  ✓ Post backdated successfully`, 'INFO');
+
+            // Try to find the post at its new URL (date in URL will have changed)
+            // We'll find it on next iteration or next sync via content matching above
+            // For now, just mark as successful
+            updateStats.successful++;
+
+            // Note: URL has changed but we don't update Column H immediately
+            // Next sync will find the post by content and update Column H
+
+          } catch (error) {
+            updateStats.failed++;
+            updateStats.errors.push({
+              row: row.rowIndex,
+              title: row.name,
+              error: error.message
+            });
+            log(`  ❌ Failed to backdate post: ${error.message}`, 'ERROR');
+          }
+
+          // Skip normal change detection for this post (we already processed it)
+          continue;
+        }
+      }
+
+      // Detect other changes (content, category)
       const changeDetection = detectChanges(row, existingPost);
 
       if (changeDetection.needsUpdate) {
@@ -1706,6 +1807,7 @@ async function syncContent() {
           updating: {
             checked: updateStats.checked,
             needsUpdate: updateStats.needsUpdate,
+            needsBackdate: updateStats.needsBackdate,
             attempted: updateStats.attempted,
             successful: updateStats.successful,
             failed: updateStats.failed,
@@ -1781,6 +1883,7 @@ async function syncContent() {
         if (updateStats.checked > 0) {
           console.log('\n📝 Post Update Results:');
           console.log(`  Posts checked:            ${updateStats.checked}`);
+          console.log(`  Backdates needed:         ${updateStats.needsBackdate}`);
           console.log(`  Updates needed:           ${updateStats.needsUpdate}`);
           console.log(`  Updates attempted:        ${updateStats.attempted}`);
           console.log(`  ✅ Successfully updated:  ${updateStats.successful}`);
