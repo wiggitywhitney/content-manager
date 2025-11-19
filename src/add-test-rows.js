@@ -8,6 +8,10 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
  * Test scenarios to create
  */
 const TEST_SCENARIOS = {
+  temporaryDating: [
+    { name: 'TEST 1 - Temporary Dating Feature - DELETE ME', type: 'Presentations', show: '', date: '01/01/2020', location: '', confirmed: '', link: '' },
+    { name: 'TEST 2 - Temporary Dating Feature - DELETE ME', type: 'Presentations', show: '', date: '01/02/2020', location: '', confirmed: '', link: '' }
+  ],
   bulkAdd: [
     { name: 'TEST: Bulk Add 1 (Oldest)', type: 'Video', show: 'Yes', date: '01/15/2025', location: '', confirmed: 'Yes', link: 'https://example.com/test1' },
     { name: 'TEST: Bulk Add 2', type: 'Podcast', show: 'Yes', date: '02/15/2025', location: '', confirmed: 'Yes', link: 'https://example.com/test2' },
