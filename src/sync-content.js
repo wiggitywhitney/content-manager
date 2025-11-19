@@ -1582,21 +1582,45 @@ async function syncContent() {
           log(`Row ${row.rowIndex}: Post needs backdating from ${publishedDateOnly} to ${intendedDateOnly}`, 'INFO');
 
           try {
-            // Update post to intended (backdated) date
+            // Delete old post (avoids Micro.blog phantom post bug from UPDATE operation)
             await withRetry(
-              () => updateMicroblogPost(row.microblogUrl, { published: intendedDate }),
-              `Backdate post for row ${row.rowIndex}`
+              () => deleteMicroblogPost(row.microblogUrl),
+              `Delete post for backdating (row ${row.rowIndex})`
+            );
+            log(`  ✓ Old post deleted`, 'DEBUG');
+
+            // Recreate post with correct backdated date
+            const postContent = formatPostContent(row);
+            const newUrl = await withRetry(
+              () => createMicroblogPost(row, postContent, intendedDate),
+              `Recreate post with backdate (row ${row.rowIndex})`
             );
 
-            log(`  ✓ Post backdated successfully`, 'INFO');
+            log(`  ✓ Post backdated successfully: ${newUrl}`, 'INFO');
 
-            // Try to find the post at its new URL (date in URL will have changed)
-            // We'll find it on next iteration or next sync via content matching above
-            // For now, just mark as successful
-            updateStats.successful++;
+            // Clear URL from Column H so content-matching can find and update it
+            // (URL has changed due to date change in path)
+            const writeSuccess = await writeUrlToSpreadsheet(
+              sheets,
+              SPREADSHEET_ID,
+              row.tabName,
+              row.tabRowIndex,
+              '' // Clear URL - will be found by content matching on next sync
+            );
 
-            // Note: URL has changed but we don't update Column H immediately
-            // Next sync will find the post by content and update Column H
+            if (writeSuccess) {
+              updateStats.successful++;
+              log(`  ✓ Column H cleared for content-matching update`, 'DEBUG');
+            } else {
+              updateStats.successful++;
+              log(`  ⚠️  Post backdated but failed to clear URL in spreadsheet`, 'WARN');
+            }
+
+            // Update in-memory data
+            row.microblogUrl = '';
+
+            // Rate limiting: delay between writes
+            await sleep(SHEETS_WRITE_DELAY_MS);
 
           } catch (error) {
             updateStats.failed++;
