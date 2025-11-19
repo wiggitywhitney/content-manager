@@ -131,8 +131,9 @@ Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://
 - Column B: Type (category)
 - Column C: Show
 - Column D: Date
-- Column E: Link
+- Column E: Location
 - Column F: Confirmed (keynote)
+- Column G: Link
 
 **⚠️ Never edit Column H (Micro.blog URL)** - This is auto-managed by the system.
 

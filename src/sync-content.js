@@ -521,7 +521,7 @@ async function createMicroblogPost(content, postContent, publishedDate) {
   if (DRY_RUN) {
     log(`[DRY-RUN] Would create Micro.blog post:`, 'INFO');
     log(`  Title: ${content.name}`, 'INFO');
-    log(`  Category: ${category}`, 'INFO');
+    log(`  Category: ${category ?? '(none)'}`, 'INFO');
     log(`  Published: ${publishedDate}`, 'INFO');
     log(`  Content: ${postContent.substring(0, 100)}...`, 'INFO');
     return `https://whitneylee.com/dry-run/${Date.now()}`;
@@ -536,7 +536,9 @@ async function createMicroblogPost(content, postContent, publishedDate) {
   const params = new URLSearchParams();
   params.append('h', 'entry');
   params.append('content', postContent);
-  params.append('category', category);
+  if (category) {
+    params.append('category', category);
+  }
   params.append('published', publishedDate);
 
   // Make POST request to Micropub endpoint
@@ -1545,7 +1547,6 @@ async function syncContent() {
     const updateStats = {
       checked: 0,
       needsUpdate: 0,
-      needsBackdate: 0,
       attempted: 0,
       successful: 0,
       failed: 0,
@@ -1782,7 +1783,6 @@ async function syncContent() {
           updating: {
             checked: updateStats.checked,
             needsUpdate: updateStats.needsUpdate,
-            needsBackdate: updateStats.needsBackdate,
             attempted: updateStats.attempted,
             successful: updateStats.successful,
             failed: updateStats.failed,
@@ -1858,7 +1858,6 @@ async function syncContent() {
         if (updateStats.checked > 0) {
           console.log('\n📝 Post Update Results:');
           console.log(`  Posts checked:            ${updateStats.checked}`);
-          console.log(`  Backdates needed:         ${updateStats.needsBackdate}`);
           console.log(`  Updates needed:           ${updateStats.needsUpdate}`);
           console.log(`  Updates attempted:        ${updateStats.attempted}`);
           console.log(`  ✅ Successfully updated:  ${updateStats.successful}`);
