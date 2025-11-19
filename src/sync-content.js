@@ -1332,8 +1332,9 @@ async function syncContent() {
           continue;
         }
 
-        // Temporary dating logic: If intended date is in the past, use today's date
-        // to trigger social media syndication. Post will be backdated on next sync.
+        // Dual-post strategy: If intended date is in the past, create TWO posts
+        // 1. Archive post with correct backdate + category
+        // 2. Social post with today's date + NO category (triggers cross-posting)
         const now = new Date();
         const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0));
         const todayISO = today.toISOString();
@@ -1341,50 +1342,68 @@ async function syncContent() {
         const intendedDateOnly = extractDateOnly(intendedDate);
         const todayDateOnly = extractDateOnly(todayISO);
 
-        let publishedDate = intendedDate;
-        let isTemporaryDated = false;
-
-        if (intendedDateOnly < todayDateOnly) {
-          // Past date - use today to trigger cross-posting
-          publishedDate = todayISO;
-          isTemporaryDated = true;
-          log(`Row ${row.rowIndex}: Intended date (${intendedDateOnly}) is in past - using today's date (${todayDateOnly}) for initial post`, 'INFO');
-        } else {
-          // Today or future date - use as-is
-          log(`Row ${row.rowIndex}: Using intended date (${intendedDateOnly})`, 'DEBUG');
-        }
-
-        // Format post content
+        const isPastDate = intendedDateOnly < todayDateOnly;
         const postContent = formatPostContent(row);
 
-        log(`Creating post for row ${row.rowIndex}: ${row.name}`, 'INFO');
-        log(`  Content: ${postContent}`, 'DEBUG');
-        log(`  Category: ${row.type.toLowerCase()}`, 'DEBUG');
-        log(`  Published: ${publishedDate}${isTemporaryDated ? ' (temporary - will backdate on next sync)' : ''}`, 'DEBUG');
+        if (isPastDate) {
+          log(`Row ${row.rowIndex}: Past date detected (${intendedDateOnly}) - creating dual posts (archive + social)`, 'INFO');
 
-        // Create post on Micro.blog with retry logic
-        const postUrl = await withRetry(
-          () => createMicroblogPost(row, postContent, publishedDate),
-          `Create post for row ${row.rowIndex}`
-        );
+          // POST 1: Archive post with correct backdate and category
+          log(`  Creating archive post with date ${intendedDateOnly}...`, 'DEBUG');
+          const archiveUrl = await withRetry(
+            () => createMicroblogPost(row, postContent, intendedDate),
+            `Create archive post for row ${row.rowIndex}`
+          );
+          log(`  ✅ Archive post created: ${archiveUrl}`, 'INFO');
 
-        log(`✅ Post created: ${postUrl}`, 'INFO');
+          // POST 2: Social post with today's date and NO category
+          log(`  Creating social post with date ${todayDateOnly} (no category)...`, 'DEBUG');
 
-        // Write URL back to spreadsheet Column H
-        const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
+          // Create a modified row object without category for social post
+          const socialRow = { ...row, type: '' }; // Empty type = no category
+          const socialUrl = await withRetry(
+            () => createMicroblogPost(socialRow, postContent, todayISO),
+            `Create social post for row ${row.rowIndex}`
+          );
+          log(`  ✅ Social post created: ${socialUrl} (uncategorized, ephemeral)`, 'INFO');
 
-        if (writeSuccess) {
-          postStats.successful++;
-          log(`✅ URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
+          // Only track archive post URL in Column H
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, archiveUrl);
+
+          if (writeSuccess) {
+            postStats.successful++;
+            log(`✅ Archive URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
+          } else {
+            postStats.successful++;
+            log(`⚠️  Posts created but failed to write archive URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
+          }
+
+          // Update in-memory row data with archive URL
+          row.microblogUrl = archiveUrl;
+
         } else {
-          // Post created but URL write failed (non-fatal)
-          postStats.successful++;
-          log(`⚠️  Post created but failed to write URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
-        }
+          // Today or future date - create single post normally
+          log(`Row ${row.rowIndex}: Current/future date (${intendedDateOnly}) - creating single post`, 'DEBUG');
 
-        // Update in-memory row data regardless of write success
-        // This prevents orphan detection from deleting the post we just created
-        row.microblogUrl = postUrl;
+          const postUrl = await withRetry(
+            () => createMicroblogPost(row, postContent, intendedDate),
+            `Create post for row ${row.rowIndex}`
+          );
+          log(`✅ Post created: ${postUrl}`, 'INFO');
+
+          // Write URL to Column H
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
+
+          if (writeSuccess) {
+            postStats.successful++;
+            log(`✅ URL written to ${row.tabName} row ${row.tabRowIndex}`, 'DEBUG');
+          } else {
+            postStats.successful++;
+            log(`⚠️  Post created but failed to write URL to ${row.tabName} row ${row.tabRowIndex}`, 'WARN');
+          }
+
+          row.microblogUrl = postUrl;
+        }
 
         // Rate limiting: delay between writes to stay under Google Sheets quota
         await sleep(SHEETS_WRITE_DELAY_MS);
@@ -1568,76 +1587,8 @@ async function syncContent() {
         }
       }
 
-      // Check if this post needs backdating (temp-dated post that should now be moved to past date)
-      const intendedDate = parseDateToISO(row.date);
-      if (intendedDate) {
-        const intendedDateOnly = extractDateOnly(intendedDate);
-        const publishedDateOnly = extractDateOnly(existingPost.published);
-
-        if (intendedDateOnly < publishedDateOnly) {
-          // Post has a future/today date but should be backdated to past date
-          updateStats.needsBackdate++;
-          updateStats.attempted++;
-
-          log(`Row ${row.rowIndex}: Post needs backdating from ${publishedDateOnly} to ${intendedDateOnly}`, 'INFO');
-
-          try {
-            // Delete old post (avoids Micro.blog phantom post bug from UPDATE operation)
-            await withRetry(
-              () => deleteMicroblogPost(row.microblogUrl),
-              `Delete post for backdating (row ${row.rowIndex})`
-            );
-            log(`  ✓ Old post deleted`, 'DEBUG');
-
-            // Recreate post with correct backdated date
-            const postContent = formatPostContent(row);
-            const newUrl = await withRetry(
-              () => createMicroblogPost(row, postContent, intendedDate),
-              `Recreate post with backdate (row ${row.rowIndex})`
-            );
-
-            log(`  ✓ Post backdated successfully: ${newUrl}`, 'INFO');
-
-            // Clear URL from Column H so content-matching can find and update it
-            // (URL has changed due to date change in path)
-            const writeSuccess = await writeUrlToSpreadsheet(
-              sheets,
-              SPREADSHEET_ID,
-              row.tabName,
-              row.tabRowIndex,
-              '' // Clear URL - will be found by content matching on next sync
-            );
-
-            if (writeSuccess) {
-              updateStats.successful++;
-              log(`  ✓ Column H cleared for content-matching update`, 'DEBUG');
-            } else {
-              updateStats.successful++;
-              log(`  ⚠️  Post backdated but failed to clear URL in spreadsheet`, 'WARN');
-            }
-
-            // Update in-memory data
-            row.microblogUrl = '';
-
-            // Rate limiting: delay between writes
-            await sleep(SHEETS_WRITE_DELAY_MS);
-
-          } catch (error) {
-            updateStats.failed++;
-            updateStats.errors.push({
-              row: row.rowIndex,
-              title: row.name,
-              error: error.message
-            });
-            log(`  ❌ Failed to backdate post: ${error.message}`, 'ERROR');
-          }
-
-          // Skip normal change detection for this post (we already processed it)
-          continue;
-        }
-      }
-
-      // Detect other changes (content, category)
+      // Detect changes (content, category)
+      // Note: Backdating logic removed - dual-post strategy creates both posts correctly on day 1
       const changeDetection = detectChanges(row, existingPost);
 
       if (changeDetection.needsUpdate) {
