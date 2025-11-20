@@ -12,6 +12,7 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 - ✅ Daily content sync via GitHub Actions (16:15 UTC = 11:15 am CDT / 10:15 am CST)
 - ✅ Daily page visibility management (6-month inactivity threshold)
 - ✅ Rate-limited publishing (max 1 post/day across Micro.blog + Bluesky)
+- ✅ Link-priority publishing (content with links posts before content without links)
 - ✅ Dual-post strategy for backdated content (prevents broken social links)
 - ✅ Smart error handling with retry logic
 - ✅ Spreadsheet as single source of truth
@@ -22,10 +23,11 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 ### Content Sync (Daily)
 1. Add/edit content in Google Sheets (Name, Type, Show, Date, Link)
 2. System syncs daily at 16:15 UTC (11:15 am CDT / 10:15 am CST) via GitHub Actions
-3. Rate limiting: max 1 post per day across all platforms
-4. Before posting, checks Micro.blog and Bluesky for posts published today
-5. Posts automatically appear on whitneylee.com in the correct category
-6. Column H tracks Micro.blog URLs for update/delete operations
+3. **Link-priority selection**: Content with links (Column G) posts before content without links (oldest first within each group)
+4. Rate limiting: max 1 post per day across all platforms
+5. Before posting, checks Micro.blog and Bluesky for posts published today
+6. Posts automatically appear on whitneylee.com in the correct category
+7. Column H tracks Micro.blog URLs for update/delete operations
 
 #### Backdated Content
 Past-dated posts (Column D < today) create **TWO posts**:
@@ -133,9 +135,12 @@ Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://
 - Column D: Date
 - Column E: Location
 - Column F: Confirmed (keynote)
-- Column G: Link
+- Column G: Link (affects publishing priority - see below)
 
 **⚠️ Never edit Column H (Micro.blog URL)** - This is auto-managed by the system.
+
+**Column G (Link) affects publishing order:**
+Content with links posts first. Add links when videos/recordings become available to prioritize that content.
 
 When you change Date, Name, Show, or Keynote: The old post is deleted and a new one is created with a new URL (Column H updates automatically).
 

@@ -151,7 +151,7 @@ const oldestRow = prioritizedRows[0];
 - [x] **Core prioritization logic implemented**: Two-tier sorting (with links, then without links) working in `sync-content.js`
 - [x] **Edge cases validated**: All linked, all linkless, mixed dates, empty values handled correctly
 - [x] **Integration testing complete**: Daily workflow runs successfully with new logic, dual-post strategy unaffected
-- [ ] **Documentation updated**: README reflects new selection behavior and user workflow
+- [x] **Documentation updated**: README reflects new selection behavior and user workflow
 - [ ] **Feature deployed and validated**: Production runs demonstrate correct prioritization, social posts include links
 
 ## Implementation Plan
@@ -196,4 +196,9 @@ _None at this time._
     - Selected content with link (10/22/2025) over older content without links (05/05, 09/06, 10/07, 10/08)
     - Chronological ordering maintained within tiers
     - Daily rate limiting and guard logic unaffected
-- **Next Steps**: Update README documentation, deploy to production
+- **Documentation Complete**:
+  - Updated README with succinct link-priority explanation
+  - Added to Key Features list
+  - Documented selection behavior in Content Sync section
+  - Explained Column G workflow in Spreadsheet Workflow section
+- **Next Steps**: Deploy to production and validate
