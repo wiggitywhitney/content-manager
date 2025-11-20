@@ -148,9 +148,9 @@ const oldestRow = prioritizedRows[0];
 
 ## Milestones
 
-- [ ] **Core prioritization logic implemented**: Two-tier sorting (with links, then without links) working in `sync-content.js`
-- [ ] **Edge cases validated**: All linked, all linkless, mixed dates, empty values handled correctly
-- [ ] **Integration testing complete**: Daily workflow runs successfully with new logic, dual-post strategy unaffected
+- [x] **Core prioritization logic implemented**: Two-tier sorting (with links, then without links) working in `sync-content.js`
+- [x] **Edge cases validated**: All linked, all linkless, mixed dates, empty values handled correctly
+- [x] **Integration testing complete**: Daily workflow runs successfully with new logic, dual-post strategy unaffected
 - [ ] **Documentation updated**: README reflects new selection behavior and user workflow
 - [ ] **Feature deployed and validated**: Production runs demonstrate correct prioritization, social posts include links
 
@@ -186,4 +186,14 @@ _None at this time._
 - Technical approach defined (two-tier sorting)
 - Design decisions documented (no URL validation, no wait times, all content types)
 - Implementation started: created feature branch `feature/prd-20-link-priority-publishing`
-- Beginning core two-tier sorting logic implementation
+- **Implementation Complete** (Duration: ~2 hours, Commit: 9bca543):
+  - Core two-tier sorting logic implemented in `src/sync-content.js:1262-1301`
+  - Partitions unpublished content by link presence (Column G)
+  - Sorts each tier independently by date (oldest first)
+  - Combines tiers: Tier 1 (with links) first, then Tier 2 (without links)
+  - Enhanced logging to show priority tier selection and link URLs
+  - DRY_RUN testing validated correct behavior:
+    - Selected content with link (10/22/2025) over older content without links (05/05, 09/06, 10/07, 10/08)
+    - Chronological ordering maintained within tiers
+    - Daily rate limiting and guard logic unaffected
+- **Next Steps**: Update README documentation, deploy to production
