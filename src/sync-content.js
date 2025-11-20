@@ -1259,8 +1259,9 @@ async function syncContent() {
 
     // Rate limiting: Sort by date (oldest first) and limit to 1 post per run
     if (rowsToPost.length > 0) {
-      // Sort chronologically using the same date parsing used throughout codebase
-      rowsToPost.sort((a, b) => {
+      // Two-tier prioritization: content with links posts before content without links
+      // Within each tier, maintain chronological ordering (oldest first)
+      const sortByDateAsc = (a, b) => {
         const dateA = parseDateToISO(a.date);
         const dateB = parseDateToISO(b.date);
 
@@ -1271,16 +1272,31 @@ async function syncContent() {
 
         // ISO 8601 strings sort correctly lexicographically
         return dateA.localeCompare(dateB);
-      });
+      };
+
+      // Partition into two tiers based on link presence (Column G)
+      const withLinks = rowsToPost.filter(row => row.link);
+      const withoutLinks = rowsToPost.filter(row => !row.link);
+
+      // Sort each tier independently by date (oldest first)
+      withLinks.sort(sortByDateAsc);
+      withoutLinks.sort(sortByDateAsc);
+
+      // Combine tiers: Tier 1 (with links) first, then Tier 2 (without links)
+      const prioritizedRows = [...withLinks, ...withoutLinks];
 
       // Limit to oldest unpublished row only (rate limiting)
-      const totalUnpublished = rowsToPost.length;
-      const oldestRow = rowsToPost[0];
+      const totalUnpublished = prioritizedRows.length;
+      const oldestRow = prioritizedRows[0];
       rowsToPost.length = 0;
       rowsToPost.push(oldestRow);
 
       log(`\nRate limiting: Publishing oldest unpublished post`);
+      log(`  Priority tier: ${oldestRow.link ? 'With link' : 'Without link'}`);
       log(`  Date: ${oldestRow.date}`);
+      if (oldestRow.link) {
+        log(`  Link: ${oldestRow.link}`);
+      }
       log(`  Progress: 1 of ${totalUnpublished} unpublished posts will be published`);
       log(`  Remaining: ${totalUnpublished - 1} posts will publish over next ${totalUnpublished - 1} days`);
     } else {
