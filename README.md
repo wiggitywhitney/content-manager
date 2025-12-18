@@ -9,7 +9,7 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 **Key Features:**
 - ✅ Full CRUD operations (create, update, delete posts)
 - ✅ Automatic URL regeneration for SEO-friendly slugs
-- ✅ Daily content sync via GitHub Actions (16:15 UTC = 11:15 am CDT / 10:15 am CST)
+- ✅ Weekday content sync via GitHub Actions (16:15 UTC = 11:15 am CDT / 10:15 am CST, Mon-Fri)
 - ✅ Daily page visibility management (6-month inactivity threshold)
 - ✅ Rate-limited publishing (max 1 post/day across Micro.blog + Bluesky)
 - ✅ Link-priority publishing (content with links posts before content without links)
@@ -22,7 +22,7 @@ This system automatically posts content (podcasts, videos, blog posts, presentat
 
 ### Content Sync (Daily)
 1. Add/edit content in Google Sheets (Name, Type, Show, Date, Link)
-2. System syncs daily at 16:15 UTC (11:15 am CDT / 10:15 am CST) via GitHub Actions
+2. System syncs weekdays at 16:15 UTC (11:15 am CDT / 10:15 am CST, Mon-Fri) via GitHub Actions
 3. **Link-priority selection**: Content with links (Column G) posts before content without links (oldest first within each group)
 4. Rate limiting: max 1 post per day across all platforms
 5. Before posting, checks Micro.blog and Bluesky for posts published today
@@ -82,7 +82,7 @@ npm run sync
 Automated workflow runs via GitHub Actions:
 
 **Daily Sync** (`.github/workflows/daily-sync.yml`):
-- Runs daily at 16:15 UTC (11:15 am CDT / 10:15 am CST)
+- Runs weekdays at 16:15 UTC (11:15 am CDT / 10:15 am CST, Mon-Fri)
 - Syncs spreadsheet content to Micro.blog posts with rate limiting
 - Manages category page visibility based on activity
 

@@ -4,9 +4,9 @@ on:
   # Manual trigger for testing
   workflow_dispatch:
 
-  # Scheduled run (daily at 16:15 UTC = 11:15am CDT / 10:15am CST, never before 10am)
+  # Scheduled run (weekdays at 16:15 UTC = 11:15am CDT / 10:15am CST, never before 10am)
   schedule:
-    - cron: '15 16 * * *'  # Run at 16:15 UTC (fixed time, naturally adjusts with DST)
+    - cron: '15 16 * * 1-5'  # Run at 16:15 UTC, Monday-Friday only
 
 jobs:
   daily-sync:
