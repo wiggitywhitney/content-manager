@@ -2,6 +2,7 @@
 name: prd-create
 description: Create documentation-first PRDs that guide development through user-facing content
 category: project-management
+disable-model-invocation: true
 ---
 
 # PRD Creation Slash Command
@@ -11,7 +12,7 @@ category: project-management
 You are helping create a Product Requirements Document (PRD) for a new feature. This process involves two main components:
 
 1. **GitHub Issue**: Short, immutable concept description that links to the detailed PRD
-2. **PRD File**: Project management document with milestone tracking, progress logs, and implementation plan
+2. **PRD File**: Project management document with milestone tracking and implementation plan
 
 ## Process
 
@@ -34,12 +35,16 @@ Work through the PRD template focusing on project management, milestone tracking
 
 **Key Principle**: Focus on 5-10 major milestones rather than exhaustive task lists. Each milestone should represent meaningful progress that can be clearly validated.
 
+**Consider Including** (when applicable to the project/feature):
+- **Tests** - If the project has tests, include a milestone for test coverage of new functionality
+- **Documentation** - If the feature is user-facing, include a milestone for docs following existing project patterns
+
 **Good Milestones Examples:**
 - [ ] Core functionality implemented and working
-- [ ] Documentation complete and tested
+- [ ] Tests passing for new functionality (if project has test suite)
+- [ ] Documentation complete following existing patterns (if user-facing feature)
 - [ ] Integration with existing systems working
 - [ ] Feature ready for user testing
-- [ ] Feature launched and available
 
 **Avoid Micro-Tasks:**
 - ❌ Update README.md file
@@ -106,6 +111,8 @@ Work through the PRD template focusing on project management, milestone tracking
 - **Focus on major milestones**: Create 5-10 meaningful milestones rather than exhaustive micro-tasks
 - **Think cross-functionally**: Consider impact on different teams, systems, and stakeholders
 
+**Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
+
 ## Workflow
 
 1. **Concept Discussion**: Get the basic idea and validate the need
@@ -117,3 +124,85 @@ Work through the PRD template focusing on project management, milestone tracking
 7. **Review & Validation**: Ensure completeness and clarity
 
 **CRITICAL**: Steps 2-4 must happen in this exact order to avoid the chicken-and-egg problem of needing the issue ID for the filename.
+
+## Update ROADMAP.md (If It Exists)
+
+After creating the PRD, check if `docs/ROADMAP.md` exists. If it does, add the new feature to the appropriate timeframe section based on PRD priority:
+- **High Priority** → Short-term section
+- **Medium Priority** → Medium-term section
+- **Low Priority** → Long-term section
+
+Format: `- [Brief feature description] (PRD #[issue-id])`
+
+The ROADMAP.md update will be included in the commit at the end of the workflow (Option 2).
+
+## Next Steps After PRD Creation
+
+After completing the PRD, present the user with numbered options:
+
+```
+✅ PRD Created Successfully!
+
+**PRD File**: prds/[issue-id]-[feature-name].md
+**GitHub Issue**: #[issue-id]
+
+What would you like to do next?
+
+**1. Start working on this PRD now**
+   Begin implementation immediately (recommended if you're ready to start)
+
+**2. Commit and push PRD for later**
+   Save the PRD and work on it later (will use [skip ci] flag)
+
+Please enter 1 or 2:
+```
+
+### Option 1: Start Working Now
+
+If user chooses option 1, first commit and push the PRD (same as Option 2), then instruct them:
+
+---
+
+**PRD committed and pushed.**
+
+To start working on this PRD, run `/prd-start [issue-id]`
+
+---
+
+### Option 2: Commit and Push for Later
+
+If user chooses option 2:
+
+```bash
+# Stage the PRD file (and ROADMAP.md if it was updated)
+git add prds/[issue-id]-[feature-name].md
+# If docs/ROADMAP.md exists and was updated, include it:
+# git add docs/ROADMAP.md
+
+# Commit with skip CI flag to avoid unnecessary CI runs
+git commit -m "docs(prd-[issue-id]): create PRD #[issue-id] - [feature-name] [skip ci]
+
+- Created PRD for [brief feature description]
+- Defined [X] major milestones
+- Documented problem, solution, and success criteria
+- Added to ROADMAP.md ([timeframe] section)
+- Ready for implementation"
+
+# Pull latest and push to main
+git pull --rebase origin main && git push origin main
+```
+
+**Confirmation Message:**
+```
+✅ PRD committed and pushed to main
+
+The PRD is now available in the repository. To start working on it later, execute:
+prd-start [issue-id]
+```
+
+## Important Notes
+
+- **Option 1**: Best when you have time to begin implementation immediately
+- **Option 2**: Best when creating multiple PRDs or planning future work
+- **Skip CI flag**: Always use `[skip ci]` when committing PRD-only changes
+- **Issue reference**: Include issue number in commit message for traceability

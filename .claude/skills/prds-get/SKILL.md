@@ -2,11 +2,14 @@
 name: prds-get
 description: Fetch all open GitHub issues from this project that have the 'PRD' label
 category: project-management
+disable-model-invocation: true
 ---
 
 # Get All PRDs
 
 Fetch all open GitHub issues from this project that have the 'PRD' label.
+
+**Note**: If any `gh` command fails with "command not found", inform the user that GitHub CLI is required and provide the installation link: https://cli.github.com/
 
 ## Process
 
@@ -17,7 +20,7 @@ Fetch all open GitHub issues from this project that have the 'PRD' label.
 
 2. **Format Results**: Present the issues in a clear, organized format showing:
    - Issue number and title
-   - Creation and last update dates
+   - Creation and last update dates  
    - Current assignees (if any)
    - Direct link to the issue
    - PRD file link (if available in issue description)
@@ -29,7 +32,7 @@ Fetch all open GitHub issues from this project that have the 'PRD' label.
    - **AI & Intelligence**: Machine learning, AI-powered features, recommendation engines
    - **Operations & Monitoring**: Deployment, scaling, observability, performance
    - **Integration & Extensibility**: Third-party integrations, plugin systems, APIs
-
+   
    Each category should briefly explain what the PRDs in that group will accomplish for users or the system.
 
 4. **Priority Analysis**: If multiple PRDs exist, help identify:
