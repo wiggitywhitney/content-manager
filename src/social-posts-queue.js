@@ -46,7 +46,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
 
     const platformsRaw = (row[COL.PLATFORMS] || '').trim();
     const platforms = platformsRaw
-      ? platformsRaw.split(',').map(p => p.trim()).filter(Boolean)
+      ? platformsRaw.split(',').map(p => p.trim().toLowerCase()).filter(Boolean)
       : [];
 
     posts.push({

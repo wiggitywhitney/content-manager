@@ -96,7 +96,7 @@ However, each new platform integration should include a manual review checkpoint
 - [x] Post to Bluesky, write post URL to Column K, update status to `posted`
 - [x] Handle failures gracefully — write `failed` to status, log error, do not crash the cron
 
-**Success criteria**: A row scheduled for today with platform `bluesky` gets posted and Column J is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
+**Success criteria**: A row scheduled for today with platform `bluesky` gets posted and Column K is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
 
 ---
 
@@ -106,7 +106,7 @@ However, each new platform integration should include a manual review checkpoint
 - [x] Wire into daily cron (same pattern as Bluesky milestone)
 - [x] Post URL written to Column L, status updated
 
-**Success criteria**: A row scheduled for today with platform `mastodon` gets posted and Column K is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
+**Success criteria**: A row scheduled for today with platform `mastodon` gets posted and Column L is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
 
 ---
 
