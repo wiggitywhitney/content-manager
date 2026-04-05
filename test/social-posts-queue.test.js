@@ -96,6 +96,14 @@ describe('parseSocialPostRows', () => {
     expect(posts).toHaveLength(2);
   });
 
+  test('normalizes status to lowercase', () => {
+    const rows = [makeRow({ status: 'Pending' }), makeRow({ status: 'POSTED' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].status).toBe('pending');
+    expect(posts[1].status).toBe('posted');
+  });
+
   test('skips rows with missing scheduledDate', () => {
     const rows = [makeRow({ scheduledDate: '' })];
     const posts = parseSocialPostRows(rows);

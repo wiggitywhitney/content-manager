@@ -59,7 +59,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       altText: (row[COL.ALT_TEXT] || '').trim(),
       scheduledDate,
       platforms,
-      status: (row[COL.STATUS] || '').trim(),
+      status: (row[COL.STATUS] || '').trim().toLowerCase(),
       linkedinPostUrl: (row[COL.LINKEDIN_POST_URL] || '').trim(),
       bskyPostUrl: (row[COL.BSKY_POST_URL] || '').trim(),
       mastodonPostUrl: (row[COL.MASTODON_POST_URL] || '').trim(),
