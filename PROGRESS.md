@@ -11,3 +11,6 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-05) Added Jest test framework and npm test script (PRD #22, Milestone 1)
 - (2026-04-05) Added one-time sheet provisioning script `create-social-posts-sheet.js` (PRD #22, Milestone 1)
 - (2026-04-05) Added `post-social-content.js` daily cron entry point wired into `daily-sync.yml` (PRD #22, Milestone 1)
+- (2026-04-05) Added Bluesky posting via `@atproto/api` with app password auth, failure handling, and 10 unit tests (PRD #22, Milestone 2)
+- (2026-04-05) Added Google Sheets status updater to write post URLs and status back after publishing (PRD #22, Milestone 2)
+- (2026-04-05) Wired Bluesky dispatch into daily cron with per-post failure isolation; 41 total tests passing (PRD #22, Milestone 2)

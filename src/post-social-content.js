@@ -4,6 +4,8 @@
 'use strict';
 
 const { fetchPendingPostsForToday } = require('./social-posts-queue');
+const { postToBluesky } = require('./post-bluesky');
+const { updatePostResult } = require('./update-social-post-status');
 
 const SOCIAL_POSTS_SHEET_ID = process.env.SOCIAL_POSTS_SHEET_ID;
 
@@ -11,22 +13,37 @@ function getTodayDate() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-async function main() {
-  if (!SOCIAL_POSTS_SHEET_ID) {
-    console.log('[social] SOCIAL_POSTS_SHEET_ID not set — skipping social post publishing');
-    process.exit(0);
+/**
+ * Dispatch a single post to all of its specified platforms.
+ *
+ * @param {Object} post - Parsed post object from the social posts queue
+ * @param {string} spreadsheetId - The social posts sheet ID
+ */
+async function dispatchPost(post, spreadsheetId) {
+  if (post.platforms.includes('bluesky')) {
+    try {
+      const { postUrl } = await postToBluesky(post);
+      await updatePostResult(spreadsheetId, post.rowIndex, {
+        status: 'posted',
+        bskyPostUrl: postUrl,
+      });
+      console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${postUrl}`);
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`);
+      await updatePostResult(spreadsheetId, post.rowIndex, { status: 'failed' });
+    }
   }
+}
 
-  const today = getTodayDate();
-  console.log(`[social] Checking queue for posts due ${today}`);
-
-  let pendingPosts;
-  try {
-    pendingPosts = await fetchPendingPostsForToday(SOCIAL_POSTS_SHEET_ID, today);
-  } catch (err) {
-    console.error('[social] Failed to read social posts queue:', err.message);
-    process.exit(1);
-  }
+/**
+ * Fetch and dispatch all pending social posts due on a given date.
+ * Exported for testability.
+ *
+ * @param {string} spreadsheetId - The social posts sheet ID
+ * @param {string} today - Date in YYYY-MM-DD format
+ */
+async function processPostsForDate(spreadsheetId, today) {
+  const pendingPosts = await fetchPendingPostsForToday(spreadsheetId, today);
 
   if (pendingPosts.length === 0) {
     console.log('[social] No posts due today');
@@ -38,11 +55,33 @@ async function main() {
     console.log(`[social]   Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`);
   }
 
-  // Platform posting will be added in Milestones 2-4 (Bluesky, Mastodon, LinkedIn).
-  console.log('[social] Platform posting not yet implemented — posts remain pending');
+  for (const post of pendingPosts) {
+    await dispatchPost(post, spreadsheetId);
+  }
 }
 
-main().catch(err => {
-  console.error('[social] Unexpected error:', err.message);
-  process.exit(1);
-});
+async function main() {
+  if (!SOCIAL_POSTS_SHEET_ID) {
+    console.log('[social] SOCIAL_POSTS_SHEET_ID not set — skipping social post publishing');
+    process.exit(0);
+  }
+
+  const today = getTodayDate();
+  console.log(`[social] Checking queue for posts due ${today}`);
+
+  try {
+    await processPostsForDate(SOCIAL_POSTS_SHEET_ID, today);
+  } catch (err) {
+    console.error('[social] Failed to read social posts queue:', err.message);
+    process.exit(1);
+  }
+}
+
+if (require.main === module) {
+  main().catch(err => {
+    console.error('[social] Unexpected error:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { processPostsForDate };

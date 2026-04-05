@@ -90,11 +90,11 @@ However, each new platform integration should include a manual review checkpoint
 ---
 
 ### Milestone 2: Bluesky Direct Posting
-- [ ] Add `@atproto/api` dependency
-- [ ] Implement Bluesky posting using app password auth (`createSession` flow)
-- [ ] Extend daily cron to find rows in social sheet where `scheduled_date == today` and `platforms` includes `bluesky` and `status == pending`
-- [ ] Post to Bluesky, write post URL to Column J, update status to `posted`
-- [ ] Handle failures gracefully — write `failed` to status, log error, do not crash the cron
+- [x] Add `@atproto/api` dependency
+- [x] Implement Bluesky posting using app password auth (`createSession` flow)
+- [x] Extend daily cron to find rows in social sheet where `scheduled_date == today` and `platforms` includes `bluesky` and `status == pending`
+- [x] Post to Bluesky, write post URL to Column K, update status to `posted`
+- [x] Handle failures gracefully — write `failed` to status, log error, do not crash the cron
 
 **Success criteria**: A row scheduled for today with platform `bluesky` gets posted and Column J is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
 
