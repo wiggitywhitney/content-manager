@@ -75,4 +75,8 @@ Get credentials for local development:
 gcloud secrets versions access latest --secret=content_manager_service_account --project=demoo-ooclock
 ```
 
+## Library Gotchas
+
+- masto.js: @.claude/rules/masto-js-gotchas.md
+
 <!-- Code guidelines (no PRD references) and git workflow enforced globally via ~/.claude/CLAUDE.md -->

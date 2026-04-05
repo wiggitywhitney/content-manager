@@ -101,10 +101,10 @@ However, each new platform integration should include a manual review checkpoint
 ---
 
 ### Milestone 3: Mastodon Direct Posting
-- [ ] Add `masto.js` dependency
-- [ ] Implement Mastodon posting
-- [ ] Wire into daily cron (same pattern as Bluesky milestone)
-- [ ] Post URL written to Column K, status updated
+- [x] Add `masto.js` dependency
+- [x] Implement Mastodon posting
+- [x] Wire into daily cron (same pattern as Bluesky milestone)
+- [x] Post URL written to Column L, status updated
 
 **Success criteria**: A row scheduled for today with platform `mastodon` gets posted and Column K is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
 

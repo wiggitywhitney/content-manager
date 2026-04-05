@@ -1,14 +1,19 @@
 // ABOUTME: Tests for the daily cron dispatcher that sends pending posts to social platforms.
-// ABOUTME: Verifies Bluesky dispatch, status updates, and graceful failure handling.
+// ABOUTME: Verifies Bluesky and Mastodon dispatch, status updates, and graceful failure handling.
 
 'use strict';
 
 jest.mock('../src/social-posts-queue');
 jest.mock('../src/post-bluesky');
+// post-mastodon loads masto which has ESM-only transitive deps — use manual factory
+jest.mock('../src/post-mastodon', () => ({
+  postToMastodon: jest.fn(),
+}));
 jest.mock('../src/update-social-post-status');
 
 const { fetchPendingPostsForToday } = require('../src/social-posts-queue');
 const { postToBluesky } = require('../src/post-bluesky');
+const { postToMastodon } = require('../src/post-mastodon');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { processPostsForDate } = require('../src/post-social-content');
 
@@ -39,6 +44,7 @@ describe('processPostsForDate', () => {
   beforeEach(() => {
     fetchPendingPostsForToday.mockResolvedValue([]);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
+    postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
     updatePostResult.mockResolvedValue(undefined);
   });
 
@@ -118,5 +124,56 @@ describe('processPostsForDate', () => {
     await processPostsForDate(SHEET_ID, TODAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
+  });
+
+  test('posts to Mastodon for a pending row with mastodon platform', async () => {
+    const post = makePost({ platforms: ['mastodon'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(postToMastodon).toHaveBeenCalledWith(post);
+  });
+
+  test('updates sheet with posted status and Mastodon URL on success', async () => {
+    const post = makePost({ rowIndex: 3, platforms: ['mastodon'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375987654321098' });
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 3, {
+      status: 'posted',
+      mastodonPostUrl: 'https://mastodon.social/@whitney/109375987654321098',
+    });
+  });
+
+  test('skips Mastodon posting for rows without mastodon platform', async () => {
+    const post = makePost({ platforms: ['bluesky'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(postToMastodon).not.toHaveBeenCalled();
+  });
+
+  test('writes failed status and logs on Mastodon post failure without crashing', async () => {
+    const post = makePost({ rowIndex: 5, platforms: ['mastodon'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToMastodon.mockRejectedValue(new Error('Instance unavailable'));
+
+    await expect(processPostsForDate(SHEET_ID, TODAY)).resolves.not.toThrow();
+
+    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 5, { status: 'failed' });
+  });
+
+  test('posts to both Bluesky and Mastodon for a row with both platforms', async () => {
+    const post = makePost({ rowIndex: 6, platforms: ['bluesky', 'mastodon'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(postToBluesky).toHaveBeenCalledWith(post);
+    expect(postToMastodon).toHaveBeenCalledWith(post);
   });
 });

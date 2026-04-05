@@ -5,6 +5,7 @@
 
 const { fetchPendingPostsForToday } = require('./social-posts-queue');
 const { postToBluesky } = require('./post-bluesky');
+const { postToMastodon } = require('./post-mastodon');
 const { updatePostResult } = require('./update-social-post-status');
 
 const SOCIAL_POSTS_SHEET_ID = process.env.SOCIAL_POSTS_SHEET_ID;
@@ -30,6 +31,20 @@ async function dispatchPost(post, spreadsheetId) {
       console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${postUrl}`);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`);
+      await updatePostResult(spreadsheetId, post.rowIndex, { status: 'failed' });
+    }
+  }
+
+  if (post.platforms.includes('mastodon')) {
+    try {
+      const { postUrl } = await postToMastodon(post);
+      await updatePostResult(spreadsheetId, post.rowIndex, {
+        status: 'posted',
+        mastodonPostUrl: postUrl,
+      });
+      console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${postUrl}`);
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`);
       await updatePostResult(spreadsheetId, post.rowIndex, { status: 'failed' });
     }
   }
