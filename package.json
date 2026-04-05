@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "sync": "teller run -- $(which node) src/sync-content.js",
     "sync:test": "DRY_RUN=true LOG_LEVEL=DEBUG teller run -- $(which node) -r dotenv/config src/sync-content.js",
     "delete-old-posts": "teller run -- $(which node) src/delete-old-posts.js",
@@ -20,7 +20,8 @@
   },
   "type": "commonjs",
   "devDependencies": {
-    "commit-story": "file:../commit_story/commit-story-1.2.1.tgz"
+    "commit-story": "file:../commit_story/commit-story-1.2.1.tgz",
+    "jest": "^30.3.0"
   },
   "dependencies": {
     "@atproto/api": "^0.12.0",

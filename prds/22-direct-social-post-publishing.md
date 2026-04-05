@@ -1,7 +1,7 @@
 # PRD #22: Direct Social Post Publishing for Shows
 
 **Issue**: [#22](https://github.com/wiggitywhitney/content-manager/issues/22)
-**Status**: Not Started
+**Status**: In Progress
 **Priority**: High
 **Created**: 2026-04-04
 
@@ -81,9 +81,9 @@ However, each new platform integration should include a manual review checkpoint
 ## Milestones
 
 ### Milestone 1: Social Posts Spreadsheet
-- [ ] Create new Google Sheet with schema above
-- [ ] Add spreadsheet ID to content-manager config/secrets
-- [ ] Verify cron can read from new sheet alongside existing sheet
+- [x] Create new Google Sheet with schema above
+- [x] Add spreadsheet ID to content-manager config/secrets
+- [x] Verify cron can read from new sheet alongside existing sheet
 
 **Success criteria**: Running the sync locally reads both the existing career sheet and the new social posts sheet without errors.
 
