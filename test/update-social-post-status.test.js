@@ -47,6 +47,12 @@ describe('updatePostResult', () => {
     ).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
   });
 
+  test('throws if status is not provided', async () => {
+    await expect(
+      updatePostResult(spreadsheetId, 3, {})
+    ).rejects.toThrow('status field is required');
+  });
+
   test('updates status column (I) for given row', async () => {
     await updatePostResult(spreadsheetId, 3, { status: 'posted' });
 

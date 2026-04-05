@@ -27,6 +27,8 @@ const COL = {
  * @param {string} [fields.microblogPostUrl] - micro.blog post URL (column M)
  */
 async function updatePostResult(spreadsheetId, rowIndex, { status, bskyPostUrl, linkedinPostUrl, mastodonPostUrl, microblogPostUrl } = {}) {
+  if (!status) throw new Error('status field is required');
+
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
