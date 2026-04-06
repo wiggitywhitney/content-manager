@@ -118,14 +118,14 @@ However, each new platform integration should include a manual review checkpoint
 - [x] Implement LinkedIn posting via `POST https://api.linkedin.com/rest/posts` with required headers (`Linkedin-Version: YYYYMM`, `X-Restli-Protocol-Version: 2.0.0`)
 - [x] Wire into daily cron, write post URL to Column J (PRD had typo "Column I"), update status
 
-**Success criteria**: A row scheduled for today with platform `linkedin` gets posted and Column J is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete. *(Run `teller run -- node src/linkedin-oauth-setup.js` first to authorize and store tokens.)*
+**Success criteria**: A row scheduled for today with platform `linkedin` gets posted and Column J is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete. *(Run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js` first to authorize and store tokens.)*
 
 ---
 
 ### Milestone 5: Pre-Launch — Disable Micro.blog Auto-Syndication
-- [ ] Turn off Micro.blog's auto-syndication to Mastodon and Bluesky in account settings
+- [x] Turn off Micro.blog's auto-syndication to Mastodon and Bluesky in account settings
 - [ ] Verify no duplicate posts occur by running a test post through the new system
-- [ ] Confirm existing Micro.blog website content posting (whitneylee.com) is unaffected
+- [x] Confirm existing Micro.blog website content posting (whitneylee.com) is unaffected
 
 **Success criteria**: A test post goes to Bluesky and Mastodon exactly once, via the new direct posting system. No duplicates.
 

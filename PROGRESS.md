@@ -18,3 +18,5 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-06) Added LinkedIn posting via REST API with OAuth access token auth, expiry warning, and 14 unit tests (PRD #22, Milestone 4)
 - (2026-04-06) Added one-time OAuth setup script `linkedin-oauth-setup.js` to authorize and store access token + person URN in Secret Manager (PRD #22, Milestone 4)
 - (2026-04-06) Wired LinkedIn dispatch into daily cron with per-post failure isolation; 73 total tests passing (PRD #22, Milestone 4)
+- (2026-04-06) Migrated secrets management from Teller to vals; added .vals.yaml, acceptance gate check-secrets.js, and 6 vals config tests; 81 total tests passing (PRD #22, Milestone 5)
+- (2026-04-06) Confirmed Micro.blog auto-syndication to Bluesky/Mastodon was not active; verified existing content sync unaffected via dry run (PRD #22, Milestone 5)

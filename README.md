@@ -58,7 +58,7 @@ Current/future dates create ONE post normally. This dual-post strategy prevents 
 - Google Cloud service account with Sheets API access
 - Micro.blog app token (Micropub API)
 - Micro.blog XML-RPC token (for page management)
-- [Teller](https://github.com/tellerops/teller) for local secret management
+- [vals](https://github.com/helmfile/vals) for local secret management (`brew install helmfile/tap/vals`)
 
 ### Local Development
 
@@ -96,7 +96,7 @@ Required secrets:
 
 ## Architecture
 
-```
+```text
 Google Sheets ←→ GitHub Actions ←→ Micro.blog
                        ↓
                   Column H (URL tracking)
@@ -163,7 +163,7 @@ content-manager/
 │   └── daily-sync.yml               # Daily sync & visibility automation (combined)
 ├── prds/                            # Project requirement documents
 │   └── 8-rate-limited-publishing.md # Rate limiting specification
-└── .teller.yml                      # Local secret configuration
+└── .vals.yaml                       # Local secret configuration
 ```
 
 ## Troubleshooting

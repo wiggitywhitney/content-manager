@@ -1,0 +1,3 @@
+{
+  "acceptance_test": "npm run check-secrets"
+}

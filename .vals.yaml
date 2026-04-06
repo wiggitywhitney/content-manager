@@ -1,0 +1,32 @@
+# Secrets configuration for content-manager
+# https://github.com/helmfile/vals
+#
+# Usage:
+#   vals exec -f .vals.yaml -- <command>
+#   eval $(vals exec -f .vals.yaml -- env)   # export into current shell
+
+# Google Sheets service account (used by all scripts that read/write sheets)
+GOOGLE_SERVICE_ACCOUNT_JSON: ref+gcpsecrets://demoo-ooclock/content_manager_service_account
+
+# Micro.blog
+MICROBLOG_APP_TOKEN: ref+gcpsecrets://demoo-ooclock/microblog-content-manager
+MICROBLOG_XMLRPC_TOKEN: ref+gcpsecrets://demoo-ooclock/marsedit_token
+
+# Bluesky — used by sync-content.js (cross-post check)
+BLUESKY_PASSWORD: ref+gcpsecrets://demoo-ooclock/bluesky_password
+
+# LinkedIn OAuth credentials — used by linkedin-oauth-setup.js
+LINKEDIN_CLIENT_ID: ref+gcpsecrets://demoo-ooclock/LinkedIn_Client_ID
+LINKEDIN_CLIENT_SECRET: ref+gcpsecrets://demoo-ooclock/LinkedIn_Client_Secret
+
+# ── Secrets that need to be created in GSM before uncommenting ─────────────
+# See CLAUDE.md "Secrets Management" for creation commands.
+
+# BLUESKY_HANDLE: ref+gcpsecrets://demoo-ooclock/bluesky_handle
+# BLUESKY_APP_PASSWORD: ref+gcpsecrets://demoo-ooclock/bluesky_app_password
+# MASTODON_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/mastodon_access_token
+# MASTODON_INSTANCE_URL: ref+gcpsecrets://demoo-ooclock/mastodon_instance_url
+# SOCIAL_POSTS_SHEET_ID: ref+gcpsecrets://demoo-ooclock/social_posts_sheet_id
+# LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
+# LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
+# LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn
