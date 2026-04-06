@@ -30,6 +30,7 @@ Extend content-manager to post social content directly to LinkedIn, Bluesky, and
 |---|---|---|
 | Queue location | "Social Posts Queue" tab in the staged spreadsheet (`STAGED_Content_Created`) — not a separate Google Sheet | Original concern was mixing social posts with career signal rows. A dedicated tab in the staged sheet provides sufficient separation while keeping all operational sheets together. `SOCIAL_POSTS_SHEET_ID` secret is no longer needed. *(Updated 2026-04-06 from original "separate sheet" decision)* |
 | Secrets management | vals (`helmfile/vals`) injecting from Google Secret Manager | Teller was retired project-wide. vals uses the same GSM backend with a simpler config format. *(Updated 2026-04-06; previously Teller)* |
+| Scheduler cadence | Weekdays only until social posts start flowing from `/write-social-posts` (PRD #24); switch to 7 days/week when that skill is implemented — update `daily-sync.yml` cron from `* * 1-5` to `* * *` at that time | Social posts will target daily cadence including weekends; no posts to skip until the queue is populated |
 | Scheduler | Existing daily GitHub Actions cron | Already runs weekdays; no new infrastructure (no Hetzner, no 15-minute cron) |
 | Bluesky posting | Direct via `@atproto/api`, not via Micro.blog syndication | Bluesky was never connected to Micro.blog auto-syndication — no action needed to disable it |
 | Mastodon posting | Direct via `masto.js` with `write:statuses` scope only | Only scope needed for posting; server-side `scheduled_at` available if needed |
@@ -38,6 +39,24 @@ Extend content-manager to post social content directly to LinkedIn, Bluesky, and
 | micro.blog | Video upload only (not link posts); conditional on view count > 1000 | Whitney only wants to post there if the actual video can be uploaded; link posts are noise |
 | micro.blog gate | API video upload must be confirmed working before implementing | Web UI supports it; API support is undocumented — needs hands-on testing first |
 | Post style | Minimal: one sentence/phrase from the video, tag person + technology | Quantity over quality; don't over-engineer the text |
+
+## Open Design Questions
+
+### Career Content / Social Post Coordination
+
+`sync-content.js` uses a **daily publish guard** that checks Bluesky for any post from today before deciding whether to post career content to Micro.blog (max 1 post/day). This creates a coupling risk: if a social post reaches Bluesky before the career sync runs, the career content post will be suppressed for that day.
+
+**Current mitigation**: the GitHub Actions workflow runs career sync first (step 1), social posting second (step 2). Sequential ordering prevents the conflict in normal operation.
+
+**Not yet solved**: what happens when both post on the same day and someone triggers the social step manually, or when the order changes? Options to evaluate at implementation time:
+- Update the daily publish guard to distinguish career content posts from social queue posts (fragile)
+- Move the two posting jobs into separate GitHub Actions workflows on independent schedules
+- Leave one social post slot empty per week to give the career sync room
+- Redesign the daily publish guard to check Micro.blog directly rather than using Bluesky as a proxy
+
+**Tracked in**: [#23](https://github.com/wiggitywhitney/content-manager/issues/23) — must be resolved before switching the cron to 7 days/week (which happens when PRD #24 is implemented).
+
+---
 
 ## Social Posts Spreadsheet Schema
 
@@ -132,9 +151,11 @@ However, each new platform integration should include a manual review checkpoint
 - [x] Migrate social posts queue from separate sheet to "Social Posts Queue" tab in staged spreadsheet
 - [x] Update `social-posts-queue.js` and `update-social-post-status.js` to use staged sheet ID + tab name
 - [x] Uncomment social secrets in `.vals.yaml` and verify with `npm run check-secrets`
-- [ ] Verify no duplicate posts occur by running a test post through the new system (`src/add-social-test-row.js`)
+- [x] Add "Instructions" tab to staged spreadsheet with full schema documentation
+- [x] Update journal PRD #24 Milestone 2 with exact spreadsheet schema, column mapping, and platform guidance so /write-social-posts skill can write rows correctly
+- [x] Verify no duplicate posts occur by running a test post through the new system (`src/add-social-test-row.js`)
 
-**Success criteria**: A test post goes to Bluesky and Mastodon exactly once, via the new direct posting system. No duplicates.
+**Success criteria**: A test post goes to Bluesky and Mastodon exactly once, via the new direct posting system. No duplicates. Journal PRD #24 M2 contains sufficient schema detail to implement the commit phase without referencing this codebase.
 
 ---
 

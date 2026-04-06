@@ -21,3 +21,5 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-06) Migrated secrets management from Teller to vals; added .vals.yaml, acceptance gate check-secrets.js, and 6 vals config tests; 81 total tests passing (PRD #22, Milestone 5)
 - (2026-04-06) Confirmed Micro.blog auto-syndication to Bluesky/Mastodon was not active; verified existing content sync unaffected via dry run (PRD #22, Milestone 5)
 - (2026-04-06) Migrated social posts queue from separate sheet to "Social Posts Queue" tab in staged spreadsheet; removed SOCIAL_POSTS_SHEET_ID env var dependency throughout; 81 tests passing (PRD #22, Milestone 5)
+- (2026-04-06) Verified live posting to all three platforms: Bluesky, Mastodon, LinkedIn — Milestone 5 complete (PRD #22)
+- (2026-04-06) Fixed linkedin-oauth-setup.js: switched to /v2/userinfo for person URN (Sign In with LinkedIn OIDC product only grants /v2/userinfo, not /v2/me); print-commands pattern for GSM storage (PRD #22)

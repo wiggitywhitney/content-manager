@@ -27,8 +27,7 @@ BLUESKY_APP_PASSWORD: ref+gcpsecrets://demoo-ooclock/bluesky_app_password
 MASTODON_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/mastodon_access_token
 MASTODON_INSTANCE_URL: ref+gcpsecrets://demoo-ooclock/mastodon_instance_url
 
-# ── Secrets that need to be created in GSM before uncommenting ─────────────
-# Run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js` to create these.
-# LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
-# LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
-# LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn
+# LinkedIn OAuth tokens (expire 60 days — re-run linkedin-oauth-setup.js to refresh)
+LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
+LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
+LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn

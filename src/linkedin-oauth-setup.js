@@ -5,7 +5,7 @@
 
 const http = require('http');
 const crypto = require('crypto');
-const { spawnSync, exec } = require('child_process');
+const { execFile } = require('child_process');
 
 const REDIRECT_URI = 'http://localhost:3000/callback';
 const SCOPES = ['w_member_social', 'openid', 'profile'];
@@ -119,17 +119,17 @@ async function exchangeCodeForToken(clientId, clientSecret, code) {
 }
 
 /**
- * Fetch the authenticated member's person ID from /v2/me.
+ * Fetch the authenticated member's person ID from /v2/userinfo (OIDC endpoint).
+ * The "Sign In with LinkedIn using OpenID Connect" product grants /v2/userinfo,
+ * not /v2/me. The `sub` field from userinfo is the member ID.
  *
  * @param {string} accessToken
- * @returns {Promise<string>} Person URN in the form urn:li:person:{id}
+ * @returns {Promise<string>} Person URN in the form urn:li:person:{sub}
  */
 async function fetchPersonUrn(accessToken) {
-  const response = await fetch('https://api.linkedin.com/v2/me', {
+  const response = await fetch('https://api.linkedin.com/v2/userinfo', {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Linkedin-Version': LINKEDIN_VERSION,
-      'X-Restli-Protocol-Version': '2.0.0',
     },
   });
 
@@ -139,41 +139,12 @@ async function fetchPersonUrn(accessToken) {
   }
 
   const data = await response.json();
-  if (!data.id) {
-    throw new Error(`LinkedIn /v2/me response missing id field: ${JSON.stringify(data)}`);
+  if (!data.sub) {
+    throw new Error(`LinkedIn /v2/userinfo response missing sub field: ${JSON.stringify(data)}`);
   }
-  return `urn:li:person:${data.id}`;
+  return `urn:li:person:${data.sub}`;
 }
 
-/**
- * Store a value in Google Secret Manager, creating or updating as needed.
- * Uses spawnSync with argument arrays to avoid shell injection.
- *
- * @param {string} secretName
- * @param {string} value
- */
-function storeSecret(secretName, value) {
-  const valueBuffer = Buffer.from(value);
-  let result = spawnSync(
-    'gcloud',
-    ['secrets', 'versions', 'add', secretName, '--data-file=-', `--project=${GCP_PROJECT}`],
-    { input: valueBuffer, stdio: ['pipe', 'pipe', 'pipe'] }
-  );
-
-  if (result.status !== 0) {
-    // Secret doesn't exist yet — create it
-    result = spawnSync(
-      'gcloud',
-      ['secrets', 'create', secretName, '--data-file=-', `--project=${GCP_PROJECT}`, '--replication-policy=automatic'],
-      { input: valueBuffer, stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-    if (result.status !== 0) {
-      throw new Error(`Failed to store secret ${secretName}: ${result.stderr?.toString()}`);
-    }
-  }
-
-  console.log(`[linkedin-setup] Stored ${secretName}`);
-}
 
 async function main() {
   const clientId = process.env.LINKEDIN_CLIENT_ID;
@@ -189,7 +160,6 @@ async function main() {
   console.log(`[linkedin-setup] If the browser does not open, visit:\n  ${authUrl}`);
 
   // macOS-only dev tool — open browser without shell interpolation
-  const { execFile } = require('child_process');
   execFile('open', [authUrl]);
 
   const code = await waitForCallback(state);
@@ -202,14 +172,18 @@ async function main() {
   const personUrn = await fetchPersonUrn(accessToken);
   console.log(`[linkedin-setup] Person URN: ${personUrn}`);
 
-  console.log('[linkedin-setup] Storing secrets in Google Secret Manager...');
-  storeSecret('linkedin_access_token', accessToken);
-  storeSecret('linkedin_token_expires_at', String(expiresAt));
-  storeSecret('linkedin_person_urn', personUrn);
-
   const expiryDate = new Date(expiresAt).toLocaleDateString();
-  console.log(`[linkedin-setup] Done! Access token expires ${expiryDate}.`);
-  console.log('[linkedin-setup] Re-run this script before that date to refresh.');
+
+  console.log('\n[linkedin-setup] Authorization complete!');
+  console.log(`[linkedin-setup] Token expires: ${expiryDate}`);
+  console.log('\nRun these three commands to store the secrets in GSM:\n');
+  console.log(`echo -n '${accessToken}' | gcloud secrets create linkedin_access_token --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`);
+  console.log(`echo -n '${String(expiresAt)}' | gcloud secrets create linkedin_token_expires_at --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`);
+  console.log(`echo -n '${personUrn}' | gcloud secrets create linkedin_person_urn --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`);
+  console.log('\nIf the secrets already exist (re-auth), use "versions add" instead of "create":');
+  console.log(`echo -n '${accessToken}' | gcloud secrets versions add linkedin_access_token --data-file=- --project=${GCP_PROJECT}`);
+  console.log(`echo -n '${String(expiresAt)}' | gcloud secrets versions add linkedin_token_expires_at --data-file=- --project=${GCP_PROJECT}`);
+  console.log(`echo -n '${personUrn}' | gcloud secrets versions add linkedin_person_urn --data-file=- --project=${GCP_PROJECT}`);
 }
 
 main().catch(err => {

@@ -18,10 +18,21 @@ happen manually every 60 days.
 
 Without the second product, you cannot retrieve the authenticated member's ID to construct the `author` URN.
 
-## Use `GET /v2/me` for person ID — not the OIDC `sub` claim
+## Use `GET /v2/userinfo` for person ID — NOT `GET /v2/me`
 
-LinkedIn OIDC uses pairwise subject identifiers. The `sub` from `/v2/userinfo` is application-specific
-and may NOT match the ID used in `urn:li:person:{id}`. Always use the `id` field from `GET /v2/me`.
+The "Sign In with LinkedIn using OpenID Connect" product (Standard Tier) only grants access to
+`/v2/userinfo`, not `/v2/me`. Calling `/v2/me` returns 403 `ACCESS_DENIED` / `me.GET.NO_VERSION`.
+
+Use the OIDC userinfo endpoint and the `sub` field:
+```javascript
+const response = await fetch('https://api.linkedin.com/v2/userinfo', {
+  headers: { Authorization: `Bearer ${accessToken}` },
+});
+const { sub } = await response.json();
+const personUrn = `urn:li:person:${sub}`;
+```
+
+The `sub` from `/v2/userinfo` IS the member ID — use it directly in the `author` URN for posts.
 
 ## The `Linkedin-Version` header is mandatory on every request
 
