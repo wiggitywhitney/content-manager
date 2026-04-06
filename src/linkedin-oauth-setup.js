@@ -111,6 +111,9 @@ async function exchangeCodeForToken(clientId, clientSecret, code) {
   }
 
   const data = await response.json();
+  if (typeof data.expires_in !== 'number') {
+    throw new Error(`Token response missing expires_in field: ${JSON.stringify(data)}`);
+  }
   const expiresAt = Date.now() + data.expires_in * 1000;
   return { accessToken: data.access_token, expiresAt };
 }
@@ -136,6 +139,9 @@ async function fetchPersonUrn(accessToken) {
   }
 
   const data = await response.json();
+  if (!data.id) {
+    throw new Error(`LinkedIn /v2/me response missing id field: ${JSON.stringify(data)}`);
+  }
   return `urn:li:person:${data.id}`;
 }
 
