@@ -82,7 +82,7 @@ npm run check-posts   # check Micro.blog post state
 
 ## Secrets Management
 
-Secrets are stored in Google Secret Manager (project: `demoo-ooclock`) and injected locally via [vals](https://github.com/helmfile/vals). Install: `brew install helmfile/tap/vals`.
+Secrets are stored in Google Secret Manager (project: `demoo-ooclock`) and injected locally via [vals](https://github.com/helmfile/vals). Install: `brew install vals`.
 
 ### Secrets currently in GSM
 

@@ -12,7 +12,7 @@ This document covers local development setup and common workflows for the conten
 Install vals:
 
 ```bash
-brew install helmfile/tap/vals
+brew install vals
 ```
 
 ## Secret Management with vals

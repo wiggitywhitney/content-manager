@@ -182,7 +182,9 @@ async function main() {
   console.log('[linkedin-setup] Opening browser for LinkedIn authorization...');
   console.log(`[linkedin-setup] If the browser does not open, visit:\n  ${authUrl}`);
 
-  exec(`open "${authUrl}"`);
+  // macOS-only dev tool — open browser without shell interpolation
+  const { execFile } = require('child_process');
+  execFile('open', [authUrl]);
 
   const code = await waitForCallback(state);
   console.log('[linkedin-setup] Authorization code received. Exchanging for access token...');

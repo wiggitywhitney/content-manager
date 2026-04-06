@@ -16,6 +16,9 @@ describe('vals configuration', () => {
   let pkg;
 
   beforeAll(() => {
+    if (!fs.existsSync(VALS_YAML)) {
+      throw new Error('.vals.yaml must exist — run vals setup before tests');
+    }
     valsContent = fs.readFileSync(VALS_YAML, 'utf8');
     pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
   });
