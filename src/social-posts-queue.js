@@ -1,9 +1,13 @@
-// ABOUTME: Reads and filters the social posts queue from the Google Sheet.
+// ABOUTME: Reads and filters the social posts queue from the staged spreadsheet.
 // ABOUTME: Provides parseSocialPostRows and filterPostsForDate for use by the daily cron.
 
 'use strict';
 
 const { google } = require('googleapis');
+
+// Social posts queue lives in the staged spreadsheet as a dedicated tab.
+const STAGED_SPREADSHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
+const SOCIAL_POSTS_TAB = 'Social Posts Queue';
 
 // Column indices (0-based) matching the PRD schema
 const COL = {
@@ -89,13 +93,12 @@ function filterPostsForDate(posts, date, { platform } = {}) {
 }
 
 /**
- * Fetch pending social posts due today from the social posts Google Sheet.
+ * Fetch pending social posts due today from the Social Posts Queue tab.
  *
- * @param {string} spreadsheetId - The social posts sheet ID
  * @param {string} todayDate - Date in YYYY-MM-DD format
  * @returns {Promise<Object[]>} Posts due today with pending status
  */
-async function fetchPendingPostsForToday(spreadsheetId, todayDate) {
+async function fetchPendingPostsForToday(todayDate) {
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
@@ -108,10 +111,10 @@ async function fetchPendingPostsForToday(spreadsheetId, todayDate) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = 'Sheet1!A:M';
+  const range = `${SOCIAL_POSTS_TAB}!A:M`;
 
   const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
+    spreadsheetId: STAGED_SPREADSHEET_ID,
     range,
   });
 

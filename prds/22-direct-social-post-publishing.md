@@ -28,18 +28,20 @@ Extend content-manager to post social content directly to LinkedIn, Bluesky, and
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Separate spreadsheet | New Google Sheet, separate from existing career tracking sheet | Existing sheet tracks career signal (talks, episodes, guest appearances). Social post queues are operational noise. Mixing them degrades both. |
+| Queue location | "Social Posts Queue" tab in the staged spreadsheet (`STAGED_Content_Created`) — not a separate Google Sheet | Original concern was mixing social posts with career signal rows. A dedicated tab in the staged sheet provides sufficient separation while keeping all operational sheets together. `SOCIAL_POSTS_SHEET_ID` secret is no longer needed. *(Updated 2026-04-06 from original "separate sheet" decision)* |
+| Secrets management | vals (`helmfile/vals`) injecting from Google Secret Manager | Teller was retired project-wide. vals uses the same GSM backend with a simpler config format. *(Updated 2026-04-06; previously Teller)* |
 | Scheduler | Existing daily GitHub Actions cron | Already runs weekdays; no new infrastructure (no Hetzner, no 15-minute cron) |
-| Bluesky posting | Direct via `@atproto/api`, not via Micro.blog syndication | Requires turning off Micro.blog auto-syndication before launch |
-| Mastodon posting | Direct via `masto.js`; use Mastodon's native `scheduled_at` where useful | Server-side scheduling is cleanest option |
-| LinkedIn posting | Direct via LinkedIn REST API (`w_member_social` scope — self-service, no approval required) | 60-day access tokens; 365-day refresh tokens; must build refresh flow |
+| Bluesky posting | Direct via `@atproto/api`, not via Micro.blog syndication | Bluesky was never connected to Micro.blog auto-syndication — no action needed to disable it |
+| Mastodon posting | Direct via `masto.js` with `write:statuses` scope only | Only scope needed for posting; server-side `scheduled_at` available if needed |
+| Mastodon instance | `https://hachyderm.io/` | Whitney's Mastodon instance *(confirmed 2026-04-06)* |
+| LinkedIn posting | Direct via LinkedIn REST API (`w_member_social` scope — self-service, no approval required) | 60-day access tokens; refresh tokens require partner approval — re-run `linkedin-oauth-setup.js` manually before day 60 |
 | micro.blog | Video upload only (not link posts); conditional on view count > 1000 | Whitney only wants to post there if the actual video can be uploaded; link posts are noise |
 | micro.blog gate | API video upload must be confirmed working before implementing | Web UI supports it; API support is undocumented — needs hands-on testing first |
 | Post style | Minimal: one sentence/phrase from the video, tag person + technology | Quantity over quality; don't over-engineer the text |
 
 ## Social Posts Spreadsheet Schema
 
-New Google Sheet (separate document). Columns:
+"Social Posts Queue" tab in the staged spreadsheet (`STAGED_Content_Created`, ID: `1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts`). Columns:
 
 | Column | Field | Notes |
 |---|---|---|
@@ -74,7 +76,7 @@ However, each new platform integration should include a manual review checkpoint
 
 ## Pre-Launch Requirement
 
-**Disable Micro.blog's auto-syndication to Mastodon and Bluesky** before this system goes live. Otherwise every post will be duplicated on both platforms — once via Micro.blog syndication, once via this system's direct posting.
+~~**Disable Micro.blog's auto-syndication to Mastodon and Bluesky**~~ **Completed 2026-04-06.** Bluesky was never connected to Micro.blog. Mastodon syndication was disabled. No duplicate risk.
 
 ---
 
@@ -86,6 +88,8 @@ However, each new platform integration should include a manual review checkpoint
 - [x] Verify cron can read from new sheet alongside existing sheet
 
 **Success criteria**: Running the sync locally reads both the existing career sheet and the new social posts sheet without errors.
+
+> **Note (2026-04-06):** Queue location changed from separate sheet to a "Social Posts Queue" tab in the staged spreadsheet. Implementation migration tracked in Milestone 5.
 
 ---
 
@@ -124,8 +128,11 @@ However, each new platform integration should include a manual review checkpoint
 
 ### Milestone 5: Pre-Launch — Disable Micro.blog Auto-Syndication
 - [x] Turn off Micro.blog's auto-syndication to Mastodon and Bluesky in account settings
-- [ ] Verify no duplicate posts occur by running a test post through the new system
 - [x] Confirm existing Micro.blog website content posting (whitneylee.com) is unaffected
+- [x] Migrate social posts queue from separate sheet to "Social Posts Queue" tab in staged spreadsheet
+- [x] Update `social-posts-queue.js` and `update-social-post-status.js` to use staged sheet ID + tab name
+- [x] Uncomment social secrets in `.vals.yaml` and verify with `npm run check-secrets`
+- [ ] Verify no duplicate posts occur by running a test post through the new system (`src/add-social-test-row.js`)
 
 **Success criteria**: A test post goes to Bluesky and Mastodon exactly once, via the new direct posting system. No duplicates.
 
@@ -194,14 +201,18 @@ The `mweb` player client workaround addresses YouTube's SABR streaming issue (on
 - Posting YouTube links auto-generates a link card via OG metadata — no video upload needed
 
 ### Secrets
-New secrets needed (add to Google Secret Manager + GitHub Actions):
-- `LINKEDIN_ACCESS_TOKEN`
-- `LINKEDIN_REFRESH_TOKEN`
-- `BLUESKY_HANDLE` (may already exist — check)
-- `BLUESKY_APP_PASSWORD` (may already exist — check)
-- `MASTODON_ACCESS_TOKEN`
-- `MASTODON_INSTANCE_URL`
-- `SOCIAL_POSTS_SHEET_ID`
+Secrets are managed via vals + Google Secret Manager. See `.vals.yaml` for the full mapping.
+
+| GSM secret | Status | Notes |
+|---|---|---|
+| `bluesky_handle` | ✅ Created | `whitneylee.com` |
+| `bluesky_app_password` | ✅ Created | — |
+| `mastodon_access_token` | ✅ Created | hachyderm.io |
+| `mastodon_instance_url` | ✅ Created | `https://hachyderm.io/` |
+| `linkedin_access_token` | ⏳ Pending | Run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js` |
+| `linkedin_token_expires_at` | ⏳ Pending | Created by oauth setup script |
+| `linkedin_person_urn` | ⏳ Pending | Created by oauth setup script |
+| ~~`SOCIAL_POSTS_SHEET_ID`~~ | N/A | No longer needed — queue is a tab in staged sheet |
 
 ---
 

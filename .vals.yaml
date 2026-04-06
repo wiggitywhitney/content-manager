@@ -19,14 +19,16 @@ BLUESKY_PASSWORD: ref+gcpsecrets://demoo-ooclock/bluesky_password
 LINKEDIN_CLIENT_ID: ref+gcpsecrets://demoo-ooclock/LinkedIn_Client_ID
 LINKEDIN_CLIENT_SECRET: ref+gcpsecrets://demoo-ooclock/LinkedIn_Client_Secret
 
-# ── Secrets that need to be created in GSM before uncommenting ─────────────
-# See CLAUDE.md "Secrets Management" for creation commands.
+# Bluesky direct posting
+BLUESKY_HANDLE: ref+gcpsecrets://demoo-ooclock/bluesky_handle
+BLUESKY_APP_PASSWORD: ref+gcpsecrets://demoo-ooclock/bluesky_app_password
 
-# BLUESKY_HANDLE: ref+gcpsecrets://demoo-ooclock/bluesky_handle
-# BLUESKY_APP_PASSWORD: ref+gcpsecrets://demoo-ooclock/bluesky_app_password
-# MASTODON_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/mastodon_access_token
-# MASTODON_INSTANCE_URL: ref+gcpsecrets://demoo-ooclock/mastodon_instance_url
-# SOCIAL_POSTS_SHEET_ID: ref+gcpsecrets://demoo-ooclock/social_posts_sheet_id
+# Mastodon direct posting (hachyderm.io)
+MASTODON_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/mastodon_access_token
+MASTODON_INSTANCE_URL: ref+gcpsecrets://demoo-ooclock/mastodon_instance_url
+
+# ── Secrets that need to be created in GSM before uncommenting ─────────────
+# Run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js` to create these.
 # LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
 # LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
 # LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn

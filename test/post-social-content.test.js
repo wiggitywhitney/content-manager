@@ -39,7 +39,6 @@ function makePost(overrides = {}) {
   };
 }
 
-const SHEET_ID = 'test-sheet-id';
 const TODAY = '2026-04-05';
 
 describe('processPostsForDate', () => {
@@ -57,7 +56,7 @@ describe('processPostsForDate', () => {
 
   test('returns early without dispatching when no posts are due', async () => {
     fetchPendingPostsForToday.mockResolvedValue([]);
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
     expect(postToBluesky).not.toHaveBeenCalled();
   });
 
@@ -65,7 +64,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['bluesky'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
   });
@@ -75,9 +74,9 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([post]);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/xyz' });
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 3, {
+    expect(updatePostResult).toHaveBeenCalledWith(3, {
       status: 'posted',
       bskyPostUrl: 'https://bsky.app/profile/handle/post/xyz',
     });
@@ -87,7 +86,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['mastodon'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToBluesky).not.toHaveBeenCalled();
   });
@@ -97,9 +96,9 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([post]);
     postToBluesky.mockRejectedValue(new Error('Network error'));
 
-    await expect(processPostsForDate(SHEET_ID, TODAY)).resolves.not.toThrow();
+    await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 4, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(4, { status: 'failed' });
   });
 
   test('continues processing remaining posts after a single failure', async () => {
@@ -110,11 +109,11 @@ describe('processPostsForDate', () => {
       .mockRejectedValueOnce(new Error('Failure'))
       .mockResolvedValueOnce({ postUrl: 'https://bsky.app/profile/handle/post/ok' });
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledTimes(2);
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 2, { status: 'failed' });
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 3, {
+    expect(updatePostResult).toHaveBeenCalledWith(2, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(3, {
       status: 'posted',
       bskyPostUrl: 'https://bsky.app/profile/handle/post/ok',
     });
@@ -124,7 +123,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['bluesky', 'mastodon'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
   });
@@ -133,7 +132,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['mastodon'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToMastodon).toHaveBeenCalledWith(post);
   });
@@ -143,9 +142,9 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([post]);
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375987654321098' });
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 3, {
+    expect(updatePostResult).toHaveBeenCalledWith(3, {
       status: 'posted',
       mastodonPostUrl: 'https://mastodon.social/@whitney/109375987654321098',
     });
@@ -155,7 +154,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['bluesky'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToMastodon).not.toHaveBeenCalled();
   });
@@ -165,16 +164,16 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([post]);
     postToMastodon.mockRejectedValue(new Error('Instance unavailable'));
 
-    await expect(processPostsForDate(SHEET_ID, TODAY)).resolves.not.toThrow();
+    await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 5, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(5, { status: 'failed' });
   });
 
   test('posts to both Bluesky and Mastodon for a row with both platforms', async () => {
     const post = makePost({ rowIndex: 6, platforms: ['bluesky', 'mastodon'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
     expect(postToMastodon).toHaveBeenCalledWith(post);
@@ -184,7 +183,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['linkedin'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToLinkedIn).toHaveBeenCalledWith(post);
   });
@@ -194,9 +193,9 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([post]);
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:9876543210/' });
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 7, {
+    expect(updatePostResult).toHaveBeenCalledWith(7, {
       status: 'posted',
       linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:9876543210/',
     });
@@ -206,7 +205,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['bluesky'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToLinkedIn).not.toHaveBeenCalled();
   });
@@ -216,16 +215,16 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([post]);
     postToLinkedIn.mockRejectedValue(new Error('Token expired'));
 
-    await expect(processPostsForDate(SHEET_ID, TODAY)).resolves.not.toThrow();
+    await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 8, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(8, { status: 'failed' });
   });
 
   test('posts to all three platforms for a row with all platforms', async () => {
     const post = makePost({ rowIndex: 9, platforms: ['bluesky', 'mastodon', 'linkedin'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
     expect(postToMastodon).toHaveBeenCalledWith(post);
@@ -239,10 +238,10 @@ describe('processPostsForDate', () => {
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/111' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:999/' });
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(updatePostResult).toHaveBeenCalledTimes(1);
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 10, {
+    expect(updatePostResult).toHaveBeenCalledWith(10, {
       status: 'posted',
       bskyPostUrl: 'https://bsky.app/profile/handle/post/bbb',
       mastodonPostUrl: 'https://mastodon.social/@whitney/111',
@@ -256,10 +255,10 @@ describe('processPostsForDate', () => {
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/ccc' });
     postToLinkedIn.mockRejectedValue(new Error('Token expired'));
 
-    await processPostsForDate(SHEET_ID, TODAY);
+    await processPostsForDate(TODAY);
 
     expect(updatePostResult).toHaveBeenCalledTimes(1);
-    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 11, {
+    expect(updatePostResult).toHaveBeenCalledWith(11, {
       status: 'failed',
       bskyPostUrl: 'https://bsky.app/profile/handle/post/ccc',
     });

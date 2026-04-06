@@ -1,21 +1,18 @@
-// ABOUTME: Adds a test row to the social posts queue sheet for Milestone 5 verification.
+// ABOUTME: Adds a test row to the Social Posts Queue tab for Milestone 5 verification.
 // ABOUTME: Run before triggering the daily cron to verify direct posting works without duplicates.
 
 'use strict';
 
 const { google } = require('googleapis');
 
-const SOCIAL_POSTS_SHEET_ID = process.env.SOCIAL_POSTS_SHEET_ID;
+const SOCIAL_POSTS_SHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
+const SOCIAL_POSTS_TAB = 'Social Posts Queue';
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
 async function addSocialTestRow() {
-  if (!SOCIAL_POSTS_SHEET_ID) {
-    throw new Error('SOCIAL_POSTS_SHEET_ID environment variable is required');
-  }
-
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
@@ -47,7 +44,7 @@ async function addSocialTestRow() {
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId: SOCIAL_POSTS_SHEET_ID,
-    range: 'Sheet1!A:I',
+    range: `${SOCIAL_POSTS_TAB}!A:I`,
     valueInputOption: 'USER_ENTERED',
     resource: { values: [testRow] },
   });

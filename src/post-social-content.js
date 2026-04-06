@@ -1,5 +1,5 @@
 // ABOUTME: Daily cron entry point for social post publishing.
-// ABOUTME: Reads pending posts from the social queue sheet and dispatches to each platform poster.
+// ABOUTME: Reads pending posts from the Social Posts Queue tab and dispatches to each platform poster.
 
 'use strict';
 
@@ -8,8 +8,6 @@ const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
 const { updatePostResult } = require('./update-social-post-status');
-
-const SOCIAL_POSTS_SHEET_ID = process.env.SOCIAL_POSTS_SHEET_ID;
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -23,7 +21,7 @@ function getTodayDate() {
  * @param {Object} post - Parsed post object from the social posts queue
  * @param {string} spreadsheetId - The social posts sheet ID
  */
-async function dispatchPost(post, spreadsheetId) {
+async function dispatchPost(post) {
   let failureCount = 0;
   let attemptCount = 0;
   let bskyPostUrl, mastodonPostUrl, linkedinPostUrl;
@@ -69,18 +67,17 @@ async function dispatchPost(post, spreadsheetId) {
   if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
   if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;
 
-  await updatePostResult(spreadsheetId, post.rowIndex, resultFields);
+  await updatePostResult(post.rowIndex, resultFields);
 }
 
 /**
  * Fetch and dispatch all pending social posts due on a given date.
  * Exported for testability.
  *
- * @param {string} spreadsheetId - The social posts sheet ID
  * @param {string} today - Date in YYYY-MM-DD format
  */
-async function processPostsForDate(spreadsheetId, today) {
-  const pendingPosts = await fetchPendingPostsForToday(spreadsheetId, today);
+async function processPostsForDate(today) {
+  const pendingPosts = await fetchPendingPostsForToday(today);
 
   if (pendingPosts.length === 0) {
     console.log('[social] No posts due today');
@@ -93,21 +90,16 @@ async function processPostsForDate(spreadsheetId, today) {
   }
 
   for (const post of pendingPosts) {
-    await dispatchPost(post, spreadsheetId);
+    await dispatchPost(post);
   }
 }
 
 async function main() {
-  if (!SOCIAL_POSTS_SHEET_ID) {
-    console.log('[social] SOCIAL_POSTS_SHEET_ID not set — skipping social post publishing');
-    process.exit(0);
-  }
-
   const today = getTodayDate();
   console.log(`[social] Checking queue for posts due ${today}`);
 
   try {
-    await processPostsForDate(SOCIAL_POSTS_SHEET_ID, today);
+    await processPostsForDate(today);
   } catch (err) {
     console.error('[social] Failed to read social posts queue:', err.message);
     process.exit(1);
