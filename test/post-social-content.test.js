@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the daily cron dispatcher that sends pending posts to social platforms.
-// ABOUTME: Verifies Bluesky and Mastodon dispatch, status updates, and graceful failure handling.
+// ABOUTME: Verifies Bluesky, Mastodon, and LinkedIn dispatch, status updates, and graceful failure handling.
 
 'use strict';
 
@@ -9,11 +9,13 @@ jest.mock('../src/post-bluesky');
 jest.mock('../src/post-mastodon', () => ({
   postToMastodon: jest.fn(),
 }));
+jest.mock('../src/post-linkedin');
 jest.mock('../src/update-social-post-status');
 
 const { fetchPendingPostsForToday } = require('../src/social-posts-queue');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
+const { postToLinkedIn } = require('../src/post-linkedin');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { processPostsForDate } = require('../src/post-social-content');
 
@@ -45,6 +47,7 @@ describe('processPostsForDate', () => {
     fetchPendingPostsForToday.mockResolvedValue([]);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:123/' });
     updatePostResult.mockResolvedValue(undefined);
   });
 
@@ -175,5 +178,57 @@ describe('processPostsForDate', () => {
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
     expect(postToMastodon).toHaveBeenCalledWith(post);
+  });
+
+  test('posts to LinkedIn for a pending row with linkedin platform', async () => {
+    const post = makePost({ platforms: ['linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(postToLinkedIn).toHaveBeenCalledWith(post);
+  });
+
+  test('updates sheet with posted status and LinkedIn URL on success', async () => {
+    const post = makePost({ rowIndex: 7, platforms: ['linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:9876543210/' });
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 7, {
+      status: 'posted',
+      linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:9876543210/',
+    });
+  });
+
+  test('skips LinkedIn posting for rows without linkedin platform', async () => {
+    const post = makePost({ platforms: ['bluesky'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(postToLinkedIn).not.toHaveBeenCalled();
+  });
+
+  test('writes failed status and logs on LinkedIn post failure without crashing', async () => {
+    const post = makePost({ rowIndex: 8, platforms: ['linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToLinkedIn.mockRejectedValue(new Error('Token expired'));
+
+    await expect(processPostsForDate(SHEET_ID, TODAY)).resolves.not.toThrow();
+
+    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 8, { status: 'failed' });
+  });
+
+  test('posts to all three platforms for a row with all platforms', async () => {
+    const post = makePost({ rowIndex: 9, platforms: ['bluesky', 'mastodon', 'linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(postToBluesky).toHaveBeenCalledWith(post);
+    expect(postToMastodon).toHaveBeenCalledWith(post);
+    expect(postToLinkedIn).toHaveBeenCalledWith(post);
   });
 });

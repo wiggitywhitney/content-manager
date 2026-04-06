@@ -111,14 +111,14 @@ However, each new platform integration should include a manual review checkpoint
 ---
 
 ### Milestone 4: LinkedIn Posting + Token Management
-- [ ] Register LinkedIn app, add "Share on LinkedIn" product (`w_member_social` scope — self-service)
-- [ ] Implement OAuth 2.0 authorization code flow for initial token acquisition
-- [ ] Store access token + refresh token securely (Google Secret Manager, consistent with existing secrets pattern)
-- [ ] Implement pre-flight token refresh: if access token expires within 7 days, refresh automatically (60-day access / 365-day refresh cycle)
-- [ ] Implement LinkedIn posting via `POST https://api.linkedin.com/rest/posts` with required headers (`Linkedin-Version: YYYYMM`, `X-Restli-Protocol-Version: 2.0.0`)
-- [ ] Wire into daily cron, write post URL to Column I, update status
+- [x] Register LinkedIn app, add "Share on LinkedIn" product (`w_member_social` scope — self-service)
+- [x] Implement OAuth 2.0 authorization code flow for initial token acquisition (`src/linkedin-oauth-setup.js`)
+- [x] Store access token securely (Google Secret Manager — access token, expiry timestamp, person URN; no refresh token: requires LinkedIn partner approval not available to self-serve apps)
+- [x] Implement pre-flight token expiry check: warns 7 days before expiry; auto-refresh not implemented (refresh tokens require Community Management API partner approval — re-run `src/linkedin-oauth-setup.js` manually before day 60)
+- [x] Implement LinkedIn posting via `POST https://api.linkedin.com/rest/posts` with required headers (`Linkedin-Version: YYYYMM`, `X-Restli-Protocol-Version: 2.0.0`)
+- [x] Wire into daily cron, write post URL to Column J (PRD had typo "Column I"), update status
 
-**Success criteria**: A row scheduled for today with platform `linkedin` gets posted and Column I is populated. Token refresh works without manual intervention. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete.
+**Success criteria**: A row scheduled for today with platform `linkedin` gets posted and Column J is populated. Whitney reviews the live post and confirms it looks correct before this milestone is marked complete. *(Run `teller run -- node src/linkedin-oauth-setup.js` first to authorize and store tokens.)*
 
 ---
 

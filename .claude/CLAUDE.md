@@ -78,5 +78,6 @@ gcloud secrets versions access latest --secret=content_manager_service_account -
 ## Library Gotchas
 
 - masto.js: @.claude/rules/masto-js-gotchas.md
+- LinkedIn REST API: @.claude/rules/linkedin-api-gotchas.md
 
 <!-- Code guidelines (no PRD references) and git workflow enforced globally via ~/.claude/CLAUDE.md -->

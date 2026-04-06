@@ -15,3 +15,6 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-05) Added Google Sheets status updater to write post URLs and status back after publishing (PRD #22, Milestone 2)
 - (2026-04-05) Wired Bluesky dispatch into daily cron with per-post failure isolation; 41 total tests passing (PRD #22, Milestone 2)
 - (2026-04-05) Added Mastodon posting via `masto.js` with access token auth, failure handling, and 12 new tests; 54 total tests passing (PRD #22, Milestone 3)
+- (2026-04-06) Added LinkedIn posting via REST API with OAuth access token auth, expiry warning, and 14 unit tests (PRD #22, Milestone 4)
+- (2026-04-06) Added one-time OAuth setup script `linkedin-oauth-setup.js` to authorize and store access token + person URN in Secret Manager (PRD #22, Milestone 4)
+- (2026-04-06) Wired LinkedIn dispatch into daily cron with per-post failure isolation; 73 total tests passing (PRD #22, Milestone 4)
