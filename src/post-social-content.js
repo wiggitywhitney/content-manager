@@ -17,52 +17,59 @@ function getTodayDate() {
 
 /**
  * Dispatch a single post to all of its specified platforms.
+ * Collects all results before writing to the sheet so that a failure on one
+ * platform cannot overwrite a success written by an earlier platform.
  *
  * @param {Object} post - Parsed post object from the social posts queue
  * @param {string} spreadsheetId - The social posts sheet ID
  */
 async function dispatchPost(post, spreadsheetId) {
+  let failureCount = 0;
+  let attemptCount = 0;
+  let bskyPostUrl, mastodonPostUrl, linkedinPostUrl;
+
   if (post.platforms.includes('bluesky')) {
+    attemptCount++;
     try {
-      const { postUrl } = await postToBluesky(post);
-      await updatePostResult(spreadsheetId, post.rowIndex, {
-        status: 'posted',
-        bskyPostUrl: postUrl,
-      });
-      console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${postUrl}`);
+      ({ postUrl: bskyPostUrl } = await postToBluesky(post));
+      console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`);
-      await updatePostResult(spreadsheetId, post.rowIndex, { status: 'failed' });
+      failureCount++;
     }
   }
 
   if (post.platforms.includes('mastodon')) {
+    attemptCount++;
     try {
-      const { postUrl } = await postToMastodon(post);
-      await updatePostResult(spreadsheetId, post.rowIndex, {
-        status: 'posted',
-        mastodonPostUrl: postUrl,
-      });
-      console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${postUrl}`);
+      ({ postUrl: mastodonPostUrl } = await postToMastodon(post));
+      console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`);
-      await updatePostResult(spreadsheetId, post.rowIndex, { status: 'failed' });
+      failureCount++;
     }
   }
 
   if (post.platforms.includes('linkedin')) {
+    attemptCount++;
     try {
-      const { postUrl } = await postToLinkedIn(post);
-      await updatePostResult(spreadsheetId, post.rowIndex, {
-        status: 'posted',
-        linkedinPostUrl: postUrl,
-      });
-      console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${postUrl}`);
+      ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post));
+      console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`);
-      await updatePostResult(spreadsheetId, post.rowIndex, { status: 'failed' });
+      failureCount++;
     }
   }
+
+  if (attemptCount === 0) return;
+
+  const status = failureCount === 0 ? 'posted' : 'failed';
+  const resultFields = { status };
+  if (bskyPostUrl) resultFields.bskyPostUrl = bskyPostUrl;
+  if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
+  if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;
+
+  await updatePostResult(spreadsheetId, post.rowIndex, resultFields);
 }
 
 /**

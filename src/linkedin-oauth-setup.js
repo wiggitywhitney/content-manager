@@ -4,7 +4,8 @@
 'use strict';
 
 const http = require('http');
-const { execSync, exec } = require('child_process');
+const crypto = require('crypto');
+const { spawnSync, exec } = require('child_process');
 
 const REDIRECT_URI = 'http://localhost:3000/callback';
 const SCOPES = ['w_member_social', 'openid', 'profile'];
@@ -51,8 +52,9 @@ function waitForCallback(expectedState) {
       const error = url.searchParams.get('error');
 
       if (error) {
+        const safeError = String(error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         res.writeHead(400, { 'Content-Type': 'text/html' });
-        res.end(`<html><body><h1>Authorization failed: ${error}</h1><p>You can close this window.</p></body></html>`);
+        res.end(`<html><body><h1>Authorization failed: ${safeError}</h1><p>You can close this window.</p></body></html>`);
         server.close();
         reject(new Error(`LinkedIn authorization error: ${error}`));
         return;
@@ -139,23 +141,31 @@ async function fetchPersonUrn(accessToken) {
 
 /**
  * Store a value in Google Secret Manager, creating or updating as needed.
+ * Uses spawnSync with argument arrays to avoid shell injection.
  *
  * @param {string} secretName
  * @param {string} value
  */
 function storeSecret(secretName, value) {
-  try {
-    execSync(
-      `echo -n "${value}" | gcloud secrets versions add ${secretName} --data-file=- --project=${GCP_PROJECT}`,
-      { stdio: 'pipe' }
-    );
-  } catch {
+  const valueBuffer = Buffer.from(value);
+  let result = spawnSync(
+    'gcloud',
+    ['secrets', 'versions', 'add', secretName, '--data-file=-', `--project=${GCP_PROJECT}`],
+    { input: valueBuffer, stdio: ['pipe', 'pipe', 'pipe'] }
+  );
+
+  if (result.status !== 0) {
     // Secret doesn't exist yet — create it
-    execSync(
-      `echo -n "${value}" | gcloud secrets create ${secretName} --data-file=- --project=${GCP_PROJECT} --replication-policy=automatic`,
-      { stdio: 'pipe' }
+    result = spawnSync(
+      'gcloud',
+      ['secrets', 'create', secretName, '--data-file=-', `--project=${GCP_PROJECT}`, '--replication-policy=automatic'],
+      { input: valueBuffer, stdio: ['pipe', 'pipe', 'pipe'] }
     );
+    if (result.status !== 0) {
+      throw new Error(`Failed to store secret ${secretName}: ${result.stderr?.toString()}`);
+    }
   }
+
   console.log(`[linkedin-setup] Stored ${secretName}`);
 }
 
@@ -166,7 +176,7 @@ async function main() {
   if (!clientId) throw new Error('LINKEDIN_CLIENT_ID environment variable is required');
   if (!clientSecret) throw new Error('LINKEDIN_CLIENT_SECRET environment variable is required');
 
-  const state = Math.random().toString(36).slice(2);
+  const state = crypto.randomBytes(16).toString('hex');
   const authUrl = buildAuthUrl(clientId, state);
 
   console.log('[linkedin-setup] Opening browser for LinkedIn authorization...');

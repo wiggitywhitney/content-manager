@@ -231,4 +231,37 @@ describe('processPostsForDate', () => {
     expect(postToMastodon).toHaveBeenCalledWith(post);
     expect(postToLinkedIn).toHaveBeenCalledWith(post);
   });
+
+  test('writes single aggregated result with all URLs when all three platforms succeed', async () => {
+    const post = makePost({ rowIndex: 10, platforms: ['bluesky', 'mastodon', 'linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/bbb' });
+    postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/111' });
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:999/' });
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledTimes(1);
+    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 10, {
+      status: 'posted',
+      bskyPostUrl: 'https://bsky.app/profile/handle/post/bbb',
+      mastodonPostUrl: 'https://mastodon.social/@whitney/111',
+      linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:999/',
+    });
+  });
+
+  test('sets status to failed but preserves successful URLs when one platform fails', async () => {
+    const post = makePost({ rowIndex: 11, platforms: ['bluesky', 'linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/ccc' });
+    postToLinkedIn.mockRejectedValue(new Error('Token expired'));
+
+    await processPostsForDate(SHEET_ID, TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledTimes(1);
+    expect(updatePostResult).toHaveBeenCalledWith(SHEET_ID, 11, {
+      status: 'failed',
+      bskyPostUrl: 'https://bsky.app/profile/handle/post/ccc',
+    });
+  });
 });
