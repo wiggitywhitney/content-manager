@@ -184,6 +184,9 @@ async function main() {
   console.log(`echo -n '${accessToken}' | gcloud secrets versions add linkedin_access_token --data-file=- --project=${GCP_PROJECT}`);
   console.log(`echo -n '${String(expiresAt)}' | gcloud secrets versions add linkedin_token_expires_at --data-file=- --project=${GCP_PROJECT}`);
   console.log(`echo -n '${personUrn}' | gcloud secrets versions add linkedin_person_urn --data-file=- --project=${GCP_PROJECT}`);
+  console.log('\n⚠️  These commands contain the access token in plaintext.');
+  console.log('   After running them, clear your terminal history:');
+  console.log('   history -c  (bash)  or  fc -p  (zsh)');
 }
 
 main().catch(err => {
