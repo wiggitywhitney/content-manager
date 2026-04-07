@@ -174,19 +174,19 @@ async function main() {
 
   const expiryDate = new Date(expiresAt).toLocaleDateString();
 
-  console.log('\n[linkedin-setup] Authorization complete!');
-  console.log(`[linkedin-setup] Token expires: ${expiryDate}`);
-  console.log('\nRun these three commands to store the secrets in GSM:\n');
-  console.log(`echo -n '${accessToken}' | gcloud secrets create linkedin_access_token --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`);
-  console.log(`echo -n '${String(expiresAt)}' | gcloud secrets create linkedin_token_expires_at --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`);
-  console.log(`echo -n '${personUrn}' | gcloud secrets create linkedin_person_urn --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`);
-  console.log('\nIf the secrets already exist (re-auth), use "versions add" instead of "create":');
-  console.log(`echo -n '${accessToken}' | gcloud secrets versions add linkedin_access_token --data-file=- --project=${GCP_PROJECT}`);
-  console.log(`echo -n '${String(expiresAt)}' | gcloud secrets versions add linkedin_token_expires_at --data-file=- --project=${GCP_PROJECT}`);
-  console.log(`echo -n '${personUrn}' | gcloud secrets versions add linkedin_person_urn --data-file=- --project=${GCP_PROJECT}`);
-  console.log('\n⚠️  These commands contain the access token in plaintext.');
-  console.log('   After running them, clear your terminal history:');
-  console.log('   history -c  (bash)  or  fc -p  (zsh)');
+  console.log('\n[linkedin-setup] Authorization complete!'); // eslint-disable-line no-console
+  console.log(`[linkedin-setup] Token expires: ${expiryDate}`); // eslint-disable-line no-console
+  console.log('\nRun these three commands to store the secrets in GSM:\n'); // eslint-disable-line no-console
+  console.log(`echo -n '${accessToken}' | gcloud secrets create linkedin_access_token --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`); // eslint-disable-line no-console
+  console.log(`echo -n '${String(expiresAt)}' | gcloud secrets create linkedin_token_expires_at --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`); // eslint-disable-line no-console
+  console.log(`echo -n '${personUrn}' | gcloud secrets create linkedin_person_urn --data-file=- --replication-policy=automatic --project=${GCP_PROJECT}`); // eslint-disable-line no-console
+  console.log('\nIf the secrets already exist (re-auth), use "versions add" instead of "create":'); // eslint-disable-line no-console
+  console.log(`echo -n '${accessToken}' | gcloud secrets versions add linkedin_access_token --data-file=- --project=${GCP_PROJECT}`); // eslint-disable-line no-console
+  console.log(`echo -n '${String(expiresAt)}' | gcloud secrets versions add linkedin_token_expires_at --data-file=- --project=${GCP_PROJECT}`); // eslint-disable-line no-console
+  console.log(`echo -n '${personUrn}' | gcloud secrets versions add linkedin_person_urn --data-file=- --project=${GCP_PROJECT}`); // eslint-disable-line no-console
+  console.log('\n⚠️  These commands contain the access token in plaintext.'); // eslint-disable-line no-console
+  console.log('   After running them, clear your terminal history:'); // eslint-disable-line no-console
+  console.log('   history -c  (bash)  or  fc -p  (zsh)'); // eslint-disable-line no-console
 }
 
 main().catch(err => {

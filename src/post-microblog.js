@@ -214,7 +214,7 @@ async function postToMicroblog(post) {
 
   const viewCount = await getYouTubeViewCount(videoId);
   if (viewCount < VIEW_COUNT_THRESHOLD) {
-    console.log(`[microblog] Row ${post.rowIndex}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`);
+    console.log(`[microblog] Row ${post.rowIndex}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`); // eslint-disable-line no-console
     return { skipped: true, viewCount };
   }
 
@@ -249,15 +249,15 @@ async function scanAndPostShorts() {
   const shortRows = await fetchRecentShortRows(SHORT_SCAN_DEPTH);
 
   if (shortRows.length === 0) {
-    console.log('[microblog] No short rows found in queue');
+    console.log('[microblog] No short rows found in queue'); // eslint-disable-line no-console
     return;
   }
 
-  console.log(`[microblog] Scanning ${shortRows.length} recent short(s) for view count ≥ ${VIEW_COUNT_THRESHOLD}`);
+  console.log(`[microblog] Scanning ${shortRows.length} recent short(s) for view count ≥ ${VIEW_COUNT_THRESHOLD}`); // eslint-disable-line no-console
 
   for (const post of shortRows) {
     if (post.microblogPostUrl) {
-      console.log(`[microblog] Row ${post.rowIndex}: already posted to micro.blog, skipping`);
+      console.log(`[microblog] Row ${post.rowIndex}: already posted to micro.blog, skipping`); // eslint-disable-line no-console
       continue;
     }
 
@@ -266,11 +266,11 @@ async function scanAndPostShorts() {
       if (result.skipped) {
         // Already logged inside postToMicroblog
       } else {
-        console.log(`[microblog] Row ${post.rowIndex}: posted → ${result.postUrl}`);
+        console.log(`[microblog] Row ${post.rowIndex}: posted → ${result.postUrl}`); // eslint-disable-line no-console
         await updateMicroblogPostUrl(post.rowIndex, result.postUrl);
       }
     } catch (err) {
-      console.error(`[microblog] Row ${post.rowIndex}: failed — ${err.message}`);
+      console.error(`[microblog] Row ${post.rowIndex}: failed — ${err.message}`); // eslint-disable-line no-console
     }
   }
 }

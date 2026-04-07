@@ -31,9 +31,9 @@ async function dispatchPost(post) {
     attemptCount++;
     try {
       ({ postUrl: bskyPostUrl } = await postToBluesky(post));
-      console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`);
+      console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`); // eslint-disable-line no-console
     } catch (err) {
-      console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`);
+      console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
   }
@@ -42,9 +42,9 @@ async function dispatchPost(post) {
     attemptCount++;
     try {
       ({ postUrl: mastodonPostUrl } = await postToMastodon(post));
-      console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`);
+      console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`); // eslint-disable-line no-console
     } catch (err) {
-      console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`);
+      console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
   }
@@ -53,9 +53,9 @@ async function dispatchPost(post) {
     attemptCount++;
     try {
       ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post));
-      console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`);
+      console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`); // eslint-disable-line no-console
     } catch (err) {
-      console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`);
+      console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
   }
@@ -81,13 +81,13 @@ async function processPostsForDate(today) {
   const pendingPosts = await fetchPendingPostsForToday(today);
 
   if (pendingPosts.length === 0) {
-    console.log('[social] No posts due today');
+    console.log('[social] No posts due today'); // eslint-disable-line no-console
     return;
   }
 
-  console.log(`[social] Found ${pendingPosts.length} post(s) due today`);
+  console.log(`[social] Found ${pendingPosts.length} post(s) due today`); // eslint-disable-line no-console
   for (const post of pendingPosts) {
-    console.log(`[social]   Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`);
+    console.log(`[social]   Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`); // eslint-disable-line no-console
   }
 
   for (const post of pendingPosts) {
@@ -97,26 +97,26 @@ async function processPostsForDate(today) {
 
 async function main() {
   const today = getTodayDate();
-  console.log(`[social] Checking queue for posts due ${today}`);
+  console.log(`[social] Checking queue for posts due ${today}`); // eslint-disable-line no-console
 
   try {
     await processPostsForDate(today);
   } catch (err) {
-    console.error('[social] Failed to read social posts queue:', err.message);
+    console.error('[social] Failed to read social posts queue:', err.message); // eslint-disable-line no-console
     process.exit(1);
   }
 
   try {
     await scanAndPostShorts();
   } catch (err) {
-    console.error('[social] micro.blog short scan failed:', err.message);
+    console.error('[social] micro.blog short scan failed:', err.message); // eslint-disable-line no-console
     // Non-fatal: regular platform dispatch already completed
   }
 }
 
 if (require.main === module) {
   main().catch(err => {
-    console.error('[social] Unexpected error:', err.message);
+    console.error('[social] Unexpected error:', err.message); // eslint-disable-line no-console
     process.exit(1);
   });
 }
