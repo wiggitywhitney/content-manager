@@ -157,8 +157,10 @@ describe('postToMicroblog', () => {
     childProcess.spawnSync.mockImplementation((bin, args) => {
       if (args && args[0] === '--version') return { status: 0, stdout: Buffer.from('2026.03.03') };
       // Download call — create a real temp file so readFileSync works
-      const outArg = args[args.indexOf('-o') + 1];
-      if (outArg) require('fs').writeFileSync(outArg, Buffer.from('fake-video-data'));
+      const oIndex = args ? args.indexOf('-o') : -1;
+      if (oIndex !== -1 && args[oIndex + 1]) {
+        require('fs').writeFileSync(args[oIndex + 1], Buffer.from('fake-video-data'));
+      }
       return { status: 0, stderr: Buffer.from('') };
     });
 
