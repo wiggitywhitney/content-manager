@@ -5,197 +5,162 @@ This document covers local development setup and common workflows for the conten
 ## Prerequisites
 
 - Node.js >= 18.0.0
-- [Teller](https://github.com/tellerops/teller) for local secret management
-- Google Cloud project with Secret Manager enabled
+- [vals](https://github.com/helmfile/vals) for local secret management
+- Google Cloud project with Secret Manager enabled (`gcloud auth application-default login`)
 - Access to the content tracking spreadsheets
 
-## Secret Management with Teller
+Install vals:
 
-This project uses [Teller](https://github.com/tellerops/teller) to manage secrets locally, pulling from Google Secret Manager.
+```bash
+brew install vals
+```
+
+## Secret Management with vals
+
+This project uses [vals](https://github.com/helmfile/vals) to inject secrets from Google Secret Manager at runtime. Secrets are never stored in files or exported to your shell profile.
 
 ### Configuration
 
-Secrets are configured in `.teller.yml`:
+Secrets are configured in `.vals.yaml` at the project root:
 
 ```yaml
-project: content-manager
-providers:
-  google_secrets_manager:
-    kind: google_secretmanager
-    maps:
-      - id: secrets
-        path: projects/demoo-ooclock
-        keys:
-          content_manager_service_account: GOOGLE_SERVICE_ACCOUNT_JSON
-          microblog-content-manager: MICROBLOG_APP_TOKEN
-          marsedit_token: MICROBLOG_XMLRPC_TOKEN
+GOOGLE_SERVICE_ACCOUNT_JSON: ref+gcpsecrets://demoo-ooclock/content_manager_service_account
+MICROBLOG_APP_TOKEN: ref+gcpsecrets://demoo-ooclock/microblog-content-manager
+MICROBLOG_XMLRPC_TOKEN: ref+gcpsecrets://demoo-ooclock/marsedit_token
 ```
 
-### Running Scripts with Teller
+The `ref+gcpsecrets://PROJECT/SECRET_NAME` format resolves each value from Google Secret Manager at runtime.
 
-**Important**: Teller requires the **full path** to the node executable, not just `node`.
+### Running Scripts
 
-#### Method 1: Using npm scripts (recommended)
+Use `vals exec -f .vals.yaml --` to inject secrets before any command:
 
 ```bash
-# Run the sync script
-npm run sync
-
-# Run historical analysis
-npm run analyze-historical
+vals exec -f .vals.yaml -- node src/sync-content.js
 ```
 
-The npm scripts use `$(which node)` to automatically find the correct node path:
+Output:
 
-```json
-{
-  "scripts": {
-    "sync": "teller run -- $(which node) src/sync-content.js",
-    "analyze-historical": "teller run -- $(which node) src/analyze-historical-sheets.js"
-  }
-}
+```text
+Secrets injected successfully
 ```
 
-#### Method 2: Direct teller command
+The npm scripts wrap this automatically:
 
 ```bash
-# Find your node path first
-which node
-# Output: /opt/homebrew/bin/node (or similar)
-
-# Use the full path with teller
-teller run -- /opt/homebrew/bin/node src/sync-content.js
-
-# Or use command substitution
-teller run -- $(which node) src/sync-content.js
+npm run sync          # run full sync
+npm run sync:test     # dry-run mode
+npm run check-posts   # check Micro.blog post state
 ```
 
-#### Method 3: Export secrets to environment
+### Export secrets to the current shell
+
+When you need secrets in your shell session (e.g., for one-off scripts):
 
 ```bash
-# Export teller secrets to current shell
-source <(teller sh)
-
-# Now run scripts normally
-node src/sync-content.js
+eval $(vals exec -f .vals.yaml -- env | grep -E 'GOOGLE_SERVICE|MICROBLOG|BLUESKY|LINKEDIN')
 ```
 
-### Common Teller Commands
+### Adding new secrets
 
-```bash
-# View all secrets (redacted)
-teller show
+To add a new secret:
 
-# Check teller configuration
-teller validate
+1. Create it in Google Secret Manager:
+   ```bash
+   echo -n "secret_value" | gcloud secrets create my_secret_name \
+     --data-file=- --replication-policy=automatic --project=demoo-ooclock
+   ```
 
-# Run a command with secrets
-teller run -- <full-path-to-command>
-```
+2. Add it to `.vals.yaml`:
+   ```yaml
+   MY_ENV_VAR: ref+gcpsecrets://demoo-ooclock/my_secret_name
+   ```
+
+See `CLAUDE.md` for the full list of secrets needed and which ones still need to be created.
 
 ## Running Scripts Locally
 
-### Content Sync
+### Content Sync (dry run)
 
 ```bash
-# Sync content from spreadsheet to Micro.blog
-npm run sync
-
-# With debug logging
-LOG_LEVEL=DEBUG npm run sync
+DRY_RUN=true LOG_LEVEL=DEBUG vals exec -f .vals.yaml -- node -r dotenv/config src/sync-content.js
 ```
 
-### Historical Analysis
+Output (truncated):
+
+```text
+============================================================
+🔍 DRY-RUN MODE ENABLED - No actual API calls will be made
+============================================================
+
+[2026-04-06 09:18:33] INFO: Reading spreadsheet: 1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs
+[2026-04-06 09:18:34] INFO:   Found 148 rows in Sheet1
+[2026-04-06 09:18:34] INFO:   Found 289 rows in 2024 & earlier
+[2026-04-06 09:18:34] INFO: Found 437 total rows (including header)
+```
+
+### Content Sync (live)
 
 ```bash
-# Analyze historical spreadsheet formats
-npm run analyze-historical
+npm run sync
+```
+
+### Social Posts
+
+```bash
+vals exec -f .vals.yaml -- node src/post-social-content.js
+```
+
+Requires `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD`, `MASTODON_ACCESS_TOKEN`, `MASTODON_INSTANCE_URL`, and `SOCIAL_POSTS_SHEET_ID` to be set in `.vals.yaml`. See `CLAUDE.md` for creation commands.
+
+### LinkedIn OAuth Setup (one-time)
+
+```bash
+vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js
+```
+
+This opens a browser for authorization and stores the access token, expiry, and person URN in Secret Manager automatically.
+
+## Tests
+
+```bash
+npm test
+```
+
+Output:
+
+```text
+Test Suites: 6 passed, 6 total
+Tests:       75 passed, 75 total
 ```
 
 ## Troubleshooting
 
 ### "GOOGLE_SERVICE_ACCOUNT_JSON not set"
 
-This means teller isn't loading secrets. Check:
+vals isn't loading secrets. Check:
 
-1. Teller is installed: `which teller`
-2. You're authenticated to Google Cloud: `gcloud auth list`
-3. `.teller.yml` exists and is properly configured
-4. Secrets exist in Google Secret Manager
+1. vals is installed: `which vals`
+2. You're authenticated to Google Cloud: `gcloud auth application-default print-access-token`
+3. `.vals.yaml` exists and the secret names match what's in Secret Manager
+4. The secret exists: `gcloud secrets list --project=demoo-ooclock`
 
-### "No such file or directory" with teller
+### "ref+gcpsecrets: secret not found"
 
-This error occurs when teller can't find the command. Make sure you're using the **full path to node**:
+The secret name in `.vals.yaml` doesn't match what's in Secret Manager. Verify:
 
 ```bash
-# ❌ This won't work
-teller run -- node src/sync-content.js
-
-# ✅ This works
-teller run -- /opt/homebrew/bin/node src/sync-content.js
-
-# ✅ Or use which
-teller run -- $(which node) src/sync-content.js
-
-# ✅ Or use npm scripts (recommended)
-npm run sync
+gcloud secrets list --project=demoo-ooclock
 ```
 
-### Teller can't access Secret Manager
+The secret entry in `.vals.yaml` is commented out — uncomment it after creating the secret.
 
-Ensure you're authenticated to Google Cloud:
+### Authentication error
 
 ```bash
-# Login
 gcloud auth application-default login
-
-# Verify
-gcloud auth application-default print-access-token
 ```
-
-## Testing Changes
-
-### Local Testing
-
-```bash
-# Test with dry-run (if implemented)
-npm run sync -- --dry-run
-
-# Test with debug logging
-LOG_LEVEL=DEBUG npm run sync
-```
-
-### Testing New Scripts
-
-When creating new scripts that need secrets:
-
-1. Add an npm script to package.json:
-   ```json
-   "my-script": "teller run -- $(which node) src/my-script.js"
-   ```
-
-2. Run it:
-   ```bash
-   npm run my-script
-   ```
 
 ## GitHub Actions
 
-In CI/CD, secrets are injected via GitHub Secrets (not Teller):
-
-```yaml
-- name: Run content sync
-  env:
-    GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-    MICROBLOG_APP_TOKEN: ${{ secrets.MICROBLOG_APP_TOKEN }}
-    MICROBLOG_XMLRPC_TOKEN: ${{ secrets.MICROBLOG_XMLRPC_TOKEN }}
-  run: node src/sync-content.js
-```
-
-Note: CI uses `node` directly (not teller), since secrets are already in the environment.
-
-## Additional Resources
-
-- [Teller Documentation](https://github.com/tellerops/teller)
-- [Google Secret Manager](https://cloud.google.com/secret-manager)
-- [Micro.blog API Documentation](docs/microblog-api-capabilities.md)
+Secrets are injected via GitHub Actions secrets (not vals). See `.github/workflows/daily-sync.yml` for the full list. The env var names in GitHub Actions match those in `.vals.yaml`.

@@ -22,7 +22,7 @@ Micro.blog provides multiple APIs:
 - Token grants full account access
 
 **How to Use**:
-```
+```http
 Authorization: Bearer YOUR_TOKEN
 ```
 
@@ -66,17 +66,17 @@ h=entry&content=Hello&name=Title&category=podcast
 ```
 
 **Query Configuration**:
-```
+```http
 GET /micropub?q=config
 ```
 
 **List Posts**:
-```
+```http
 GET /micropub?q=source&limit=20&offset=0
 ```
 
 **List Categories**:
-```
+```http
 GET /micropub?q=category
 GET /micropub?q=category&filter=pod  # Filter results
 ```
@@ -217,7 +217,7 @@ mp-slug: "kubernetes-social-construct-conf42-devops"
 ### API Usage
 
 **Assign via Micropub**:
-```
+```text
 category=podcast                      # Single category
 category[]=podcast&category[]=video   # Multiple categories
 ```
@@ -232,7 +232,7 @@ category[]=podcast&category[]=video   # Multiple categories
 ```
 
 **Query existing categories**:
-```
+```http
 GET /micropub?q=category
 ```
 
@@ -583,10 +583,9 @@ function parseXmlRpcArray(xml) {
 
 ### Environment Configuration
 
-Add to `.teller.yml`:
+Add to `.vals.yaml`:
 ```yaml
-keys:
-  marsedit_token: MICROBLOG_XMLRPC_TOKEN
+MICROBLOG_XMLRPC_TOKEN: ref+gcpsecrets://demoo-ooclock/marsedit_token
 ```
 
 Add to `.env`:
@@ -718,7 +717,7 @@ curl -X POST https://micro.blog/micropub \
 - **Recommended format**: `Show Name: [Title](url)` (colon separator, single line)
 
 **Tested Formats**:
-```
+```text
 ✗ "Show Name\n[Title](url)" - Renders as "Show Name Title"
 ✗ "Show Name\n\n[Title](url)" - Too much spacing (blank line)
 ✗ "Show Name  \n[Title](url)" - Soft break didn't work
@@ -726,7 +725,7 @@ curl -X POST https://micro.blog/micropub \
 ```
 
 **Example Post Content**:
-```
+```text
 Software Defined Interviews: [Learning to learn, with Sasha Czarkowski](https://www.softwaredefinedinterviews.com/91)
 ```
 

@@ -4,27 +4,30 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "sync": "teller run -- $(which node) src/sync-content.js",
-    "sync:test": "DRY_RUN=true LOG_LEVEL=DEBUG teller run -- $(which node) -r dotenv/config src/sync-content.js",
-    "delete-old-posts": "teller run -- $(which node) src/delete-old-posts.js",
-    "check-posts": "teller run -- $(which node) src/check-posts.js",
-    "add-test-rows": "teller run -- $(which node) src/add-test-rows.js",
-    "remove-test-rows": "teller run -- $(which node) src/remove-test-rows.js"
+    "test": "jest",
+    "sync": "vals exec -f .vals.yaml -- node src/sync-content.js",
+    "sync:test": "DRY_RUN=true LOG_LEVEL=DEBUG vals exec -f .vals.yaml -- node -r dotenv/config src/sync-content.js",
+    "delete-old-posts": "vals exec -f .vals.yaml -- node src/delete-old-posts.js",
+    "check-posts": "vals exec -f .vals.yaml -- node src/check-posts.js",
+    "add-test-rows": "vals exec -f .vals.yaml -- node src/add-test-rows.js",
+    "remove-test-rows": "vals exec -f .vals.yaml -- node src/remove-test-rows.js",
+    "check-secrets": "vals exec -f .vals.yaml -- node src/check-secrets.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.14.0"
   },
   "type": "commonjs",
   "devDependencies": {
-    "commit-story": "file:../commit_story/commit-story-1.2.1.tgz"
+    "commit-story": "file:../commit_story/commit-story-1.2.1.tgz",
+    "jest": "^30.3.0"
   },
   "dependencies": {
     "@atproto/api": "^0.12.0",
     "dotenv": "^17.2.3",
-    "googleapis": "^164.0.0"
+    "googleapis": "^164.0.0",
+    "masto": "^7.10.2"
   }
 }

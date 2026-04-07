@@ -1,12 +1,15 @@
+// ABOUTME: Scans YouTube and Software Defined Interviews for new content.
+// ABOUTME: Adds missing items to the staged spreadsheet.
+
 /**
  * Scan YouTube and Software Defined Interviews for new content
  * and add missing items to the staged spreadsheet.
  *
  * Usage:
- *   GOOGLE_SERVICE_ACCOUNT_JSON=$(gcloud secrets versions access latest --secret=content_manager_service_account --project=demoo-ooclock) node src/scan-new-content.js
+ *   vals exec -f .vals.yaml -- node src/scan-new-content.js
  *
- * Or with teller (if configured):
- *   teller run -- node src/scan-new-content.js
+ * Or with gcloud directly:
+ *   GOOGLE_SERVICE_ACCOUNT_JSON=$(gcloud secrets versions access latest --secret=content_manager_service_account --project=demoo-ooclock) node src/scan-new-content.js
  *
  * Options:
  *   --dry-run    Show what would be added without making changes
