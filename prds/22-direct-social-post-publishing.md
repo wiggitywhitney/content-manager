@@ -169,7 +169,7 @@ However, each new platform integration should include a manual review checkpoint
 - [x] Add `AnimMouse/setup-yt-dlp@v3` step to `daily-sync.yml` and wire `MICROBLOG_APP_TOKEN` into the "Post social content" step
 - [x] Write tests for `post-microblog.js` (view count gate, skip-if-already-posted, upload flow, Micropub post creation); 111 tests passing
 - [x] Run a live test post to micro.blog and verify the video renders correctly *(2026-04-07: "What is Prometheus in 30 Seconds!" posted to https://whitneylee.com/2026/04/07/prometheus-in-seconds-that-is.html — video plays correctly)*
-- [ ] Turn on Mastodon and Bluesky forwarding in Micro.blog account settings
+- [x] Turn on Mastodon and Bluesky forwarding in Micro.blog account settings *(2026-04-07: both active — Bluesky via whitneylee.com feed, Mastodon via @wiggitywhitney@hachyderm.io)*
 
 **Success criteria**: A short row in the spreadsheet with > 1000 YouTube views gets video downloaded, uploaded to micro.blog, and Column M populated. A short with < 1000 views is skipped. Running the cron a second time does not re-post (Column M guard works). Turn on Mastodon and Bluesky forwarding in Micro.blog account settings once all test posts are confirmed clean.
 
