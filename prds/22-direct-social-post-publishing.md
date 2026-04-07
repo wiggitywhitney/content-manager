@@ -37,7 +37,9 @@ Extend content-manager to post social content directly to LinkedIn, Bluesky, and
 | Mastodon instance | `https://hachyderm.io/` | Whitney's Mastodon instance *(confirmed 2026-04-06)* |
 | LinkedIn posting | Direct via LinkedIn REST API (`w_member_social` scope — self-service, no approval required) | 60-day access tokens; refresh tokens require partner approval — re-run `linkedin-oauth-setup.js` manually before day 60 |
 | micro.blog | Video upload only (not link posts); conditional on view count > 1000 | Whitney only wants to post there if the actual video can be uploaded; link posts are noise |
-| micro.blog gate | API video upload must be confirmed working before implementing | Web UI supports it; API support is undocumented — needs hands-on testing first |
+| micro.blog gate | API video upload confirmed working *(2026-04-07)*: `https://micro.blog/micropub/media` returns 202 with URL | Media endpoint declared in Micropub config; upload returns `{"url":"...","poster":""}` |
+| micro.blog triggering | **Independent view-count scan — not driven by the `platforms` column** *(2026-04-07)*: daily cron scans the last 10 `short` rows in the spreadsheet, checks YouTube view count for each, posts to micro.blog if count > 1000 and Column M is empty | The platforms column drives LinkedIn/Bluesky/Mastodon. micro.blog posting is a separate, automated "crossed threshold" event. `microblogPostUrl` (Column M) serves as the idempotency guard — populated means already posted, empty means eligible. Depth limit of 10 rows prevents runaway API calls; shorts outside that window that cross 1000 views are acceptable losses. |
+| Mastodon/Bluesky re-syndication from Micro.blog | Re-enable after all test posts are complete *(2026-04-07)*: Whitney will turn on Mastodon and Bluesky forwarding in Micro.blog account settings once Milestone 6 is verified | Popular Shorts will be double-posted to Bluesky/Mastodon (once directly from this system, once forwarded by Micro.blog). Accepted trade-off: enables personal Micro.blog posts to auto-forward, which is the primary motivation for re-enabling. |
 | Post style | Minimal: one sentence/phrase from the video, tag person + technology | Quantity over quality; don't over-engineer the text |
 
 ## Open Design Questions
@@ -71,7 +73,7 @@ Extend content-manager to post social content directly to LinkedIn, Bluesky, and
 | E | YouTube URL | Full YouTube URL for the episode or short |
 | F | Alt Text | For image/thumbnail; skill drafts this, no approval required |
 | G | Scheduled Date | YYYY-MM-DD; cron posts on this date |
-| H | Platforms | Comma-separated: `linkedin,bluesky,mastodon,microblog` |
+| H | Platforms | Comma-separated: `linkedin,bluesky,mastodon` |
 | I | Status | `pending`, `posted`, `failed` |
 | J | LinkedIn Post URL | Auto-populated after posting |
 | K | Bluesky Post URL | Auto-populated after posting |
@@ -160,15 +162,16 @@ However, each new platform integration should include a manual review checkpoint
 ---
 
 ### Milestone 6: micro.blog Video Upload
-*Gated on API feasibility testing — do not start until confirmed.*
 
-- [ ] Test micro.blog Micropub media endpoint for video upload against a real account
-- [ ] If confirmed: implement video upload flow (upload → get URL → include in post)
-- [ ] Add view count check via YouTube Data API: only include `microblog` platform if video has > 1000 views
-- [ ] Wire into daily cron, write post URL to Column L, update status
-- [ ] If API video upload is not feasible: close this milestone as out of scope
+- [x] Test micro.blog Micropub media endpoint for video upload — confirmed working *(2026-04-07)*: `https://micro.blog/micropub/media` accepts video uploads, returns 202 with `{"url":"...","poster":""}`. Media endpoint declared in Micropub `?q=config` response.
+- [x] YouTube Data API v3 access confirmed *(2026-04-07)*: existing service account (`GOOGLE_SERVICE_ACCOUNT_JSON`) works with `youtube.readonly` scope — no separate API key needed. YouTube Data API v3 already enabled in GCP project `demoo-ooclock`.
+- [x] Create `src/post-microblog.js`: view-count scan (last 10 `short` rows in spreadsheet → YouTube API check → skip if < 1000 views or Column M already populated → download via yt-dlp → upload to Micropub media endpoint → create post with `video[]` property → write URL to Column M)
+- [x] Add `AnimMouse/setup-yt-dlp@v3` step to `daily-sync.yml` and wire `MICROBLOG_APP_TOKEN` into the "Post social content" step
+- [x] Write tests for `post-microblog.js` (view count gate, skip-if-already-posted, upload flow, Micropub post creation); 111 tests passing
+- [ ] Run a live test post to micro.blog and verify the video renders correctly
+- [ ] Turn on Mastodon and Bluesky forwarding in Micro.blog account settings
 
-**Success criteria**: A short with > 1000 views gets video uploaded and posted to micro.blog. A short with < 1000 views is skipped for micro.blog even if `microblog` is in the platforms column.
+**Success criteria**: A short row in the spreadsheet with > 1000 YouTube views gets video downloaded, uploaded to micro.blog, and Column M populated. A short with < 1000 views is skipped. Running the cron a second time does not re-post (Column M guard works). Turn on Mastodon and Bluesky forwarding in Micro.blog account settings once all test posts are confirmed clean.
 
 ---
 

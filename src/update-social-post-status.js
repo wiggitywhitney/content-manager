@@ -72,4 +72,38 @@ async function updatePostResult(rowIndex, { status, bskyPostUrl, linkedinPostUrl
   });
 }
 
-module.exports = { updatePostResult };
+/**
+ * Write the micro.blog post URL to Column M for a row in the Social Posts Queue tab.
+ * Used by the independent view-count scan, which does not change the row's status.
+ *
+ * @param {number} rowIndex - 1-indexed row number in the sheet
+ * @param {string} microblogPostUrl - micro.blog post URL to write
+ */
+async function updateMicroblogPostUrl(rowIndex, microblogPostUrl) {
+  if (!microblogPostUrl) throw new Error('microblogPostUrl is required');
+
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: STAGED_SPREADSHEET_ID,
+    resource: {
+      valueInputOption: 'USER_ENTERED',
+      data: [
+        { range: `Social Posts Queue!${COL.MICROBLOG_POST_URL}${rowIndex}`, values: [[microblogPostUrl]] },
+      ],
+    },
+  });
+}
+
+module.exports = { updatePostResult, updateMicroblogPostUrl };

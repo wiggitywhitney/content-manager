@@ -7,6 +7,7 @@ const { fetchPendingPostsForToday } = require('./social-posts-queue');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
+const { scanAndPostShorts } = require('./post-microblog');
 const { updatePostResult } = require('./update-social-post-status');
 
 function getTodayDate() {
@@ -103,6 +104,13 @@ async function main() {
   } catch (err) {
     console.error('[social] Failed to read social posts queue:', err.message);
     process.exit(1);
+  }
+
+  try {
+    await scanAndPostShorts();
+  } catch (err) {
+    console.error('[social] micro.blog short scan failed:', err.message);
+    // Non-fatal: regular platform dispatch already completed
   }
 }
 

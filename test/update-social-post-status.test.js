@@ -6,7 +6,7 @@
 jest.mock('googleapis');
 
 const { google } = require('googleapis');
-const { updatePostResult } = require('../src/update-social-post-status');
+const { updatePostResult, updateMicroblogPostUrl } = require('../src/update-social-post-status');
 
 const STAGED_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
 
@@ -140,6 +140,53 @@ describe('updatePostResult', () => {
 
   test('writes to the staged spreadsheet', async () => {
     await updatePostResult(3, { status: 'posted' });
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    expect(call.spreadsheetId).toBe(STAGED_ID);
+  });
+});
+
+describe('updateMicroblogPostUrl', () => {
+  let mockBatchUpdate;
+
+  beforeEach(() => {
+    ({ mockBatchUpdate } = makeSheetsMock());
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('throws if microblogPostUrl is not provided', async () => {
+    await expect(updateMicroblogPostUrl(3, '')).rejects.toThrow('microblogPostUrl is required');
+  });
+
+  test('throws if GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    await expect(updateMicroblogPostUrl(3, 'https://micro.blog/post/1')).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
+  });
+
+  test('writes micro.blog URL to Column M only — does not touch status column', async () => {
+    await updateMicroblogPostUrl(5, 'https://whitneylee.com/2026/04/test');
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const ranges = call.resource.data.map(d => d.range);
+    expect(ranges).toEqual(['Social Posts Queue!M5']);
+    expect(ranges).not.toContain('Social Posts Queue!I5');
+  });
+
+  test('writes the correct URL value', async () => {
+    await updateMicroblogPostUrl(7, 'https://whitneylee.com/2026/04/my-post');
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    expect(call.resource.data[0].values).toEqual([['https://whitneylee.com/2026/04/my-post']]);
+  });
+
+  test('writes to the staged spreadsheet', async () => {
+    await updateMicroblogPostUrl(3, 'https://whitneylee.com/2026/04/test');
 
     const call = mockBatchUpdate.mock.calls[0][0];
     expect(call.spreadsheetId).toBe(STAGED_ID);

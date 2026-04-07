@@ -23,3 +23,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-06) Migrated social posts queue from separate sheet to "Social Posts Queue" tab in staged spreadsheet; removed SOCIAL_POSTS_SHEET_ID env var dependency throughout; 81 tests passing (PRD #22, Milestone 5)
 - (2026-04-06) Verified live posting to all three platforms: Bluesky, Mastodon, LinkedIn — Milestone 5 complete (PRD #22)
 - (2026-04-06) Fixed linkedin-oauth-setup.js: switched to /v2/userinfo for person URN (Sign In with LinkedIn OIDC product only grants /v2/userinfo, not /v2/me); print-commands pattern for GSM storage (PRD #22)
+- (2026-04-07) Added micro.blog posting module with Micropub media upload, yt-dlp video download, and YouTube view-count gating (> 1000 views threshold) (PRD #22, Milestone 6)
+- (2026-04-07) Added daily view-count scan for shorts: checks last 10 short rows, posts to micro.blog when threshold crossed, uses Column M as idempotency guard (PRD #22, Milestone 6)
+- (2026-04-07) Added fetchRecentShortRows to social-posts-queue and updateMicroblogPostUrl to update-social-post-status; wired micro.blog scan into post-social-content.js cron (PRD #22, Milestone 6)
+- (2026-04-07) Added AnimMouse/setup-yt-dlp@v3 to daily-sync.yml and fixed Post social content step secrets; 111 tests passing (PRD #22, Milestone 6)

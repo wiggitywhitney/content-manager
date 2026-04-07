@@ -125,4 +125,39 @@ async function fetchPendingPostsForToday(todayDate) {
   return filterPostsForDate(posts, todayDate);
 }
 
-module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday };
+/**
+ * Fetch the most recent short rows from the Social Posts Queue tab, regardless of status.
+ * Used by the micro.blog view-count scan to find candidates for posting.
+ *
+ * @param {number} limit - Maximum number of short rows to return (default 10)
+ * @returns {Promise<Object[]>} The last `limit` rows with postType === 'short', newest first
+ */
+async function fetchRecentShortRows(limit = 10) {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+  const range = `${SOCIAL_POSTS_TAB}!A:M`;
+
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: STAGED_SPREADSHEET_ID,
+    range,
+  });
+
+  const rows = response.data.values || [];
+  const allPosts = parseSocialPostRows(rows, { hasHeader: true });
+  const shortPosts = allPosts.filter(p => p.postType === 'short');
+
+  // Return the last `limit` rows in sheet order (most recently added last)
+  return shortPosts.slice(-limit);
+}
+
+module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchRecentShortRows };

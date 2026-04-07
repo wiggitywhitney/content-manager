@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --omit=dev
 
+      - name: Set up yt-dlp
+        uses: AnimMouse/setup-yt-dlp@v3
+
       - name: Sync content to Micro.blog
         env:
           DRY_RUN: 'false'  # Explicitly disable dry-run mode for production
@@ -45,13 +48,14 @@ jobs:
       - name: Post social content
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          SOCIAL_POSTS_SHEET_ID: ${{ secrets.SOCIAL_POSTS_SHEET_ID }}
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
-          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          LINKEDIN_TOKEN_EXPIRES_AT: ${{ secrets.LINKEDIN_TOKEN_EXPIRES_AT }}
+          LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
+          MICROBLOG_APP_TOKEN: ${{ secrets.MICROBLOG_APP_TOKEN }}
         run: node src/post-social-content.js
 
       - name: Update page visibility

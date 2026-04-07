@@ -10,12 +10,16 @@ jest.mock('../src/post-mastodon', () => ({
   postToMastodon: jest.fn(),
 }));
 jest.mock('../src/post-linkedin');
+jest.mock('../src/post-microblog', () => ({
+  scanAndPostShorts: jest.fn(),
+}));
 jest.mock('../src/update-social-post-status');
 
 const { fetchPendingPostsForToday } = require('../src/social-posts-queue');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
+const { scanAndPostShorts } = require('../src/post-microblog');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { processPostsForDate } = require('../src/post-social-content');
 
@@ -47,6 +51,7 @@ describe('processPostsForDate', () => {
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:123/' });
+    scanAndPostShorts.mockResolvedValue(undefined);
     updatePostResult.mockResolvedValue(undefined);
   });
 

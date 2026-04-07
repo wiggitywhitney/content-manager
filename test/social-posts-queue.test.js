@@ -2,7 +2,10 @@
 
 'use strict';
 
-const { parseSocialPostRows, filterPostsForDate } = require('../src/social-posts-queue');
+jest.mock('googleapis');
+
+const { google } = require('googleapis');
+const { parseSocialPostRows, filterPostsForDate, fetchRecentShortRows } = require('../src/social-posts-queue');
 
 // Schema columns (0-indexed):
 // A(0)=Show, B(1)=Episode/Short Title, C(2)=Post Type, D(3)=Post Text,
@@ -168,5 +171,75 @@ describe('filterPostsForDate', () => {
 
     const result = filterPostsForDate(posts, '2026-04-05');
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('fetchRecentShortRows', () => {
+  let mockGet;
+
+  function makeSheetsMock(rows) {
+    mockGet = jest.fn().mockResolvedValue({ data: { values: rows } });
+    google.sheets.mockReturnValue({ spreadsheets: { values: { get: mockGet } } });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+  }
+
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('throws if GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    await expect(fetchRecentShortRows()).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
+  });
+
+  test('returns only rows with postType short', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const shortRow = makeRow({ postType: 'short' });
+    const episodeRow = makeRow({ postType: 'episode' });
+    makeSheetsMock([header, shortRow, episodeRow]);
+
+    const result = await fetchRecentShortRows();
+    expect(result).toHaveLength(1);
+    expect(result[0].postType).toBe('short');
+  });
+
+  test('returns the last N short rows when more than limit exist', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const rows = [header];
+    for (let i = 1; i <= 15; i++) {
+      rows.push(makeRow({ postType: 'short', title: `Short ${i}`, youtubeUrl: `https://youtu.be/id${i}` }));
+    }
+    makeSheetsMock(rows);
+
+    const result = await fetchRecentShortRows(10);
+    expect(result).toHaveLength(10);
+    expect(result[0].title).toBe('Short 6');
+    expect(result[9].title).toBe('Short 15');
+  });
+
+  test('returns empty array when no short rows exist', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    makeSheetsMock([header, makeRow({ postType: 'episode' })]);
+
+    const result = await fetchRecentShortRows();
+    expect(result).toHaveLength(0);
+  });
+
+  test('includes rows of all statuses (not filtered by status or date)', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    makeSheetsMock([
+      header,
+      makeRow({ postType: 'short', status: 'pending' }),
+      makeRow({ postType: 'short', status: 'posted', youtubeUrl: 'https://youtu.be/id2' }),
+      makeRow({ postType: 'short', status: 'failed', youtubeUrl: 'https://youtu.be/id3' }),
+    ]);
+
+    const result = await fetchRecentShortRows();
+    expect(result).toHaveLength(3);
   });
 });
