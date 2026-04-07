@@ -27,3 +27,4 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-07) Added daily view-count scan for shorts: checks last 10 short rows, posts to micro.blog when threshold crossed, uses Column M as idempotency guard (PRD #22, Milestone 6)
 - (2026-04-07) Added fetchRecentShortRows to social-posts-queue and updateMicroblogPostUrl to update-social-post-status; wired micro.blog scan into post-social-content.js cron (PRD #22, Milestone 6)
 - (2026-04-07) Added AnimMouse/setup-yt-dlp@v3 to daily-sync.yml and fixed Post social content step secrets; 111 tests passing (PRD #22, Milestone 6)
+- (2026-04-07) Fixed yt-dlp format selector to prefer pre-merged MP4 (no ffmpeg needed locally); verified live post to micro.blog plays correctly (PRD #22, Milestone 6)
