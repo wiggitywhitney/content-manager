@@ -1,7 +1,7 @@
 # PRD #22: Direct Social Post Publishing for Shows
 
 **Issue**: [#22](https://github.com/wiggitywhitney/content-manager/issues/22)
-**Status**: In Progress
+**Status**: Complete
 **Priority**: High
 **Created**: 2026-04-04
 

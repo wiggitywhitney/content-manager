@@ -1,6 +1,6 @@
 # Content Manager
 
-Content manager for Whitney Lee's content publishing workflow. Syncs content from a Google Sheet to Micro.blog, which then cross-posts to Bluesky and other platforms.
+Content manager for Whitney Lee's content publishing workflow. Syncs career content from a Google Sheet to Micro.blog, and posts social content directly to LinkedIn, Bluesky, Mastodon, and micro.blog from a Social Posts Queue tab in the staged spreadsheet.
 
 ## Key Spreadsheets
 

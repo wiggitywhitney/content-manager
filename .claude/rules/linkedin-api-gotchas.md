@@ -14,7 +14,7 @@ happen manually every 60 days.
 ## Two LinkedIn Developer Portal products are required, not one
 
 - **"Share on LinkedIn"** → grants `w_member_social` (posting permission)
-- **"Sign In with LinkedIn using OpenID Connect"** → grants `profile` scope needed to call `GET /v2/me` for the person ID
+- **"Sign In with LinkedIn using OpenID Connect"** → grants `openid` and `profile` scope needed to call `GET /v2/userinfo` for the person ID (not `/v2/me` — see below)
 
 Without the second product, you cannot retrieve the authenticated member's ID to construct the `author` URN.
 

@@ -57,7 +57,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       rowIndex: i + 1, // 1-indexed to match Sheets row numbers
       show: (row[COL.SHOW] || '').trim(),
       title: (row[COL.TITLE] || '').trim(),
-      postType: (row[COL.POST_TYPE] || '').trim(),
+      postType: (row[COL.POST_TYPE] || '').trim().toLowerCase(),
       postText: (row[COL.POST_TEXT] || '').trim(),
       youtubeUrl: (row[COL.YOUTUBE_URL] || '').trim(),
       altText: (row[COL.ALT_TEXT] || '').trim(),
