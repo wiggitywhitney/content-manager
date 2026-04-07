@@ -40,7 +40,7 @@ async function addSocialTestRow() {
     'pending',
   ];
 
-  console.log(`[social-test] Adding test row scheduled for ${today} (bluesky + mastodon)...`);
+  console.log(`[social-test] Adding test row scheduled for ${today} (bluesky + mastodon)...`); // eslint-disable-line no-console
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId: SOCIAL_POSTS_SHEET_ID,
