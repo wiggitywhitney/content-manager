@@ -75,7 +75,7 @@ function waitForCallback(expectedState) {
     });
 
     server.listen(3000, () => {
-      console.log('[linkedin-setup] Listening on http://localhost:3000/callback ...');
+      console.log('[linkedin-setup] Listening on http://localhost:3000/callback ...'); // eslint-disable-line no-console
     });
 
     server.on('error', reject);
@@ -156,21 +156,21 @@ async function main() {
   const state = crypto.randomBytes(16).toString('hex');
   const authUrl = buildAuthUrl(clientId, state);
 
-  console.log('[linkedin-setup] Opening browser for LinkedIn authorization...');
-  console.log(`[linkedin-setup] If the browser does not open, visit:\n  ${authUrl}`);
+  console.log('[linkedin-setup] Opening browser for LinkedIn authorization...'); // eslint-disable-line no-console
+  console.log(`[linkedin-setup] If the browser does not open, visit:\n  ${authUrl}`); // eslint-disable-line no-console
 
   // macOS-only dev tool — open browser without shell interpolation
   execFile('open', [authUrl]);
 
   const code = await waitForCallback(state);
-  console.log('[linkedin-setup] Authorization code received. Exchanging for access token...');
+  console.log('[linkedin-setup] Authorization code received. Exchanging for access token...'); // eslint-disable-line no-console
 
   const { accessToken, expiresAt } = await exchangeCodeForToken(clientId, clientSecret, code);
-  console.log('[linkedin-setup] Access token obtained.');
+  console.log('[linkedin-setup] Access token obtained.'); // eslint-disable-line no-console
 
-  console.log('[linkedin-setup] Fetching LinkedIn person URN...');
+  console.log('[linkedin-setup] Fetching LinkedIn person URN...'); // eslint-disable-line no-console
   const personUrn = await fetchPersonUrn(accessToken);
-  console.log(`[linkedin-setup] Person URN: ${personUrn}`);
+  console.log(`[linkedin-setup] Person URN: ${personUrn}`); // eslint-disable-line no-console
 
   const expiryDate = new Date(expiresAt).toLocaleDateString();
 

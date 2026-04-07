@@ -46,7 +46,7 @@ async function createSocialPostsSheet() {
 
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log('Creating social posts spreadsheet...');
+  console.log('Creating social posts spreadsheet...'); // eslint-disable-line no-console
   const createResponse = await sheets.spreadsheets.create({
     requestBody: {
       properties: {
@@ -68,11 +68,11 @@ async function createSocialPostsSheet() {
   const spreadsheetId = createResponse.data.spreadsheetId;
   const spreadsheetUrl = createResponse.data.spreadsheetUrl;
 
-  console.log(`Created spreadsheet: ${spreadsheetUrl}`);
-  console.log(`Spreadsheet ID: ${spreadsheetId}`);
+  console.log(`Created spreadsheet: ${spreadsheetUrl}`); // eslint-disable-line no-console
+  console.log(`Spreadsheet ID: ${spreadsheetId}`); // eslint-disable-line no-console
 
   // Write header row
-  console.log('Writing header row...');
+  console.log('Writing header row...'); // eslint-disable-line no-console
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: 'Sheet1!A1:M1',
@@ -106,17 +106,17 @@ async function createSocialPostsSheet() {
     },
   });
 
-  console.log('');
-  console.log('='.repeat(60));
-  console.log('Sheet created successfully!');
-  console.log('');
-  console.log('Next steps:');
-  console.log(`1. Share the spreadsheet with your Google account: ${spreadsheetUrl}`);
-  console.log(`2. Add the ID to Secret Manager:`);
-  console.log(`   echo -n "${spreadsheetId}" | gcloud secrets create SOCIAL_POSTS_SHEET_ID \\`);
-  console.log(`     --data-file=- --project=demoo-ooclock`);
-  console.log(`3. Add SOCIAL_POSTS_SHEET_ID as a GitHub Actions secret`);
-  console.log('='.repeat(60));
+  console.log(''); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log('Sheet created successfully!'); // eslint-disable-line no-console
+  console.log(''); // eslint-disable-line no-console
+  console.log('Next steps:'); // eslint-disable-line no-console
+  console.log(`1. Share the spreadsheet with your Google account: ${spreadsheetUrl}`); // eslint-disable-line no-console
+  console.log(`2. Add the ID to Secret Manager:`); // eslint-disable-line no-console
+  console.log(`   echo -n "${spreadsheetId}" | gcloud secrets create SOCIAL_POSTS_SHEET_ID \\`); // eslint-disable-line no-console
+  console.log(`     --data-file=- --project=demoo-ooclock`); // eslint-disable-line no-console
+  console.log(`3. Add SOCIAL_POSTS_SHEET_ID as a GitHub Actions secret`); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
 
   return spreadsheetId;
 }

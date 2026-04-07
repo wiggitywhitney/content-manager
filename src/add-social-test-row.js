@@ -49,12 +49,12 @@ async function addSocialTestRow() {
     resource: { values: [testRow] },
   });
 
-  console.log(`[social-test] Added test row at ${response.data.updates.updatedRange}`);
-  console.log('[social-test] Next steps:');
-  console.log('  1. Run: vals exec -f .vals.yaml -- node src/post-social-content.js');
-  console.log('  2. Check Bluesky and Mastodon — post should appear exactly once on each');
-  console.log('  3. Confirm no duplicate from Micro.blog syndication');
-  console.log('  4. Delete the test row from the sheet manually when done');
+  console.log(`[social-test] Added test row at ${response.data.updates.updatedRange}`); // eslint-disable-line no-console
+  console.log('[social-test] Next steps:'); // eslint-disable-line no-console
+  console.log('  1. Run: vals exec -f .vals.yaml -- node src/post-social-content.js'); // eslint-disable-line no-console
+  console.log('  2. Check Bluesky and Mastodon — post should appear exactly once on each'); // eslint-disable-line no-console
+  console.log('  3. Confirm no duplicate from Micro.blog syndication'); // eslint-disable-line no-console
+  console.log('  4. Delete the test row from the sheet manually when done'); // eslint-disable-line no-console
 }
 
 addSocialTestRow().catch(err => {
