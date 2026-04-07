@@ -89,7 +89,8 @@ function downloadShortVideo(youtubeUrl, tmpDir) {
   const ytdlpBin = findYtDlp();
 
   const result = spawnSync(ytdlpBin, [
-    '--format', 'bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]/best[ext=mp4]/best',
+    // Prefer a pre-merged MP4 (no ffmpeg needed); fall back to best+merge when ffmpeg is available (CI)
+    '--format', 'best[ext=mp4]/bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]/best',
     '--merge-output-format', 'mp4',
     '--extractor-args', 'youtube:player-client=default,mweb',
     '--js-runtimes', 'node',
