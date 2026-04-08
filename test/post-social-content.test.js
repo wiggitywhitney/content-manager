@@ -4,6 +4,7 @@
 'use strict';
 
 jest.mock('../src/social-posts-queue');
+jest.mock('../src/career-post-guard');
 jest.mock('../src/post-bluesky');
 // post-mastodon loads masto which has ESM-only transitive deps — use manual factory
 jest.mock('../src/post-mastodon', () => ({
@@ -16,6 +17,7 @@ jest.mock('../src/post-microblog', () => ({
 jest.mock('../src/update-social-post-status');
 
 const { fetchPendingPostsForToday } = require('../src/social-posts-queue');
+const { checkCareerPostedToday } = require('../src/career-post-guard');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
@@ -48,6 +50,7 @@ const TODAY = '2026-04-05';
 describe('processPostsForDate', () => {
   beforeEach(() => {
     fetchPendingPostsForToday.mockResolvedValue([]);
+    checkCareerPostedToday.mockResolvedValue(false);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:123/' });
@@ -234,6 +237,29 @@ describe('processPostsForDate', () => {
     expect(postToBluesky).toHaveBeenCalledWith(post);
     expect(postToMastodon).toHaveBeenCalledWith(post);
     expect(postToLinkedIn).toHaveBeenCalledWith(post);
+  });
+
+  test('skips all platform dispatch when career content was posted today', async () => {
+    checkCareerPostedToday.mockResolvedValue(true);
+    const post = makePost({ platforms: ['bluesky', 'mastodon', 'linkedin'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToBluesky).not.toHaveBeenCalled();
+    expect(postToMastodon).not.toHaveBeenCalled();
+    expect(postToLinkedIn).not.toHaveBeenCalled();
+    expect(updatePostResult).not.toHaveBeenCalled();
+  });
+
+  test('proceeds normally when career has not posted today', async () => {
+    checkCareerPostedToday.mockResolvedValue(false);
+    const post = makePost({ platforms: ['bluesky'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToBluesky).toHaveBeenCalledWith(post);
   });
 
   test('writes single aggregated result with all URLs when all three platforms succeed', async () => {
