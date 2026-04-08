@@ -12,6 +12,20 @@ Content manager for Whitney Lee's content publishing workflow. Syncs career cont
 
 Service account email: `content-manager-sheets@demoo-ooclock.iam.gserviceaccount.com`
 
+## Post Type Taxonomy
+
+Whitney publishes three distinct types of posts. This system manages the first two.
+
+| Type | Managed by | Destination | Cadence |
+|---|---|---|---|
+| **Career posts** | `sync-content.js` (this repo) | Micro.blog → syndicates to Bluesky, Mastodon, LinkedIn | When new career content is ready (podcasts, talks, videos) |
+| **Social posts** | `post-social-content.js` (this repo) | LinkedIn, Bluesky, Mastodon, micro.blog directly | Scheduled via Social Posts Queue tab |
+| **Personal posts** | Whitney manually, via Micro.blog UI | Micro.blog → syndicates to Bluesky, Mastodon, LinkedIn | Ad hoc |
+
+**Daily limit**: one managed post per day collectively (career OR social, not both). Personal posts are exempt — they can appear on the same day as a managed post.
+
+**Priority**: career > social. Career runs first and posts freely. Social runs second and defers if career already posted that day. The daily publish guard belongs in the social step, not the career step. See issue #23 for implementation design.
+
 ## Content Sources to Monitor
 
 1. **YouTube - wiggitywhitney channel** (`UCaGYZkSCN3MPwqRpt24KBKA`)
