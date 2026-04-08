@@ -317,9 +317,12 @@ function log(message, level = 'INFO', data = null) {
  * @param {string} tabName - Tab name (e.g. "Sheet1" or "2024 & earlier")
  * @param {number} rowIndex - 1-based row index (matches spreadsheet row numbers)
  * @param {string} url - Micro.blog post URL from Location header, or '' to clear
+ * @param {boolean} [isNewPost=false] - Set true only for new post creation. URL repairs,
+ *   reconciliations, and clears must not set this flag, as they would mislead the social
+ *   posting guard into thinking career content was published today.
  * @returns {Promise<boolean>} - True if successful, false otherwise
  */
-async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url) {
+async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url, isNewPost = false) {
   try {
     if (DRY_RUN) {
       log(`[DRY-RUN] Would write URL to ${tabName} row ${rowIndex}: ${url || '(clear)'}`, 'INFO');
@@ -338,8 +341,8 @@ async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, u
       )
     ];
 
-    // Write timestamp to Column I when setting a real URL (not when clearing)
-    if (url) {
+    // Write timestamp to Column I only for genuinely new posts, not repairs or clears
+    if (isNewPost && url) {
       const postedAt = new Date().toISOString();
       writes.push(
         withRetry(
@@ -1198,8 +1201,8 @@ async function syncContent() {
           );
           log(`  ✅ Social post created: ${socialUrl} (uncategorized, ephemeral)`, 'INFO');
 
-          // Only track archive post URL in Column H
-          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, archiveUrl);
+          // Only track archive post URL in Column H; also marks today as a career post day
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, archiveUrl, true);
 
           if (writeSuccess) {
             postStats.successful++;
@@ -1222,8 +1225,8 @@ async function syncContent() {
           );
           log(`✅ Post created: ${postUrl}`, 'INFO');
 
-          // Write URL to Column H
-          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl);
+          // Write URL to Column H; also marks today as a career post day
+          const writeSuccess = await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl, true);
 
           if (writeSuccess) {
             postStats.successful++;

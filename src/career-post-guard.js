@@ -7,7 +7,9 @@ const { google } = require('googleapis');
 
 // Live production spreadsheet — career content rows, Column I = "Micro.blog Posted At" timestamp
 const LIVE_SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
+// Must match the tab names used by sync-content.js (respects env overrides)
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
+const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 
 /**
  * Returns true if career content was posted to Micro.blog today.
@@ -36,15 +38,26 @@ async function checkCareerPostedToday() {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: LIVE_SPREADSHEET_ID,
-      range: `${SHEET_NAME}!I:I`,
-    });
 
-    const rows = response.data.values || [];
+    // Read Column I from both tabs — sync-content.js can write to either
+    const [mainResponse, historicalResponse] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: LIVE_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!I:I`,
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: LIVE_SPREADSHEET_ID,
+        range: `${HISTORICAL_TAB_NAME}!I:I`,
+      }),
+    ]);
+
+    const allRows = [
+      ...(mainResponse.data.values || []),
+      ...(historicalResponse.data.values || []),
+    ];
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
 
-    const posted = rows.some(row => {
+    const posted = allRows.some(row => {
       const val = (row[0] || '').trim();
       return val.startsWith(today);
     });

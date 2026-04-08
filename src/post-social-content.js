@@ -111,11 +111,15 @@ async function main() {
     process.exit(1);
   }
 
-  try {
-    await scanAndPostShorts();
-  } catch (err) {
-    console.error('[social] micro.blog short scan failed:', err.message); // eslint-disable-line no-console
-    // Non-fatal: regular platform dispatch already completed
+  // Career > social priority: also skip the micro.blog short scan if career posted today
+  const careerPostedToday = await checkCareerPostedToday().catch(() => false);
+  if (!careerPostedToday) {
+    try {
+      await scanAndPostShorts();
+    } catch (err) {
+      console.error('[social] micro.blog short scan failed:', err.message); // eslint-disable-line no-console
+      // Non-fatal: regular platform dispatch already completed
+    }
   }
 }
 
