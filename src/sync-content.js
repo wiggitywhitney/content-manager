@@ -1,6 +1,7 @@
+// ABOUTME: Daily career content sync — reads the live production spreadsheet and creates/updates Micro.blog posts.
+// ABOUTME: Handles post creation, updates, deletions, archive posts, and orphan cleanup.
 const { google } = require('googleapis');
 const https = require('https');
-const { BskyAgent } = require('@atproto/api');
 const { CATEGORY_PAGES } = require('./config/category-pages');
 
 // Rate limiting for Google Sheets writes (60 writes/min quota)
@@ -11,7 +12,7 @@ const SHEETS_WRITE_DELAY_MS = 1500;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
 const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
-const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:H`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL
+const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:I`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL, Micro.blog Posted At
 
 // Dry-run mode: when enabled, logs actions without making actual API calls
 // Defaults to true (safe) unless explicitly disabled with DRY_RUN=false
@@ -306,32 +307,55 @@ function log(message, level = 'INFO', data = null) {
 }
 
 /**
- * Writes Micro.blog URL back to spreadsheet Column H
+ * Writes Micro.blog URL to Column H and (when posting a new URL) a timestamp to Column I.
+ * Column I ("Micro.blog Posted At") is used by the social posting guard to detect whether
+ * career content ran today. It is only written when a real URL is provided; clearing a URL
+ * (passing an empty string) does not update the timestamp.
+ *
  * @param {Object} sheets - Google Sheets API client
  * @param {string} spreadsheetId - Spreadsheet ID
+ * @param {string} tabName - Tab name (e.g. "Sheet1" or "2024 & earlier")
  * @param {number} rowIndex - 1-based row index (matches spreadsheet row numbers)
- * @param {string} url - Micro.blog post URL from Location header
+ * @param {string} url - Micro.blog post URL from Location header, or '' to clear
  * @returns {Promise<boolean>} - True if successful, false otherwise
  */
 async function writeUrlToSpreadsheet(sheets, spreadsheetId, tabName, rowIndex, url) {
   try {
-    const range = `${tabName}!H${rowIndex}`;  // e.g., "Sheet1!H15" or "2024 & earlier!H42"
-
     if (DRY_RUN) {
-      log(`[DRY-RUN] Would write URL to ${tabName} row ${rowIndex}: ${url}`, 'INFO');
+      log(`[DRY-RUN] Would write URL to ${tabName} row ${rowIndex}: ${url || '(clear)'}`, 'INFO');
       return true;
     }
 
-    await withRetry(
-      () => sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range,
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: [[url]] }
-      }),
-      `Write URL to ${tabName} row ${rowIndex}`
-    );
-    log(`Wrote URL to ${tabName} row ${rowIndex}: ${url}`, 'DEBUG');
+    const writes = [
+      withRetry(
+        () => sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${tabName}!H${rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [[url]] }
+        }),
+        `Write URL to ${tabName} row ${rowIndex}`
+      )
+    ];
+
+    // Write timestamp to Column I when setting a real URL (not when clearing)
+    if (url) {
+      const postedAt = new Date().toISOString();
+      writes.push(
+        withRetry(
+          () => sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `${tabName}!I${rowIndex}`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[postedAt]] }
+          }),
+          `Write posted-at timestamp to ${tabName} row ${rowIndex}`
+        )
+      );
+    }
+
+    await Promise.all(writes);
+    log(`Wrote URL to ${tabName} row ${rowIndex}: ${url || '(cleared)'}`, 'DEBUG');
     return true;
   } catch (error) {
     // Don't fail entire sync if write fails (after retries exhausted)
@@ -564,196 +588,6 @@ async function createMicroblogPost(content, postContent, publishedDate) {
   }
 
   return postUrl;
-}
-
-/**
- * Get today's date range for checking published posts
- * @returns {Object} - { start: ISO string at 00:00 UTC, end: ISO string at 23:59:59 UTC }
- */
-function getTodayDateRange() {
-  const now = new Date();
-
-  // Today's date at 00:00:00 UTC
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-
-  // Today's date at 23:59:59 UTC
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59));
-
-  return {
-    start: start.toISOString(),
-    end: end.toISOString()
-  };
-}
-
-/**
- * Check if a post was published to Micro.blog today
- * @returns {Promise<boolean>} - True if a post was published today, false otherwise
- */
-async function checkPublishedToday() {
-  const token = process.env.MICROBLOG_APP_TOKEN;
-  if (!token) {
-    throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
-  }
-
-  try {
-    const { start, end } = getTodayDateRange();
-    const startTime = new Date(start).getTime();
-    const endTime = new Date(end).getTime();
-    const now = new Date();
-    const nowTime = now.getTime();
-    const nowISO = now.toISOString();
-
-    // Query the most recent 20 posts to find the most recent one that's actually published
-    const url = `https://micro.blog/micropub?q=source&limit=20&offset=0`;
-    log(`Daily publish guard: Checking for posts published today (${start.substring(0, 10)} UTC)`, 'INFO');
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to query posts (${response.status}): ${errorText}`);
-    }
-
-    const data = await response.json();
-    const posts = data.items || [];
-
-    if (posts.length === 0) {
-      log(`No posts found on Micro.blog - will publish`, 'INFO');
-      return false;
-    }
-
-    // Find the most recent post that has actually been published (not scheduled for future)
-    // Note: Assumes API returns posts in reverse chronological order (most recent first)
-    let mostRecentPublishedPost = null;
-    for (const post of posts) {
-      const publishedDate = post.properties?.published?.[0];
-      if (publishedDate) {
-        const publishedTime = new Date(publishedDate).getTime();
-        if (Number.isFinite(publishedTime) && publishedTime <= nowTime) {
-          mostRecentPublishedPost = post;
-          break;  // First one we find is the most recent published
-        }
-      }
-    }
-
-    if (!mostRecentPublishedPost) {
-      log(`No published posts found (only scheduled posts) - will publish`, 'INFO');
-      return false;
-    }
-
-    const publishedDate = mostRecentPublishedPost.properties?.published?.[0];
-
-    // Convert publishedDate to timestamp for numeric comparison (handles timezone offsets)
-    const publishedTime = new Date(publishedDate).getTime();
-    if (!Number.isFinite(publishedTime)) {
-      log(`Most recent post has invalid published date (${publishedDate}) - will publish`, 'WARN');
-      return false;
-    }
-
-    // Check if published date is within today's range using numeric comparison
-    if (publishedTime >= startTime && publishedTime <= endTime) {
-      const postUrl = mostRecentPublishedPost.properties?.url?.[0] || 'unknown';
-      const postTitle = mostRecentPublishedPost.properties?.name?.[0] || mostRecentPublishedPost.properties?.content?.[0]?.substring(0, 50) || 'Untitled';
-      log(`✓ Post exists for today (published): "${postTitle}" at ${publishedDate}`, 'INFO');
-      log(`Daily publish guard: SKIPPING new post (max 1 per day)`, 'WARN');
-      return true;
-    } else {
-      // Post is from the past (not today)
-      log(`Most recent published post is from ${publishedDate.substring(0, 10)} (not today) - will publish`, 'INFO');
-      return false;
-    }
-  } catch (error) {
-    log(`Error checking for today's posts: ${error.message}`, 'WARN');
-    // Don't fail the entire sync if this check fails - just log and continue with publish
-    log(`Continuing with publish (unable to verify daily limit)`, 'INFO');
-    return false;
-  }
-}
-
-/**
- * Check if a post was published to Bluesky today
- *
- * Note: Uses time range from 00:00:00 UTC to current time (not 23:59:59 UTC like Micro.blog).
- * This is intentional: Bluesky has no scheduled posts, so we only check what's been posted so far today.
- * Micro.blog check uses full day to respect scheduled posts that may be for later today.
- *
- * @returns {Promise<boolean>} - True if a post was published today, false otherwise
- */
-async function checkBlueskyPostToday() {
-  const handle = process.env.BLUESKY_HANDLE;
-  const password = process.env.BLUESKY_PASSWORD;
-
-  if (!handle || !password) {
-    log(`Bluesky credentials not configured (BLUESKY_HANDLE, BLUESKY_PASSWORD) - skipping check`, 'DEBUG');
-    return false;
-  }
-
-  try {
-    const now = new Date();
-    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-    const nowTime = now.getTime();
-    const todayStartTime = todayStart.getTime();
-
-    log(`Daily publish guard: Checking Bluesky for posts published today (${todayStart.toISOString().substring(0, 10)} UTC, up to now)`, 'DEBUG');
-
-    // Create agent and authenticate
-    const agent = new BskyAgent({
-      service: 'https://bsky.social'
-    });
-
-    await agent.login({
-      identifier: handle,
-      password: password
-    });
-
-    // Get user's recent posts (limit 10 to check quickly)
-    const response = await agent.getAuthorFeed({
-      actor: handle,
-      limit: 10
-    });
-
-    const posts = response.data.feed || [];
-
-    if (posts.length === 0) {
-      log(`No posts found on Bluesky`, 'INFO');
-      return false;
-    }
-
-    // Check if most recent top-level post (not a reply) is from today
-    for (const post of posts) {
-      const createdAt = post.post?.record?.createdAt;
-      const isReply = post.post?.record?.reply;  // Replies have a reply field
-
-      if (createdAt && !isReply) {  // Only count top-level posts, not replies
-        // Convert createdAt to numeric timestamp for consistent comparison
-        const createdTime = new Date(createdAt).getTime();
-        if (!Number.isFinite(createdTime)) {
-          log(`Invalid Bluesky post timestamp (${createdAt}) - skipping`, 'DEBUG');
-          continue;
-        }
-        // Check if posted from today's start up to now using numeric comparison
-        if (createdTime >= todayStartTime && createdTime <= nowTime) {
-          const postText = post.post?.record?.text?.substring(0, 50) || 'Untitled';
-          log(`✓ Already posted on Bluesky today: "${postText}" at ${createdAt}`, 'INFO');
-          log(`Daily publish guard: SKIPPING new post (max 1 per day)`, 'WARN');
-          return true;
-        }
-      }
-    }
-
-    // No posts from today found
-    log(`Most recent Bluesky post is from earlier (not today) - will publish`, 'INFO');
-    return false;
-  } catch (error) {
-    log(`Error checking Bluesky posts: ${error.message}`, 'WARN');
-    // Don't fail the entire sync if this check fails - just log and continue with publish
-    log(`Continuing with publish (unable to verify Bluesky daily limit)`, 'INFO');
-    return false;
-  }
 }
 
 /**
@@ -1301,27 +1135,6 @@ async function syncContent() {
       log(`  Remaining: ${totalUnpublished - 1} posts will publish over next ${totalUnpublished - 1} days`);
     } else {
       log(`\nFound ${rowsToPost.length} rows without Micro.blog URLs (need to be posted)`);
-    }
-
-    // ========================================================================
-    // Daily Publish Guard: Check if already posted today
-    // ========================================================================
-    // If a post has already been published to Micro.blog or Bluesky today (either
-    // manually or via automation), skip posting the next scheduled post to maintain
-    // max 1/day limit across all platforms
-    if (rowsToPost.length > 0) {
-      const [mbPostedToday, bskyPostedToday] = await Promise.all([
-        checkPublishedToday(),
-        checkBlueskyPostToday()
-      ]);
-
-      if (mbPostedToday || bskyPostedToday) {
-        const platforms = [];
-        if (mbPostedToday) platforms.push('Micro.blog');
-        if (bskyPostedToday) platforms.push('Bluesky');
-        log(`\nDaily limit reached: Already posted on ${platforms.join(' and ')}`, 'WARN');
-        rowsToPost.length = 0;  // Clear the array - don't post
-      }
     }
 
     // Track post creation statistics

@@ -4,6 +4,7 @@
 'use strict';
 
 const { fetchPendingPostsForToday } = require('./social-posts-queue');
+const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
@@ -78,6 +79,10 @@ async function dispatchPost(post) {
  * @param {string} today - Date in YYYY-MM-DD format
  */
 async function processPostsForDate(today) {
+  if (await checkCareerPostedToday()) {
+    return;
+  }
+
   const pendingPosts = await fetchPendingPostsForToday(today);
 
   if (pendingPosts.length === 0) {
