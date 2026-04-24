@@ -11,6 +11,11 @@ const { postToLinkedIn } = require('./post-linkedin');
 const { scanAndPostShorts, postToMicroblog } = require('./post-microblog');
 const { updatePostResult } = require('./update-social-post-status');
 
+/**
+ * Return today's date as a YYYY-MM-DD string in UTC.
+ *
+ * @returns {string}
+ */
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
@@ -112,6 +117,9 @@ async function processPostsForDate(today) {
   }
 }
 
+/**
+ * Entry point: read today's date, run the social post queue, then run the micro.blog short scan.
+ */
 async function main() {
   const today = getTodayDate();
   console.log(`[social] Checking queue for posts due ${today}`); // eslint-disable-line no-console
