@@ -4,7 +4,7 @@
 **Status**: Planning
 **Priority**: Medium
 **Created**: 2025-09-26
-**Last Updated**: 2025-09-26
+**Last Updated**: 2026-04-08
 
 ## Problem Statement
 
@@ -47,7 +47,7 @@ Create a dynamic about page that automatically features the most recent content 
 - **Integration**: Modify existing sync system to read these new columns
 
 ### Content Selection Logic
-```
+```text
 IF recent_highlighted_content (≤3 months old):
     Display most recent highlight (or highest priority if tied)
 ELSE:
@@ -102,10 +102,10 @@ About page structure:
 ## Implementation Approach
 
 ### Technology Integration
-- **Extend existing Python/JavaScript sync system** rather than creating new infrastructure
-- **Leverage GitHub Actions** scheduling for updates
-- **Use micro.blog API** for about page updates
-- **File-based templating** for about page generation
+- **Extend existing Node.js sync system** (`src/sync-content.js`) rather than creating new infrastructure
+- **Leverage GitHub Actions** scheduling for updates (weekday runs via `daily-sync.yml`)
+- **Use micro.blog XML-RPC API** (`microblog.editPage`) for about page updates — already tested and working in `src/update-page-visibility.js`
+- **Markdown-based content generation** for about page (Micro.blog renders Markdown natively)
 
 ### Content Management
 - **Highlight selection**: Pick most recent highlighted item ≤3 months old
@@ -132,6 +132,7 @@ About page structure:
 ## Implementation Milestones
 
 ### Milestone 1: Spreadsheet Schema Extension
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
 - [ ] Add "Highlight" column to Google Sheets
 - [ ] Add optional "Highlight_Priority" column
 - [ ] Update sync system to read new columns
@@ -139,13 +140,13 @@ About page structure:
 
 **Success Criteria**: Sync system successfully reads highlight information from spreadsheet
 
-### Milestone 2: About Page Template System
-- [ ] Create dynamic about page template
-- [ ] Implement content injection logic
-- [ ] Design fallback content layout
-- [ ] Test template rendering with sample data
+### Milestone 2: About Page Content Generator
+- [ ] Create a new script (`src/update-about-page.js`) that generates Markdown content for the About page
+- [ ] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), then `microblog.editPage` to update its `description` field with generated Markdown
+- [ ] Design fallback content layout — **requires Whitney's input**: what should the default bio text and recent work grid look like?
+- [ ] Test content generation with sample highlight data and verify rendered output on Micro.blog
 
-**Success Criteria**: Can generate about page with both highlighted and fallback content
+**Success Criteria**: Can generate and push About page content with both highlighted and fallback variants
 
 ### Milestone 3: Highlight Selection Logic
 - [ ] Implement most-recent-highlight selection algorithm
@@ -156,12 +157,13 @@ About page structure:
 **Success Criteria**: System correctly identifies which content to feature
 
 ### Milestone 4: Integration with Existing Sync
-- [ ] Extend sync workflow to generate about page
-- [ ] Integrate with micro.blog API for page updates
-- [ ] Add about page to existing error handling
-- [ ] Test full end-to-end workflow
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+- [ ] Add an about-page update step to `daily-sync.yml` (after content sync, before page visibility)
+- [ ] Wire `src/update-about-page.js` into the workflow: read highlights from spreadsheet → generate Markdown → call `microblog.editPage` with About page ID
+- [ ] Add about page to existing error handling (same retry/backoff pattern as `update-page-visibility.js`)
+- [ ] Test full end-to-end workflow: spreadsheet change → GitHub Actions run → About page updated on whitneylee.com
 
-**Success Criteria**: About page updates automatically as part of regular sync cycle
+**Success Criteria**: About page updates automatically as part of the daily sync cycle
 
 ### Milestone 5: Manual Override System
 - [ ] Design override mechanism (special spreadsheet row or config)
@@ -182,21 +184,21 @@ About page structure:
 ## Dependencies & Risks
 
 ### External Dependencies
-- **Google Sheets API**: Schema changes require proper column handling
-- **Micro.blog API**: About page update capabilities and limitations
-- **Existing Sync System**: Must not break current functionality
+- **Google Sheets API**: Schema changes require proper column handling — current range is `A:I`, new Highlight column would be J
+- **Micro.blog XML-RPC API**: `microblog.editPage` confirmed working for page content updates (uses MarsEdit token, not Micropub token)
+- **Existing Sync System**: Must not break current functionality — `sync-content.js` reads `A:I`
 
 ### Technical Risks
-- **Schema Migration**: Adding columns might affect existing sync logic
+- **Schema Migration**: Adding Column J requires extending the RANGE constant in sync-content.js (currently `A:I`)
+- **Template Page Rendering**: About page is a Hugo template page (`is_template: true`). Editing `description` updates raw content, but final rendering depends on theme template. Must test before relying on complex layouts.
 - **Content Quality**: Highlighted content might not always be appropriate for about page
-- **Performance Impact**: Dynamic page generation could slow sync process
-- **API Limitations**: Micro.blog might have restrictions on about page updates
+- **Performance Impact**: Minimal — one additional XML-RPC call per sync cycle
 
 ### Mitigation Strategies
-- **Gradual Rollout**: Test with optional columns first, make required later
+- **Test on non-critical page first**: Verify `editPage` behavior on a template page before touching the About page
 - **Content Validation**: Add checks for appropriate highlight content
-- **Performance Optimization**: Cache about page content, update only when highlights change
-- **API Testing**: Thoroughly test micro.blog about page update capabilities
+- **Performance Optimization**: Only update about page when highlights change (compare before/after)
+- **Separate column or sheet**: Consider a separate "Highlights" sheet instead of adding Column J, to avoid schema churn on the main sheet
 
 ## Definition of Done
 
@@ -209,6 +211,14 @@ The feature is complete when:
 6. Whitney has clear documentation on how to use the highlight system
 
 ## Progress Log
+
+### 2026-04-08 (Freshness Check)
+- **API Blocker Resolved**: `microblog.editPage` XML-RPC method confirmed capable of updating About page content. Already battle-tested in `src/update-page-visibility.js` for category navigation pages.
+- **Technology Updated**: Python references removed. Stack is 100% Node.js/JavaScript (CommonJS).
+- **Schema Updated**: Current spreadsheet range is `A:I`. Column H = Micro.blog URL, Column I = Posted At timestamp (added April 2026). New Highlight column would be J.
+- **Risk Identified**: About page is a Hugo template page (`is_template: true`). Rendering of edited content depends on theme template — must test on a non-critical page first.
+- **Research Documented**: See [Research: Micro.blog API](../docs/research/microblog-api.md)
+- **Approach Clarified**: Use XML-RPC `editPage` (not Micropub) for about page updates. Generate Markdown content, push via API.
 
 ### 2025-09-26
 - **PRD Created**: Initial requirements gathering and documentation

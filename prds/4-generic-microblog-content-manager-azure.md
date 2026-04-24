@@ -181,6 +181,18 @@ This positions the project as both a useful tool AND educational content for Mic
 
 ## Progress Log
 
+### 2026-04-08 (Freshness Check)
+- **Re-scoping needed**: The content-manager codebase has grown significantly since this PRD was written (October 2025). At that time it was a simple Google Sheets → Micro.blog sync. It now includes:
+  - Direct social posting to LinkedIn, Bluesky, Mastodon (PRD #22, completed April 2026)
+  - Video uploads to Micro.blog with YouTube view-count gating
+  - Career post guard (prevents social posts when career content posted same day)
+  - Social Posts Queue via separate spreadsheet tab
+  - Page visibility management via XML-RPC
+  - 121 Jest tests across 9 suites
+- **Gap has widened**: The tutorial/generic version would need to decide what subset of functionality to include. A from-scratch simplified sync tool vs. generalizing this repo are now very different projects.
+- **All original open questions remain unanswered**: audience, spreadsheet platform, Azure services, deliverable priority, timeline.
+- **Recommendation**: Keep open but do not start implementation without a full re-scope that accounts for the current codebase complexity. The core idea (reusable tutorial + Azure deployment) is still valid as content.
+
 ### 2025-10-17: PRD Created
 - Initial concept discussion
 - Option B selected (generic app vs migration)
@@ -192,9 +204,10 @@ This positions the project as both a useful tool AND educational content for Mic
 
 ## Next Steps
 
-When ready to begin implementation (weeks from now):
-1. Answer open questions (audience, spreadsheet platform, Azure services)
-2. Create new dedicated repository
-3. Design detailed architecture
-4. Break down milestones into specific implementation tasks
-5. Begin iterative development with learning objectives in mind
+When ready to begin implementation:
+1. **Re-scope first**: Decide whether this is a simplified from-scratch version or a generalization of the current repo (the gap has grown significantly since October 2025)
+2. Answer open questions (audience, spreadsheet platform, Azure services)
+3. Create new dedicated repository
+4. Design detailed architecture
+5. Break down milestones into specific implementation tasks
+6. Begin iterative development with learning objectives in mind
