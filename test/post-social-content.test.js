@@ -13,6 +13,7 @@ jest.mock('../src/post-mastodon', () => ({
 jest.mock('../src/post-linkedin');
 jest.mock('../src/post-microblog', () => ({
   scanAndPostShorts: jest.fn(),
+  postToMicroblog: jest.fn(),
 }));
 jest.mock('../src/update-social-post-status');
 
@@ -21,7 +22,7 @@ const { checkCareerPostedToday } = require('../src/career-post-guard');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
-const { scanAndPostShorts } = require('../src/post-microblog');
+const { scanAndPostShorts, postToMicroblog } = require('../src/post-microblog');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { processPostsForDate } = require('../src/post-social-content');
 
@@ -54,6 +55,7 @@ describe('processPostsForDate', () => {
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:123/' });
+    postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/test-episode' });
     scanAndPostShorts.mockResolvedValue(undefined);
     updatePostResult.mockResolvedValue(undefined);
   });
@@ -292,6 +294,63 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledWith(11, {
       status: 'failed',
       bskyPostUrl: 'https://bsky.app/profile/handle/post/ccc',
+    });
+  });
+
+  test('posts to micro.blog for a pending row with micro.blog platform', async () => {
+    const post = makePost({ platforms: ['micro.blog'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToMicroblog).toHaveBeenCalledWith(post, { bypassViewCount: true });
+  });
+
+  test('updates sheet with posted status and micro.blog URL on success', async () => {
+    const post = makePost({ rowIndex: 12, platforms: ['micro.blog'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/my-episode' });
+
+    await processPostsForDate(TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledWith(12, {
+      status: 'posted',
+      microblogPostUrl: 'https://whitneylee.com/2026/04/my-episode',
+    });
+  });
+
+  test('skips micro.blog posting for rows without micro.blog platform', async () => {
+    const post = makePost({ platforms: ['bluesky'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToMicroblog).not.toHaveBeenCalled();
+  });
+
+  test('writes failed status and logs on micro.blog post failure without crashing', async () => {
+    const post = makePost({ rowIndex: 13, platforms: ['micro.blog'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToMicroblog.mockRejectedValue(new Error('Micropub API error'));
+
+    await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
+
+    expect(updatePostResult).toHaveBeenCalledWith(13, { status: 'failed' });
+  });
+
+  test('includes micro.blog URL in aggregated result alongside other platforms', async () => {
+    const post = makePost({ rowIndex: 14, platforms: ['bluesky', 'micro.blog'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/ddd' });
+    postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/multi-platform' });
+
+    await processPostsForDate(TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledTimes(1);
+    expect(updatePostResult).toHaveBeenCalledWith(14, {
+      status: 'posted',
+      bskyPostUrl: 'https://bsky.app/profile/handle/post/ddd',
+      microblogPostUrl: 'https://whitneylee.com/2026/04/multi-platform',
     });
   });
 });

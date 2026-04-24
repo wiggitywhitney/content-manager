@@ -8,7 +8,7 @@ const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
-const { scanAndPostShorts } = require('./post-microblog');
+const { scanAndPostShorts, postToMicroblog } = require('./post-microblog');
 const { updatePostResult } = require('./update-social-post-status');
 
 function getTodayDate() {
@@ -26,7 +26,7 @@ function getTodayDate() {
 async function dispatchPost(post) {
   let failureCount = 0;
   let attemptCount = 0;
-  let bskyPostUrl, mastodonPostUrl, linkedinPostUrl;
+  let bskyPostUrl, mastodonPostUrl, linkedinPostUrl, microblogPostUrl;
 
   if (post.platforms.includes('bluesky')) {
     attemptCount++;
@@ -61,6 +61,17 @@ async function dispatchPost(post) {
     }
   }
 
+  if (post.platforms.includes('micro.blog')) {
+    attemptCount++;
+    try {
+      ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true }));
+      console.log(`[social] Posted row ${post.rowIndex} to micro.blog: ${microblogPostUrl}`); // eslint-disable-line no-console
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to micro.blog: ${err.message}`); // eslint-disable-line no-console
+      failureCount++;
+    }
+  }
+
   if (attemptCount === 0) return;
 
   const status = failureCount === 0 ? 'posted' : 'failed';
@@ -68,6 +79,7 @@ async function dispatchPost(post) {
   if (bskyPostUrl) resultFields.bskyPostUrl = bskyPostUrl;
   if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
   if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;
+  if (microblogPostUrl) resultFields.microblogPostUrl = microblogPostUrl;
 
   await updatePostResult(post.rowIndex, resultFields);
 }
