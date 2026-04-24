@@ -5,7 +5,7 @@
 jest.mock('googleapis');
 
 const { google } = require('googleapis');
-const { parseSocialPostRows, filterPostsForDate, fetchRecentShortRows } = require('../src/social-posts-queue');
+const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchRecentShortRows } = require('../src/social-posts-queue');
 
 // Schema columns (0-indexed):
 // A(0)=Show, B(1)=Episode/Short Title, C(2)=Post Type, D(3)=Post Text,
@@ -107,11 +107,12 @@ describe('parseSocialPostRows', () => {
     expect(posts[1].status).toBe('posted');
   });
 
-  test('skips rows with missing scheduledDate', () => {
+  test('includes rows with empty scheduledDate (written-to-queue posts before dispatch)', () => {
     const rows = [makeRow({ scheduledDate: '' })];
     const posts = parseSocialPostRows(rows);
 
-    expect(posts).toHaveLength(0);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].scheduledDate).toBe('');
   });
 });
 
@@ -171,6 +172,79 @@ describe('filterPostsForDate', () => {
 
     const result = filterPostsForDate(posts, '2026-04-05');
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('fetchOldestPendingPost', () => {
+  let mockGet;
+
+  function makeSheetsMock(rows) {
+    mockGet = jest.fn().mockResolvedValue({ data: { values: rows } });
+    google.sheets.mockReturnValue({ spreadsheets: { values: { get: mockGet } } });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+  }
+
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('throws if GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    await expect(fetchOldestPendingPost()).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
+  });
+
+  test('returns the oldest pending post regardless of scheduledDate', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const oldPending = makeRow({ title: 'Old Post', scheduledDate: '', status: 'pending' });
+    const newPending = makeRow({ title: 'New Post', scheduledDate: '', status: 'pending' });
+    makeSheetsMock([header, oldPending, newPending]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result).not.toBeNull();
+    expect(result.title).toBe('Old Post');
+  });
+
+  test('returns null when queue has no pending posts', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const postedRow = makeRow({ status: 'posted' });
+    makeSheetsMock([header, postedRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result).toBeNull();
+  });
+
+  test('returns null when queue is empty', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    makeSheetsMock([header]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result).toBeNull();
+  });
+
+  test('skips posted and failed rows, returns oldest pending', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const postedRow = makeRow({ title: 'Posted', status: 'posted' });
+    const failedRow = makeRow({ title: 'Failed', status: 'failed' });
+    const pendingRow = makeRow({ title: 'Pending', status: 'pending' });
+    makeSheetsMock([header, postedRow, failedRow, pendingRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result.title).toBe('Pending');
+  });
+
+  test('skips short posts — they are handled by view-count scan, not regular dispatch', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const shortRow = makeRow({ title: 'Short', postType: 'short', status: 'pending' });
+    const episodeRow = makeRow({ title: 'Episode', postType: 'episode', status: 'pending' });
+    makeSheetsMock([header, shortRow, episodeRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result.title).toBe('Episode');
   });
 });
 

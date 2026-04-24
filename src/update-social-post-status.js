@@ -9,11 +9,12 @@ const STAGED_SPREADSHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
 
 // Column letters for the social posts schema
 const COL = {
+  SCHEDULED_DATE: 'G',
+  STATUS: 'I',
   LINKEDIN_POST_URL: 'J',
   BSKY_POST_URL: 'K',
   MASTODON_POST_URL: 'L',
   MICROBLOG_POST_URL: 'M',
-  STATUS: 'I',
 };
 
 /**
@@ -22,12 +23,13 @@ const COL = {
  * @param {number} rowIndex - 1-indexed row number in the sheet
  * @param {Object} fields
  * @param {string} fields.status - New status value ('posted' or 'failed')
+ * @param {string} [fields.scheduledDate] - Actual post date to write to column G (YYYY-MM-DD)
  * @param {string} [fields.bskyPostUrl] - Bluesky post URL (column K)
  * @param {string} [fields.linkedinPostUrl] - LinkedIn post URL (column J)
  * @param {string} [fields.mastodonPostUrl] - Mastodon post URL (column L)
  * @param {string} [fields.microblogPostUrl] - micro.blog post URL (column M)
  */
-async function updatePostResult(rowIndex, { status, bskyPostUrl, linkedinPostUrl, mastodonPostUrl, microblogPostUrl } = {}) {
+async function updatePostResult(rowIndex, { status, scheduledDate, bskyPostUrl, linkedinPostUrl, mastodonPostUrl, microblogPostUrl } = {}) {
   if (!status) throw new Error('status field is required');
 
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -49,6 +51,10 @@ async function updatePostResult(rowIndex, { status, bskyPostUrl, linkedinPostUrl
       values: [[status]],
     },
   ];
+
+  if (scheduledDate) {
+    data.push({ range: `Social Posts Queue!${COL.SCHEDULED_DATE}${rowIndex}`, values: [[scheduledDate]] });
+  }
 
   if (bskyPostUrl) {
     data.push({ range: `Social Posts Queue!${COL.BSKY_POST_URL}${rowIndex}`, values: [[bskyPostUrl]] });

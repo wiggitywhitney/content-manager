@@ -3,7 +3,7 @@
 
 'use strict';
 
-const { fetchPendingPostsForToday } = require('./social-posts-queue');
+const { fetchOldestPendingPost } = require('./social-posts-queue');
 const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
@@ -26,9 +26,9 @@ function getTodayDate() {
  * platform cannot overwrite a success written by an earlier platform.
  *
  * @param {Object} post - Parsed post object from the social posts queue
- * @param {string} spreadsheetId - The social posts sheet ID
+ * @param {string} today - Date in YYYY-MM-DD format used for Column G write-back
  */
-async function dispatchPost(post) {
+async function dispatchPost(post, today) {
   let failureCount = 0;
   let attemptCount = 0;
   let bskyPostUrl, mastodonPostUrl, linkedinPostUrl, microblogPostUrl;
@@ -77,10 +77,15 @@ async function dispatchPost(post) {
     }
   }
 
-  if (attemptCount === 0) return;
+  if (attemptCount === 0) {
+    console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
+    await updatePostResult(post.rowIndex, { status: 'failed' });
+    return;
+  }
 
   const status = failureCount === 0 ? 'posted' : 'failed';
   const resultFields = { status };
+  if (status === 'posted' && today) resultFields.scheduledDate = today;
   if (bskyPostUrl) resultFields.bskyPostUrl = bskyPostUrl;
   if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
   if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;
@@ -90,31 +95,30 @@ async function dispatchPost(post) {
 }
 
 /**
- * Fetch and dispatch all pending social posts due on a given date.
+ * Fetch and dispatch the oldest pending social post.
+ * On career-priority days (odd day of month, CAREER_PRIORITY=1), defers if career posted today.
+ * On social-priority days (even day of month, CAREER_PRIORITY=0), posts regardless of career.
  * Exported for testability.
  *
  * @param {string} today - Date in YYYY-MM-DD format
  */
 async function processPostsForDate(today) {
-  if (await checkCareerPostedToday()) {
+  const careerFirst = process.env.CAREER_PRIORITY !== '0';
+
+  if (careerFirst && await checkCareerPostedToday()) {
+    console.log('[social] Career-priority day — skipping social dispatch (career posted today)'); // eslint-disable-line no-console
     return;
   }
 
-  const pendingPosts = await fetchPendingPostsForToday(today);
+  const post = await fetchOldestPendingPost();
 
-  if (pendingPosts.length === 0) {
-    console.log('[social] No posts due today'); // eslint-disable-line no-console
+  if (!post) {
+    console.log('[social] No pending posts in queue'); // eslint-disable-line no-console
     return;
   }
 
-  console.log(`[social] Found ${pendingPosts.length} post(s) due today`); // eslint-disable-line no-console
-  for (const post of pendingPosts) {
-    console.log(`[social]   Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`); // eslint-disable-line no-console
-  }
-
-  for (const post of pendingPosts) {
-    await dispatchPost(post);
-  }
+  console.log(`[social] Dispatching oldest pending post — Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`); // eslint-disable-line no-console
+  await dispatchPost(post, today);
 }
 
 /**

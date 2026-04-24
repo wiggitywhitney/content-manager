@@ -34,7 +34,27 @@ jobs:
       - name: Set up yt-dlp
         uses: AnimMouse/setup-yt-dlp@v3
 
+      - name: Determine post priority
+        id: priority
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          DAY=$(date +%-d)
+          CAREER_FIRST=$((DAY % 2))
+          echo "career_first=${CAREER_FIRST}" >> "$GITHUB_OUTPUT"
+          if [ "$CAREER_FIRST" -eq 0 ]; then
+            PROBE=$(node -e "const { fetchOldestPendingPost } = require('./src/social-posts-queue'); (async () => { try { const p = await fetchOldestPendingPost(); process.stdout.write(p ? 'pending' : 'empty'); } catch (e) { process.stderr.write(e.message); process.stdout.write('error'); process.exit(2); } })();")
+            case "$PROBE" in
+              pending) echo "social_has_pending=true" >> "$GITHUB_OUTPUT" ;;
+              empty)   echo "social_has_pending=false" >> "$GITHUB_OUTPUT" ;;
+              *)       echo "[priority] Failed to probe social queue: $PROBE"; exit 1 ;;
+            esac
+          else
+            echo "social_has_pending=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sync content to Micro.blog
+        if: steps.priority.outputs.career_first == '1' || steps.priority.outputs.social_has_pending == 'false'
         env:
           DRY_RUN: 'false'  # Explicitly disable dry-run mode for production
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -45,6 +65,7 @@ jobs:
 
       - name: Post social content
         env:
+          CAREER_PRIORITY: ${{ steps.priority.outputs.career_first }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}

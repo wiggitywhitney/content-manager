@@ -24,7 +24,11 @@ Whitney publishes three distinct types of posts. This system manages the first t
 
 **Daily limit**: one managed post per day collectively (career OR social, not both). Personal posts are exempt — they can appear on the same day as a managed post.
 
-**Priority**: career > social. Career runs first and posts freely. Social runs second and defers if career already posted that day. The daily publish guard belongs in the social step, not the career step. See issue #23 for implementation design.
+**Priority**: date parity. Odd days of the month give career priority; even days give social priority. If the priority type has no pending content, the other type posts instead.
+
+Implementation: on even days when social has a pending post, the workflow skips the career sync step entirely. The social step receives `CAREER_PRIORITY=0` (set in `daily-sync.yml`) and skips its career-posted-today guard. On odd days, `CAREER_PRIORITY=1` and the guard fires normally.
+
+**Social queue dispatch**: posts the oldest pending row (by row order in the Social Posts Queue tab), regardless of scheduled date. Exactly one post per run. After a successful post, today's date is written to Column G as the actual post date.
 
 ## Content Sources to Monitor
 

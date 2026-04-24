@@ -144,6 +144,23 @@ describe('updatePostResult', () => {
     const call = mockBatchUpdate.mock.calls[0][0];
     expect(call.spreadsheetId).toBe(STAGED_ID);
   });
+
+  test('writes scheduledDate to Column G when provided', async () => {
+    await updatePostResult(4, { status: 'posted', scheduledDate: '2026-04-25' });
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const gRange = call.resource.data.find(d => d.range === 'Social Posts Queue!G4');
+    expect(gRange).toBeDefined();
+    expect(gRange.values).toEqual([['2026-04-25']]);
+  });
+
+  test('omits Column G when scheduledDate is not provided', async () => {
+    await updatePostResult(3, { status: 'posted' });
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const ranges = call.resource.data.map(d => d.range);
+    expect(ranges).not.toContain('Social Posts Queue!G3');
+  });
 });
 
 describe('updateMicroblogPostUrl', () => {
