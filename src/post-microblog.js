@@ -205,17 +205,19 @@ async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) 
  * @param {Object} post - Post object from the social posts queue
  * @returns {Promise<{postUrl: string}|{skipped: true, viewCount: number}>}
  */
-async function postToMicroblog(post) {
+async function postToMicroblog(post, { bypassViewCount = false } = {}) {
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable is required');
 
   const videoId = extractYouTubeVideoId(post.youtubeUrl);
   if (!videoId) throw new Error(`Could not extract video ID from: ${post.youtubeUrl}`);
 
-  const viewCount = await getYouTubeViewCount(videoId);
-  if (viewCount < VIEW_COUNT_THRESHOLD) {
-    console.log(`[microblog] Row ${post.rowIndex}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`); // eslint-disable-line no-console
-    return { skipped: true, viewCount };
+  if (!bypassViewCount) {
+    const viewCount = await getYouTubeViewCount(videoId);
+    if (viewCount < VIEW_COUNT_THRESHOLD) {
+      console.log(`[microblog] Row ${post.rowIndex}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`); // eslint-disable-line no-console
+      return { skipped: true, viewCount };
+    }
   }
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'microblog-'));

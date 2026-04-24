@@ -28,3 +28,4 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 - (2026-04-07) Added fetchRecentShortRows to social-posts-queue and updateMicroblogPostUrl to update-social-post-status; wired micro.blog scan into post-social-content.js cron (PRD #22, Milestone 6)
 - (2026-04-07) Added AnimMouse/setup-yt-dlp@v3 to daily-sync.yml and fixed Post social content step secrets; 111 tests passing (PRD #22, Milestone 6)
 - (2026-04-07) Fixed yt-dlp format selector to prefer pre-merged MP4 (no ffmpeg needed locally); verified live post to micro.blog plays correctly (PRD #22, Milestone 6)
+- (2026-04-24) Wired micro.blog episode post dispatch into the daily social cron: `dispatchPost()` now handles `platforms = micro.blog` rows by calling `postToMicroblog()` with view-count check bypassed. Scheduled episode posts launch on their scheduled date rather than waiting for the 1,000-view threshold. The threshold-gated short scan (`scanAndPostShorts`) is unchanged.
