@@ -43,11 +43,12 @@ jobs:
           CAREER_FIRST=$((DAY % 2))
           echo "career_first=${CAREER_FIRST}" >> "$GITHUB_OUTPUT"
           if [ "$CAREER_FIRST" -eq 0 ]; then
-            if node -e "const { fetchOldestPendingPost } = require('./src/social-posts-queue'); fetchOldestPendingPost().then(p => process.exit(p ? 0 : 1)).catch(() => process.exit(1));"; then
-              echo "social_has_pending=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "social_has_pending=false" >> "$GITHUB_OUTPUT"
-            fi
+            PROBE=$(node -e "const { fetchOldestPendingPost } = require('./src/social-posts-queue'); (async () => { try { const p = await fetchOldestPendingPost(); process.stdout.write(p ? 'pending' : 'empty'); } catch (e) { process.stderr.write(e.message); process.stdout.write('error'); process.exit(2); } })();")
+            case "$PROBE" in
+              pending) echo "social_has_pending=true" >> "$GITHUB_OUTPUT" ;;
+              empty)   echo "social_has_pending=false" >> "$GITHUB_OUTPUT" ;;
+              *)       echo "[priority] Failed to probe social queue: $PROBE"; exit 1 ;;
+            esac
           else
             echo "social_has_pending=false" >> "$GITHUB_OUTPUT"
           fi

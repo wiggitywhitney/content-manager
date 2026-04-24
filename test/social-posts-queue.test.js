@@ -236,6 +236,16 @@ describe('fetchOldestPendingPost', () => {
     const result = await fetchOldestPendingPost();
     expect(result.title).toBe('Pending');
   });
+
+  test('skips short posts — they are handled by view-count scan, not regular dispatch', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const shortRow = makeRow({ title: 'Short', postType: 'short', status: 'pending' });
+    const episodeRow = makeRow({ title: 'Episode', postType: 'episode', status: 'pending' });
+    makeSheetsMock([header, shortRow, episodeRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result.title).toBe('Episode');
+  });
 });
 
 describe('fetchRecentShortRows', () => {

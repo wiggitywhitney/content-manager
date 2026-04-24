@@ -26,7 +26,7 @@ function getTodayDate() {
  * platform cannot overwrite a success written by an earlier platform.
  *
  * @param {Object} post - Parsed post object from the social posts queue
- * @param {string} spreadsheetId - The social posts sheet ID
+ * @param {string} today - Date in YYYY-MM-DD format used for Column G write-back
  */
 async function dispatchPost(post, today) {
   let failureCount = 0;
@@ -77,7 +77,11 @@ async function dispatchPost(post, today) {
     }
   }
 
-  if (attemptCount === 0) return;
+  if (attemptCount === 0) {
+    console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
+    await updatePostResult(post.rowIndex, { status: 'failed' });
+    return;
+  }
 
   const status = failureCount === 0 ? 'posted' : 'failed';
   const resultFields = { status };

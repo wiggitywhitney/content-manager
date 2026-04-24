@@ -46,7 +46,8 @@ function makePost(overrides = {}) {
   };
 }
 
-const TODAY = '2026-04-05';
+const TODAY = '2026-04-05'; // odd day — career priority
+const EVEN_DAY = '2026-04-06'; // even day — social priority
 
 describe('processPostsForDate', () => {
   beforeEach(() => {
@@ -123,6 +124,16 @@ describe('processPostsForDate', () => {
     await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
 
     expect(updatePostResult).toHaveBeenCalledWith(4, { status: 'failed' });
+  });
+
+  test('marks row as failed and unblocks queue when post has no dispatchable platforms', async () => {
+    const post = makePost({ rowIndex: 99, platforms: ['unknown-platform'] });
+    fetchOldestPendingPost.mockResolvedValue(post);
+
+    await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
+
+    expect(updatePostResult).toHaveBeenCalledWith(99, { status: 'failed' });
+    expect(postToBluesky).not.toHaveBeenCalled();
   });
 
   test('does not dispatch a second post even if the first fails', async () => {
@@ -270,7 +281,7 @@ describe('processPostsForDate', () => {
     const post = makePost({ platforms: ['bluesky'] });
     fetchOldestPendingPost.mockResolvedValue(post);
 
-    await processPostsForDate(TODAY);
+    await processPostsForDate(EVEN_DAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
   });
@@ -386,14 +397,16 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledWith(13, { status: 'failed' });
   });
 
-  test('does not dispatch to micro.blog for short rows — shorts remain threshold-gated via scanAndPostShorts', async () => {
+  test('does not dispatch to micro.blog for short rows, marks failed to unblock queue', async () => {
+    // In production, fetchOldestPendingPost excludes shorts; this tests dispatchPost's
+    // own safeguard in case a short reaches it through other means.
     const post = makePost({ rowIndex: 15, postType: 'short', platforms: ['micro.blog'] });
     fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
     expect(postToMicroblog).not.toHaveBeenCalled();
-    expect(updatePostResult).not.toHaveBeenCalled();
+    expect(updatePostResult).toHaveBeenCalledWith(15, { status: 'failed' });
   });
 
   test('includes micro.blog URL in aggregated result alongside other platforms', async () => {

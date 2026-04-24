@@ -23,6 +23,7 @@ const COL = {
  * @param {number} rowIndex - 1-indexed row number in the sheet
  * @param {Object} fields
  * @param {string} fields.status - New status value ('posted' or 'failed')
+ * @param {string} [fields.scheduledDate] - Actual post date to write to column G (YYYY-MM-DD)
  * @param {string} [fields.bskyPostUrl] - Bluesky post URL (column K)
  * @param {string} [fields.linkedinPostUrl] - LinkedIn post URL (column J)
  * @param {string} [fields.mastodonPostUrl] - Mastodon post URL (column L)

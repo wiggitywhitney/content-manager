@@ -151,7 +151,8 @@ async function fetchOldestPendingPost() {
 
   const rows = response.data.values || [];
   const posts = parseSocialPostRows(rows, { hasHeader: true });
-  const pending = posts.filter(p => p.status === 'pending');
+  // Exclude short posts — they are dispatched by the view-count scan, not the regular queue
+  const pending = posts.filter(p => p.status === 'pending' && p.postType !== 'short');
 
   return pending.length > 0 ? pending[0] : null;
 }
