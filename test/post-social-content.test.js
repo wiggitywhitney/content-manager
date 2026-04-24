@@ -338,6 +338,16 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledWith(13, { status: 'failed' });
   });
 
+  test('does not dispatch to micro.blog for short rows — shorts remain threshold-gated via scanAndPostShorts', async () => {
+    const post = makePost({ rowIndex: 15, postType: 'short', platforms: ['micro.blog'] });
+    fetchPendingPostsForToday.mockResolvedValue([post]);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToMicroblog).not.toHaveBeenCalled();
+    expect(updatePostResult).not.toHaveBeenCalled();
+  });
+
   test('includes micro.blog URL in aggregated result alongside other platforms', async () => {
     const post = makePost({ rowIndex: 14, platforms: ['bluesky', 'micro.blog'] });
     fetchPendingPostsForToday.mockResolvedValue([post]);

@@ -61,7 +61,7 @@ async function dispatchPost(post) {
     }
   }
 
-  if (post.platforms.includes('micro.blog')) {
+  if (post.platforms.includes('micro.blog') && post.postType !== 'short') {
     attemptCount++;
     try {
       ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true }));
