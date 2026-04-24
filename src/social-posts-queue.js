@@ -45,8 +45,6 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
     if (!row || row.length === 0) continue;
 
     const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
-    // Skip rows missing the required scheduledDate field
-    if (!scheduledDate) continue;
 
     const platformsRaw = (row[COL.PLATFORMS] || '').trim();
     const platforms = platformsRaw
@@ -126,6 +124,39 @@ async function fetchPendingPostsForToday(todayDate) {
 }
 
 /**
+ * Fetch the oldest pending post from the Social Posts Queue tab, regardless of scheduled date.
+ * Returns the first pending row in sheet order (oldest queued), or null if none exist.
+ *
+ * @returns {Promise<Object|null>} The oldest pending post, or null
+ */
+async function fetchOldestPendingPost() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+  const range = `${SOCIAL_POSTS_TAB}!A:M`;
+
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: STAGED_SPREADSHEET_ID,
+    range,
+  });
+
+  const rows = response.data.values || [];
+  const posts = parseSocialPostRows(rows, { hasHeader: true });
+  const pending = posts.filter(p => p.status === 'pending');
+
+  return pending.length > 0 ? pending[0] : null;
+}
+
+/**
  * Fetch the most recent short rows from the Social Posts Queue tab, regardless of status.
  * Used by the micro.blog view-count scan to find candidates for posting.
  *
@@ -160,4 +191,4 @@ async function fetchRecentShortRows(limit = 10) {
   return shortPosts.slice(-limit);
 }
 
-module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchRecentShortRows };
+module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchRecentShortRows };

@@ -17,7 +17,7 @@ jest.mock('../src/post-microblog', () => ({
 }));
 jest.mock('../src/update-social-post-status');
 
-const { fetchPendingPostsForToday } = require('../src/social-posts-queue');
+const { fetchOldestPendingPost } = require('../src/social-posts-queue');
 const { checkCareerPostedToday } = require('../src/career-post-guard');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
@@ -50,7 +50,7 @@ const TODAY = '2026-04-05';
 
 describe('processPostsForDate', () => {
   beforeEach(() => {
-    fetchPendingPostsForToday.mockResolvedValue([]);
+    fetchOldestPendingPost.mockResolvedValue(null);
     checkCareerPostedToday.mockResolvedValue(false);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
@@ -64,15 +64,28 @@ describe('processPostsForDate', () => {
     jest.clearAllMocks();
   });
 
-  test('returns early without dispatching when no posts are due', async () => {
-    fetchPendingPostsForToday.mockResolvedValue([]);
+  afterEach(() => {
+    delete process.env.CAREER_PRIORITY;
+  });
+
+  test('returns early without dispatching when queue has no pending posts', async () => {
+    fetchOldestPendingPost.mockResolvedValue(null);
     await processPostsForDate(TODAY);
     expect(postToBluesky).not.toHaveBeenCalled();
   });
 
+  test('dispatches only one post per run (the oldest pending)', async () => {
+    const post = makePost({ rowIndex: 2, platforms: ['bluesky'] });
+    fetchOldestPendingPost.mockResolvedValue(post);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToBluesky).toHaveBeenCalledTimes(1);
+  });
+
   test('posts to Bluesky for a pending row with bluesky platform', async () => {
     const post = makePost({ platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -81,20 +94,21 @@ describe('processPostsForDate', () => {
 
   test('updates sheet with posted status and Bluesky URL on success', async () => {
     const post = makePost({ rowIndex: 3, platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/xyz' });
 
     await processPostsForDate(TODAY);
 
     expect(updatePostResult).toHaveBeenCalledWith(3, {
       status: 'posted',
+      scheduledDate: TODAY,
       bskyPostUrl: 'https://bsky.app/profile/handle/post/xyz',
     });
   });
 
   test('skips Bluesky posting for rows without bluesky platform', async () => {
     const post = makePost({ platforms: ['mastodon'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -103,7 +117,7 @@ describe('processPostsForDate', () => {
 
   test('writes failed status and logs on Bluesky post failure without crashing', async () => {
     const post = makePost({ rowIndex: 4, platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToBluesky.mockRejectedValue(new Error('Network error'));
 
     await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
@@ -111,27 +125,20 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledWith(4, { status: 'failed' });
   });
 
-  test('continues processing remaining posts after a single failure', async () => {
-    const failPost = makePost({ rowIndex: 2, platforms: ['bluesky'] });
-    const okPost = makePost({ rowIndex: 3, platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([failPost, okPost]);
-    postToBluesky
-      .mockRejectedValueOnce(new Error('Failure'))
-      .mockResolvedValueOnce({ postUrl: 'https://bsky.app/profile/handle/post/ok' });
+  test('does not dispatch a second post even if the first fails', async () => {
+    const post = makePost({ rowIndex: 2, platforms: ['bluesky'] });
+    fetchOldestPendingPost.mockResolvedValue(post);
+    postToBluesky.mockRejectedValue(new Error('Failure'));
 
     await processPostsForDate(TODAY);
 
-    expect(postToBluesky).toHaveBeenCalledTimes(2);
+    expect(postToBluesky).toHaveBeenCalledTimes(1);
     expect(updatePostResult).toHaveBeenCalledWith(2, { status: 'failed' });
-    expect(updatePostResult).toHaveBeenCalledWith(3, {
-      status: 'posted',
-      bskyPostUrl: 'https://bsky.app/profile/handle/post/ok',
-    });
   });
 
   test('processes posts with multiple platforms including bluesky', async () => {
     const post = makePost({ platforms: ['bluesky', 'mastodon'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -140,7 +147,7 @@ describe('processPostsForDate', () => {
 
   test('posts to Mastodon for a pending row with mastodon platform', async () => {
     const post = makePost({ platforms: ['mastodon'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -149,20 +156,21 @@ describe('processPostsForDate', () => {
 
   test('updates sheet with posted status and Mastodon URL on success', async () => {
     const post = makePost({ rowIndex: 3, platforms: ['mastodon'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375987654321098' });
 
     await processPostsForDate(TODAY);
 
     expect(updatePostResult).toHaveBeenCalledWith(3, {
       status: 'posted',
+      scheduledDate: TODAY,
       mastodonPostUrl: 'https://mastodon.social/@whitney/109375987654321098',
     });
   });
 
   test('skips Mastodon posting for rows without mastodon platform', async () => {
     const post = makePost({ platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -171,7 +179,7 @@ describe('processPostsForDate', () => {
 
   test('writes failed status and logs on Mastodon post failure without crashing', async () => {
     const post = makePost({ rowIndex: 5, platforms: ['mastodon'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToMastodon.mockRejectedValue(new Error('Instance unavailable'));
 
     await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
@@ -181,7 +189,7 @@ describe('processPostsForDate', () => {
 
   test('posts to both Bluesky and Mastodon for a row with both platforms', async () => {
     const post = makePost({ rowIndex: 6, platforms: ['bluesky', 'mastodon'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -191,7 +199,7 @@ describe('processPostsForDate', () => {
 
   test('posts to LinkedIn for a pending row with linkedin platform', async () => {
     const post = makePost({ platforms: ['linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -200,20 +208,21 @@ describe('processPostsForDate', () => {
 
   test('updates sheet with posted status and LinkedIn URL on success', async () => {
     const post = makePost({ rowIndex: 7, platforms: ['linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:9876543210/' });
 
     await processPostsForDate(TODAY);
 
     expect(updatePostResult).toHaveBeenCalledWith(7, {
       status: 'posted',
+      scheduledDate: TODAY,
       linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:9876543210/',
     });
   });
 
   test('skips LinkedIn posting for rows without linkedin platform', async () => {
     const post = makePost({ platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -222,7 +231,7 @@ describe('processPostsForDate', () => {
 
   test('writes failed status and logs on LinkedIn post failure without crashing', async () => {
     const post = makePost({ rowIndex: 8, platforms: ['linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToLinkedIn.mockRejectedValue(new Error('Token expired'));
 
     await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
@@ -232,7 +241,7 @@ describe('processPostsForDate', () => {
 
   test('posts to all three platforms for a row with all platforms', async () => {
     const post = makePost({ rowIndex: 9, platforms: ['bluesky', 'mastodon', 'linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -241,10 +250,11 @@ describe('processPostsForDate', () => {
     expect(postToLinkedIn).toHaveBeenCalledWith(post);
   });
 
-  test('skips all platform dispatch when career content was posted today', async () => {
+  test('skips dispatch on career-priority day (odd day) when career posted today', async () => {
+    process.env.CAREER_PRIORITY = '1';
     checkCareerPostedToday.mockResolvedValue(true);
     const post = makePost({ platforms: ['bluesky', 'mastodon', 'linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -254,19 +264,55 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).not.toHaveBeenCalled();
   });
 
-  test('proceeds normally when career has not posted today', async () => {
-    checkCareerPostedToday.mockResolvedValue(false);
+  test('dispatches on social-priority day (even day) even when career posted today', async () => {
+    process.env.CAREER_PRIORITY = '0';
+    checkCareerPostedToday.mockResolvedValue(true);
     const post = makePost({ platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledWith(post);
   });
 
+  test('proceeds normally when career has not posted today', async () => {
+    checkCareerPostedToday.mockResolvedValue(false);
+    const post = makePost({ platforms: ['bluesky'] });
+    fetchOldestPendingPost.mockResolvedValue(post);
+
+    await processPostsForDate(TODAY);
+
+    expect(postToBluesky).toHaveBeenCalledWith(post);
+  });
+
+  test('writes today\'s date to Column G on successful post', async () => {
+    const post = makePost({ rowIndex: 5, platforms: ['bluesky'] });
+    fetchOldestPendingPost.mockResolvedValue(post);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
+
+    await processPostsForDate(TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({
+      status: 'posted',
+      scheduledDate: TODAY,
+    }));
+  });
+
+  test('does not write scheduledDate to Column G on failed post', async () => {
+    const post = makePost({ rowIndex: 6, platforms: ['bluesky'] });
+    fetchOldestPendingPost.mockResolvedValue(post);
+    postToBluesky.mockRejectedValue(new Error('API down'));
+
+    await processPostsForDate(TODAY);
+
+    expect(updatePostResult).toHaveBeenCalledWith(6, expect.not.objectContaining({
+      scheduledDate: expect.anything(),
+    }));
+  });
+
   test('writes single aggregated result with all URLs when all three platforms succeed', async () => {
     const post = makePost({ rowIndex: 10, platforms: ['bluesky', 'mastodon', 'linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/bbb' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/111' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:999/' });
@@ -276,6 +322,7 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledTimes(1);
     expect(updatePostResult).toHaveBeenCalledWith(10, {
       status: 'posted',
+      scheduledDate: TODAY,
       bskyPostUrl: 'https://bsky.app/profile/handle/post/bbb',
       mastodonPostUrl: 'https://mastodon.social/@whitney/111',
       linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:999/',
@@ -284,7 +331,7 @@ describe('processPostsForDate', () => {
 
   test('sets status to failed but preserves successful URLs when one platform fails', async () => {
     const post = makePost({ rowIndex: 11, platforms: ['bluesky', 'linkedin'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/ccc' });
     postToLinkedIn.mockRejectedValue(new Error('Token expired'));
 
@@ -299,7 +346,7 @@ describe('processPostsForDate', () => {
 
   test('posts to micro.blog for a pending row with micro.blog platform', async () => {
     const post = makePost({ platforms: ['micro.blog'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -308,20 +355,21 @@ describe('processPostsForDate', () => {
 
   test('updates sheet with posted status and micro.blog URL on success', async () => {
     const post = makePost({ rowIndex: 12, platforms: ['micro.blog'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/my-episode' });
 
     await processPostsForDate(TODAY);
 
     expect(updatePostResult).toHaveBeenCalledWith(12, {
       status: 'posted',
+      scheduledDate: TODAY,
       microblogPostUrl: 'https://whitneylee.com/2026/04/my-episode',
     });
   });
 
   test('skips micro.blog posting for rows without micro.blog platform', async () => {
     const post = makePost({ platforms: ['bluesky'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -330,7 +378,7 @@ describe('processPostsForDate', () => {
 
   test('writes failed status and logs on micro.blog post failure without crashing', async () => {
     const post = makePost({ rowIndex: 13, platforms: ['micro.blog'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToMicroblog.mockRejectedValue(new Error('Micropub API error'));
 
     await expect(processPostsForDate(TODAY)).resolves.not.toThrow();
@@ -340,7 +388,7 @@ describe('processPostsForDate', () => {
 
   test('does not dispatch to micro.blog for short rows — shorts remain threshold-gated via scanAndPostShorts', async () => {
     const post = makePost({ rowIndex: 15, postType: 'short', platforms: ['micro.blog'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
 
     await processPostsForDate(TODAY);
 
@@ -350,7 +398,7 @@ describe('processPostsForDate', () => {
 
   test('includes micro.blog URL in aggregated result alongside other platforms', async () => {
     const post = makePost({ rowIndex: 14, platforms: ['bluesky', 'micro.blog'] });
-    fetchPendingPostsForToday.mockResolvedValue([post]);
+    fetchOldestPendingPost.mockResolvedValue(post);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/ddd' });
     postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/multi-platform' });
 
@@ -359,6 +407,7 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledTimes(1);
     expect(updatePostResult).toHaveBeenCalledWith(14, {
       status: 'posted',
+      scheduledDate: TODAY,
       bskyPostUrl: 'https://bsky.app/profile/handle/post/ddd',
       microblogPostUrl: 'https://whitneylee.com/2026/04/multi-platform',
     });
