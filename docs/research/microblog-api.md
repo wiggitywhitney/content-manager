@@ -4,6 +4,7 @@
 **Last Updated:** 2026-04-08
 
 ## Update Log
+
 | Date | Summary |
 |------|---------|
 | 2026-04-08 | Initial structured research. Consolidates existing docs/microblog-api-capabilities.md with current (2026) web verification. Focuses on page editing (PRD #2 blocker), cross-posting architecture (PRD #7 relevance), and syndication controls. |
