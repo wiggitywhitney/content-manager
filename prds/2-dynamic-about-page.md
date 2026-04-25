@@ -106,6 +106,8 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 *Updated per Decisions 1–3: generates channel list + bio instead of featured item. Bio text is finalized.*
 
+**Before starting**: Two channel URLs in `src/config/about-page-channels.js` are TODO placeholders — Datadog Illuminated and You Choose. Gather the correct playlist URLs from Whitney before or during this milestone (the page can be tested with placeholders but must have real URLs before shipping).
+
 - [ ] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
 - [ ] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
 - [ ] Test on a **non-critical template page first** before touching the About page — the About page is `is_template: true` and rendering depends on Hugo theme; verify `editPage` produces expected output
