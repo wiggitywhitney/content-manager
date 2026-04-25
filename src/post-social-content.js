@@ -98,7 +98,7 @@ async function dispatchPost(post, today) {
  * Fetch and dispatch the next eligible social post(s).
  *
  * Dispatch priority order:
- * 1. Career-priority check: on odd days (CAREER_PRIORITY=1), skip if career posted today.
+ * 1. Career-priority check: when CAREER_PRIORITY env var is not '0', skip if career posted today.
  * 2. Non-micro.blog group: dispatch the oldest pending group of LinkedIn/Bluesky/Mastodon rows.
  *    If the group has a Group ID (col N), all rows sharing that ID post together in one run.
  * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND the career post
