@@ -11,7 +11,7 @@ const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchRe
 // A(0)=Show, B(1)=Episode/Short Title, C(2)=Post Type, D(3)=Post Text,
 // E(4)=YouTube URL, F(5)=Alt Text, G(6)=Scheduled Date, H(7)=Platforms,
 // I(8)=Status, J(9)=LinkedIn Post URL, K(10)=Bluesky Post URL,
-// L(11)=Mastodon Post URL, M(12)=micro.blog Post URL
+// L(11)=Mastodon Post URL, M(12)=micro.blog Post URL, N(13)=Group ID
 
 function makeRow({
   show = 'Thunder',
@@ -27,8 +27,9 @@ function makeRow({
   bskyUrl = '',
   mastodonUrl = '',
   microblogUrl = '',
+  groupId = '',
 } = {}) {
-  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl];
+  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId];
 }
 
 describe('parseSocialPostRows', () => {
@@ -52,6 +53,7 @@ describe('parseSocialPostRows', () => {
       bskyPostUrl: '',
       mastodonPostUrl: '',
       microblogPostUrl: '',
+      groupId: null,
     });
   });
 

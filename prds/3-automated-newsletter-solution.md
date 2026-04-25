@@ -49,7 +49,7 @@ Build an automated newsletter system that:
 - What should trigger newsletter creation?
   - New blog posts from micro.blog RSS feed?
   - Weekly/monthly digest of content from spreadsheet?
-  - Highlighted content using the "Highlight" column from dynamic about page PRD?
+  - Active channel activity from PRD #2 (PRD #2 switched to a channel list approach — no Highlight column; recent content by type/show is available from the live spreadsheet)
   - Combination of multiple content sources?
 - Should different content types (podcast, video, blog, presentations) have different newsletter formats?
 - How can the system handle content that spans multiple weeks or irregular posting schedules?
@@ -169,7 +169,7 @@ This feature will be complete when:
 ## Related PRDs & Integration Points
 
 - **PRD #1**: Automated Content Publishing - Newsletter content could leverage existing content tracking
-- **PRD #2**: Dynamic About Page - "Highlight" column could inform newsletter featured content
+- **PRD #2**: Dynamic About Page - channel activity data (recent content by type/show) could inform newsletter featured content; note: the Highlight column approach was dropped in 2026-04-25 in favor of a channel list
 - **Future PRDs**: Email signup integration, subscriber analytics, content amplification strategies
 
 ## Progress Log

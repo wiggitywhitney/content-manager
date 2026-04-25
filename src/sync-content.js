@@ -1,8 +1,9 @@
 // ABOUTME: Daily career content sync — reads the live production spreadsheet and creates/updates Micro.blog posts.
-// ABOUTME: Handles post creation, updates, deletions, archive posts, and orphan cleanup.
+// ABOUTME: Handles post creation, updates, deletions, archive posts, orphan cleanup, and About page updates.
 const { google } = require('googleapis');
 const https = require('https');
 const { CATEGORY_PAGES } = require('./config/category-pages');
+const { updateAboutPage } = require('./update-about-page');
 
 // Rate limiting for Google Sheets writes (60 writes/min quota)
 // 1500ms = 40 writes/min = 67% of limit with 33% buffer
@@ -12,7 +13,7 @@ const SHEETS_WRITE_DELAY_MS = 1500;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
 const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
-const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:I`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL, Micro.blog Posted At
+const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:K`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL, Micro.blog Posted At, Highlight, Highlight Priority
 
 // Dry-run mode: when enabled, logs actions without making actual API calls
 // Defaults to true (safe) unless explicitly disabled with DRY_RUN=false
@@ -379,14 +380,16 @@ function parseRow(row, rowIndex, isHeaderRow = false) {
     return null;
   }
 
-  // Extract fields by column position (A-H)
-  const [name, type, show, date, location, confirmed, link, microblogUrl] = row;
+  // Extract fields by column position (A-K)
+  const [name, type, show, date, location, confirmed, link, microblogUrl, , rawHighlight, rawPriority] = row;
 
   // Normalize type: "Presentation" (singular) → "Presentations" (plural)
   let normalizedType = (type || '').trim();
   if (normalizedType === 'Presentation') {
     normalizedType = 'Presentations';
   }
+
+  const parsedPriority = parseInt(rawPriority, 10);
 
   // Return structured object
   return {
@@ -398,6 +401,8 @@ function parseRow(row, rowIndex, isHeaderRow = false) {
     confirmed: (confirmed || '').trim(),
     link: (link || '').trim(),
     microblogUrl: (microblogUrl || '').trim(),  // Column H
+    highlight: (rawHighlight || '').trim().toLowerCase() === 'yes',  // Column J
+    highlightPriority: isNaN(parsedPriority) ? null : parsedPriority,  // Column K
     rowIndex: rowIndex + 1 // Convert to 1-based for readability (matches spreadsheet row numbers)
   };
 }
@@ -926,6 +931,28 @@ function parseDateToISO(dateString) {
   // Invalid format
   log(`Invalid date format: "${dateString}"`, 'WARN');
   return null;
+}
+
+/**
+ * Update the About page as a non-fatal step within the sync flow.
+ * Accepts an injectable updateFn for testing.
+ *
+ * @param {Array} validRows - Parsed spreadsheet rows
+ * @param {Object} [options]
+ * @param {Function} [options.updateFn] - Replacement for updateAboutPage (for testing)
+ */
+async function runAboutPageUpdate(validRows, { updateFn = updateAboutPage } = {}) {
+  try {
+    log('\nUpdating About page...');
+    const result = await updateFn(validRows, new Date());
+    if (result.updated) {
+      log('✅ About page updated');
+    } else {
+      log('ℹ️  About page content unchanged, skipping update');
+    }
+  } catch (error) {
+    log(`⚠️  About page update failed (non-fatal): ${error.message}`, 'WARN');
+  }
 }
 
 /**
@@ -1745,6 +1772,12 @@ async function syncContent() {
       }
     }
 
+    if (DRY_RUN) {
+      log('[DRY-RUN] Skipping About page update');
+    } else {
+      await runAboutPageUpdate(validRows);
+    }
+
   } catch (error) {
     // Classify the error
     const errorInfo = classifyError(error);
@@ -1774,7 +1807,9 @@ if (require.main === module) {
 // Export for testing and programmatic use
 module.exports = {
   syncContent,
+  runAboutPageUpdate,
   // Exported for unit testing
+  parseRow,
   queryMicroblogPosts,
   detectChanges,
   parseDateToISO,

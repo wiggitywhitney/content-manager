@@ -72,4 +72,65 @@ async function checkCareerPostedToday() {
   }
 }
 
-module.exports = { checkCareerPostedToday };
+/**
+ * Returns true if all career posts in the live spreadsheet have been published to Micro.blog.
+ * A career post is considered unpublished if it has a valid content type but no Micro.blog URL
+ * in Column H. Returns true (treat as clear) on any error so transient failures don't suppress
+ * micro.blog social posts indefinitely.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function checkAllCareerPostsPublished() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    console.warn('[career-guard] GOOGLE_SERVICE_ACCOUNT_JSON not set — assuming career backlog clear'); // eslint-disable-line no-console
+    return true;
+  }
+
+  const VALID_TYPES = new Set(['Podcast', 'Video', 'Blog', 'Presentations', 'Presentation', 'Guest']);
+
+  try {
+    const credentials = JSON.parse(serviceAccountJson);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const [mainResponse, historicalResponse] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: LIVE_SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A:H`,
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: LIVE_SPREADSHEET_ID,
+        range: `${HISTORICAL_TAB_NAME}!A:H`,
+      }),
+    ]);
+
+    const allRows = [
+      ...(mainResponse.data.values || []),
+      ...(historicalResponse.data.values || []),
+    ];
+
+    const hasUnpublished = allRows.some(row => {
+      const name = (row[0] || '').trim();
+      const type = (row[1] || '').trim();
+      const microblogUrl = (row[7] || '').trim();
+      // Skip header, empty rows, and non-content rows (month headers have empty type)
+      if (!name || !VALID_TYPES.has(type)) return false;
+      return !microblogUrl;
+    });
+
+    if (hasUnpublished) {
+      console.log('[career-guard] Career post backlog is not yet cleared — micro.blog social post deferred'); // eslint-disable-line no-console
+    }
+    return !hasUnpublished;
+  } catch (err) {
+    console.warn(`[career-guard] Error checking career backlog: ${err.message} — treating as clear`); // eslint-disable-line no-console
+    return true;
+  }
+}
+
+module.exports = { checkCareerPostedToday, checkAllCareerPostsPublished };
