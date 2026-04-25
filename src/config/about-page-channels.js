@@ -13,7 +13,7 @@ const ABOUT_PAGE_CHANNELS = [
     type: 'Video',
     showFilter: ['Datadog', 'Illuminated'],
     thresholdDays: 60,
-    url: 'TODO: add Datadog Illuminated playlist URL',
+    url: 'https://www.youtube.com/playlist?list=PLVOmGuoGYFgpj1-kAXLRKmFWqZ99HAHu7',
     alwaysShow: false,
     sortLast: false
   },
