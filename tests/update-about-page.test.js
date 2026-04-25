@@ -244,58 +244,46 @@ describe('generateAboutPageMarkdown', () => {
   const github = { name: 'GitHub', url: 'https://github.com/wiggitywhitney', sortLast: false };
   const sdi = { name: 'Software Defined Interviews', url: 'https://www.softwaredefinedinterviews.com/', sortLast: true };
 
-  test('includes # About Whitney heading', () => {
-    expect(generateAboutPageMarkdown([sdi])).toContain('# About Whitney');
-  });
-
   test('includes bio text verbatim', () => {
     expect(generateAboutPageMarkdown([sdi])).toContain(BIO_TEXT);
   });
 
-  test('includes ## Where to Find My Work heading', () => {
-    expect(generateAboutPageMarkdown([thunder, sdi])).toContain('## Where to Find My Work');
+  test('includes photo img tag', () => {
+    expect(generateAboutPageMarkdown([sdi])).toContain('<img src="https://whitneylee.com/uploads/2025/whitney-square.jpg"');
   });
 
-  test('formats non-sortLast channels as markdown links', () => {
+  test('includes flex layout container', () => {
+    expect(generateAboutPageMarkdown([sdi])).toContain('display: flex');
+  });
+
+  test('does not include any heading elements', () => {
+    const result = generateAboutPageMarkdown([thunder, sdi]);
+    expect(result).not.toMatch(/^#{1,6} /m);
+  });
+
+  test('does not include --- separator', () => {
+    const result = generateAboutPageMarkdown([thunder, sdi]);
+    expect(result).not.toContain('\n---\n');
+  });
+
+  test('formats all channels as markdown links in a flat list', () => {
     const result = generateAboutPageMarkdown([thunder, sdi]);
     expect(result).toContain('- [🌩️ Thunder](https://thunder.example.com/)');
+    expect(result).toContain('- [Software Defined Interviews](https://www.softwaredefinedinterviews.com/)');
   });
 
-  test('formats sortLast channels as markdown links', () => {
-    expect(generateAboutPageMarkdown([sdi])).toContain('- [Software Defined Interviews](https://www.softwaredefinedinterviews.com/)');
-  });
-
-  test('non-sortLast channels appear before --- separator', () => {
+  test('non-sortLast channels appear before sortLast channels', () => {
     const result = generateAboutPageMarkdown([thunder, sdi]);
-    const sepIdx = result.indexOf('\n---\n');
     const thunderIdx = result.indexOf('- [🌩️ Thunder]');
-    expect(thunderIdx).toBeGreaterThan(0);
-    expect(thunderIdx).toBeLessThan(sepIdx);
-  });
-
-  test('sortLast channels appear after --- separator', () => {
-    const result = generateAboutPageMarkdown([thunder, sdi]);
-    const sepIdx = result.indexOf('\n---\n');
     const sdiIdx = result.indexOf('- [Software Defined Interviews]');
-    expect(sdiIdx).toBeGreaterThan(sepIdx);
+    expect(thunderIdx).toBeLessThan(sdiIdx);
   });
 
-  test('sortLast channels do not appear before the separator', () => {
-    const result = generateAboutPageMarkdown([thunder, sdi]);
-    const sepIdx = result.indexOf('\n---\n');
-    const beforeSep = result.substring(0, sepIdx);
-    expect(beforeSep).not.toContain('- [Software Defined Interviews]');
-  });
-
-  test('no --- separator when no sortLast channels', () => {
-    const result = generateAboutPageMarkdown([thunder, github]);
-    expect(result).not.toContain('---');
-  });
-
-  test('multiple non-sortLast channels all appear in the main section', () => {
+  test('all channels appear in the output regardless of sortLast', () => {
     const result = generateAboutPageMarkdown([thunder, github, sdi]);
     expect(result).toContain('- [🌩️ Thunder]');
     expect(result).toContain('- [GitHub]');
+    expect(result).toContain('- [Software Defined Interviews]');
   });
 });
 
@@ -331,7 +319,7 @@ describe('updateAboutPage', () => {
 
   function makePagesXml(description) {
     const escaped = xmlEscape(description);
-    return `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>pageID</name><value><string>6</string></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>${escaped}</string></value></member><member><name>is_template</name><value><boolean>1</boolean></value></member></struct></value></data></array></value></param></params></methodResponse>`;
+    return `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>id</name><value><string>6</string></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>${escaped}</string></value></member><member><name>is_template</name><value><boolean>1</boolean></value></member></struct></value></data></array></value></param></params></methodResponse>`;
   }
 
   const editSuccessXml = '<?xml version="1.0"?><methodResponse><params><param><value><boolean>1</boolean></value></param></params></methodResponse>';
@@ -389,7 +377,7 @@ describe('updateAboutPage', () => {
     expect(method).toBe('microblog.editPage');
     expect(params[0]).toBe(6);
     expect(params[3].title).toBe('About');
-    expect(params[3].description).toContain('# About Whitney');
+    expect(params[3].description).toContain('whitney-square.jpg');
   });
 
   test('uses MICROBLOG_USERNAME from env in XML-RPC params', async () => {
@@ -406,7 +394,7 @@ describe('updateAboutPage', () => {
 
   test('correctly finds About page when response contains nested structs', async () => {
     // Simulate a getPages response where each page struct contains an author nested struct
-    const nestedStructXml = `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>pageID</name><value><string>6</string></value></member><member><name>author</name><value><struct><member><name>name</name><value><string>Whitney</string></value></member></struct></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>old content</string></value></member><member><name>is_template</name><value><boolean>1</boolean></value></member></struct></value></data></array></value></param></params></methodResponse>`;
+    const nestedStructXml = `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>id</name><value><string>6</string></value></member><member><name>author</name><value><struct><member><name>name</name><value><string>Whitney</string></value></member></struct></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>old content</string></value></member><member><name>is_template</name><value><boolean>1</boolean></value></member></struct></value></data></array></value></param></params></methodResponse>`;
 
     const xmlrpcFn = jest.fn()
       .mockResolvedValueOnce({ statusCode: 200, body: nestedStructXml })

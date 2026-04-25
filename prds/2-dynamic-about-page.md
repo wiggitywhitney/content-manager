@@ -47,25 +47,24 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 ## Content Format
 
-```markdown
-# About Whitney
+*Updated per Decision 4: no headings, no separator, flat list.*
 
+```html
+<div style="display: flex; align-items: flex-start; gap: 3rem; margin-bottom: 1rem;">
+<img src="https://whitneylee.com/uploads/2025/whitney-square.jpg" alt="Whitney Lee" style="width: 200px; border-radius: 0 !important;">
+<div style="text-align: left;">
 [Bio text]
-
-## Where to Find My Work
+</div>
+</div>
 
 - [Datadog Illuminated](playlist-url)
 - [🌩️ Thunder](playlist-url)
-- [⚡️ Enlightning](playlist-url)
-- [You Choose](playlist-url)
-- [Conference Talks](playlist-url)
-
----
-
+- [Conference Talks](presentations-url)
+- [GitHub](github-url)
 - [Software Defined Interviews](sdi-url)
 ```
 
-(Only active channels appear in the list. SDI always present below the separator. GitHub link TBD.)
+Only active channels appear in the list. SDI always last by ordering (no visual separator). GitHub always present (alwaysShow). Inactive channels are omitted.
 
 ## Technical Requirements
 
@@ -110,8 +109,8 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 - [x] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
 - [x] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
-- [ ] Test on a **non-critical template page first** before touching the About page — the About page is `is_template: true` and rendering depends on Hugo theme; verify `editPage` produces expected output
-- [ ] Test with sample active/inactive channel lists; verify rendered output on Micro.blog
+- [x] Test on a **non-critical template page first** before touching the About page — the About page is `is_template: true` and rendering depends on Hugo theme; verify `editPage` produces expected output
+- [x] Test with sample active/inactive channel lists; verify rendered output on Micro.blog
 
 **Codebase context**: `src/update-page-visibility.js` has the working `xmlrpcRequest` and `setPageNavigationVisibility` patterns. `getPages` and `editPage` both use `MICROBLOG_XMLRPC_TOKEN` (HTTP Basic auth). See `~/.claude/rules/microblog-api-gotchas.md` for parameter order.
 
@@ -121,7 +120,13 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 ### Milestone 3: Integration with existing sync
 
-**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md) and `~/.claude/rules/microblog-api-gotchas.md` (updated with Micro.blog-specific quirks discovered during M2 live testing).
+
+**Codebase context for wiring:**
+- `updateAboutPage(validRows, todayDate)` is already implemented in `src/update-about-page.js` — call it with the `validRows` array from `sync-content.js`'s existing Sheets read and `new Date()`
+- `src/run-update-about-page.js` shows the standalone runner pattern (reads spreadsheet + calls updateAboutPage) — useful as a reference but the goal is to integrate into sync-content.js, not keep using the standalone script
+- About page confirmed live at `https://whitneylee.com/about/` (page ID 849042, discovered dynamically via getPages)
+- `sync-content.js` `validRows` rows have `{ name, type, show, date, ... }` — `getActiveChannels` only needs `type`, `show`, and `date`, all present
 
 - [ ] Add an about-page update step to `daily-sync.yml` (after content sync step, before page visibility update)
 - [ ] Wire `src/update-about-page.js`: pass it the parsed `validRows` array that `sync-content.js` already builds, plus today's date, so it doesn't need its own Sheets API call
@@ -147,6 +152,7 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 | 1 | 2026-04-25 | Replace Highlight column approach with channel list | Lower maintenance (no manual flagging needed), self-maintaining as Whitney publishes, better visitor experience for discovery over curation |
 | 2 | 2026-04-25 | Channel list and freshness thresholds | Videos/Podcasts: 2 months; Talks: 5 months (less frequent); SDI: always shown (most stable content), always at bottom |
 | 3 | 2026-04-25 | Bio text finalized | Whitney provided final text — hardcode in the generator, no spreadsheet column needed |
+| 4 | 2026-04-25 | About page format: no section headings, no separator, flat link list with photo | Live test revealed the PRD's draft format (# heading, ## heading, --- separator) was redundant and cluttered. "About Whitney" redundant (page title already says "About"); "Where to Find My Work" heading unnecessary; `---` separator before SDI unwanted. Final format: HTML flex block with photo left + bio right, then a flat Markdown link list (no headings, no separator, SDI last by ordering only). |
 
 ## Success Criteria
 

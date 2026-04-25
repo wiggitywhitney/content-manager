@@ -207,28 +207,25 @@ function getActiveChannels(validRows, todayDate) {
 // Bio text per PRD Decision 3 — finalized by Whitney 2026-04-25
 const BIO_TEXT = 'Whitney Lee is a creator and systems thinker who explores how observability, AI, and platform engineering connect across the cloud native ecosystem. She brings humor, depth, and clarity to complex technologies while building original frameworks that help others understand how systems fit together. She runs a vibrant YouTube channel, hosts Datadog Illuminated and Software Defined Interviews, has delivered two KubeCon keynotes and countless breakout talks, and combines storytelling and technical rigor to illuminate the human side of cloud native engineering.';
 
+// Photo layout matches the original About page — flex container with photo left, bio right
+const PHOTO_BLOCK = `<div style="display: flex; align-items: flex-start; gap: 3rem; margin-bottom: 1rem;">
+<img src="https://whitneylee.com/uploads/2025/whitney-square.jpg" alt="Whitney Lee" style="width: 200px; border-radius: 0 !important;">
+<div style="text-align: left;">
+${BIO_TEXT}
+</div>
+</div>`;
+
 /**
- * Generate the About page Markdown from an ordered list of active channels.
- * Non-sortLast channels appear in the "Where to Find My Work" section.
- * sortLast channels (SDI) appear after the --- separator.
+ * Generate the About page content from an ordered list of active channels.
+ * Produces: photo+bio HTML block, then a flat channel list (no headings, no separator).
+ * sortLast channels (SDI) are already ordered last by getActiveChannels.
  *
  * @param {Array} activeChannels - Ordered array from getActiveChannels
- * @returns {string} Markdown string
+ * @returns {string} Page content string (HTML block + Markdown links)
  */
 function generateAboutPageMarkdown(activeChannels) {
-  const mainChannels = activeChannels.filter(c => !c.sortLast);
-  const lastChannels = activeChannels.filter(c => c.sortLast);
-
-  const mainLinks = mainChannels.map(c => `- [${c.name}](${c.url})`).join('\n');
-  const lastLinks = lastChannels.map(c => `- [${c.name}](${c.url})`).join('\n');
-
-  let markdown = `# About Whitney\n\n${BIO_TEXT}\n\n## Where to Find My Work\n\n${mainLinks}`;
-
-  if (lastLinks) {
-    markdown += `\n\n---\n\n${lastLinks}`;
-  }
-
-  return markdown;
+  const links = activeChannels.map(c => `- [${c.name}](${c.url})`).join('\n');
+  return `${PHOTO_BLOCK}\n\n${links}`;
 }
 
 // ============================================================================
@@ -244,14 +241,15 @@ function generateAboutPageMarkdown(activeChannels) {
  * @returns {string|null}
  */
 function extractMember(structContent, memberName) {
+  // Micro.blog uses <i4> for integers (standard XML-RPC alias for <int>)
   const regex = new RegExp(
     `<name>\\s*${memberName}\\s*<\\/name>\\s*<value>\\s*` +
-    `(?:<string>([\\s\\S]*?)<\\/string>|<int>(\\d+)<\\/int>|<boolean>([01])<\\/boolean>|<string\\/>)`,
+    `(?:<string>([\\s\\S]*?)<\\/string>|<int>(\\d+)<\\/int>|<i4>(\\d+)<\\/i4>|<boolean>([01])<\\/boolean>|<string\\/>)`,
     'i'
   );
   const match = structContent.match(regex);
   if (!match) return null;
-  return match[1] ?? match[2] ?? match[3] ?? '';
+  return match[1] ?? match[2] ?? match[3] ?? match[4] ?? '';
 }
 
 /**
@@ -293,7 +291,8 @@ function parseGetPagesResponse(body) {
     const closeIdx = pos - '</struct>'.length;
     const content = body.substring(openIdx + '<struct>'.length, closeIdx);
 
-    const pageID = extractMember(content, 'pageID');
+    // Micro.blog uses 'id' (not 'pageID') for the page identifier
+    const pageID = extractMember(content, 'id');
     const title = extractMember(content, 'title');
     const description = extractMember(content, 'description');
 
@@ -327,7 +326,8 @@ async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest 
   if (!token) throw new Error('MICROBLOG_XMLRPC_TOKEN not set');
 
   const username = process.env.MICROBLOG_USERNAME || 'wiggitywhitney';
-  const blogId = 1;
+  // Micro.blog uses the username as the blogId (not integer 1 as standard Blogger API expects)
+  const blogId = username;
 
   const activeChannels = getActiveChannels(validRows, todayDate);
   const newMarkdown = generateAboutPageMarkdown(activeChannels);
