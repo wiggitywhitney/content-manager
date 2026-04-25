@@ -92,9 +92,9 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 *Updated per Decision 1: replaces original "Spreadsheet Schema Extension." No spreadsheet columns to add.*
 
-- [ ] Create `src/config/about-page-channels.js` exporting the channel list: each entry has `name`, `type`, `showFilter` (string to match against col C, or null), `thresholdDays`, `url`, `alwaysShow` (bool), `sortLast` (bool). SDI has `alwaysShow: true, sortLast: true`.
-- [ ] Implement `getActiveChannels(validRows, todayDate)` in `src/update-about-page.js`: filters the already-parsed rows array from the live spreadsheet by each channel's type+showFilter, checks if any matching row has a date within `thresholdDays`, returns ordered array of active channel objects. Always-show channels are included regardless.
-- [ ] Write unit tests for `getActiveChannels`: all channels active; some channels inactive (no recent content); all video channels inactive (only SDI and always-shown remain); SDI always at bottom; correct ordering by most recent date.
+- [x] Create `src/config/about-page-channels.js` exporting the channel list: each entry has `name`, `type`, `showFilter` (string to match against col C, or null), `thresholdDays`, `url`, `alwaysShow` (bool), `sortLast` (bool). SDI has `alwaysShow: true, sortLast: true`.
+- [x] Implement `getActiveChannels(validRows, todayDate)` in `src/update-about-page.js`: filters the already-parsed rows array from the live spreadsheet by each channel's type+showFilter, checks if any matching row has a date within `thresholdDays`, returns ordered array of active channel objects. Always-show channels are included regardless.
+- [x] Write unit tests for `getActiveChannels`: all channels active; some channels inactive (no recent content); all video channels inactive (only SDI and always-shown remain); SDI always at bottom; correct ordering by most recent date.
 
 **Success Criteria**: Given a set of spreadsheet rows and a date, `getActiveChannels` returns the correct active channel list with SDI always last.
 
