@@ -40,7 +40,7 @@ const ABOUT_PAGE_CHANNELS = [
     type: 'Video',
     showFilter: ['YouChoose', 'You Choose'],
     thresholdDays: 60,
-    url: 'TODO: add You Choose playlist URL',
+    url: 'https://www.youtube.com/playlist?list=PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z',
     alwaysShow: false,
     sortLast: false
   },

@@ -106,7 +106,7 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 *Updated per Decisions 1–3: generates channel list + bio instead of featured item. Bio text is finalized.*
 
-**Before starting**: Two channel URLs in `src/config/about-page-channels.js` are TODO placeholders — Datadog Illuminated and You Choose. Gather the correct playlist URLs from Whitney before or during this milestone (the page can be tested with placeholders but must have real URLs before shipping).
+**Before starting**: One channel URL in `src/config/about-page-channels.js` remains a TODO placeholder — Datadog Illuminated. (You Choose was resolved 2026-04-25.) Gather the correct Datadog Illuminated playlist URL before shipping this milestone.
 
 - [ ] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
 - [ ] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
@@ -173,7 +173,7 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 ### Notes
 - `sync-content.js` reads columns J/K (highlight/priority) — those changes from 2026-04-24 remain in code and are harmless. They are not used by this feature.
-- Playlist/page URLs for each channel need to be gathered and added to `about-page-channels.js` config before Milestone 2 can complete. Currently `Datadog Illuminated` and `You Choose` have `TODO` placeholder URLs.
+- Playlist/page URLs for each channel must be real before Milestone 2 can ship. `You Choose` URL was resolved 2026-04-25 (`PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z`). `Datadog Illuminated` still has a `TODO` placeholder — gather this URL before shipping.
 - **Deferred: per-channel descriptions** — During Milestone 1 implementation, the question of whether each channel link should have a one-line description (e.g., `- [🌩️ Thunder](url) — Short-form edited videos`) was raised and explicitly deferred. The current content format (bare links, no descriptions) is intentional for now. If descriptions are added later, the `about-page-channels.js` config structure supports adding a `description` field, and `generateAboutPageMarkdown` would need updating.
 - **Implementation detail: threshold boundary** — `getActiveChannels` uses `daysDiff > thresholdDays` (strict greater-than), so content published exactly `thresholdDays` days ago is still considered active. Content `thresholdDays + 1` days old is stale.
 - **Implementation detail: showFilter matching** — Case-insensitive substring match. A row with `show = "🌩️ Thunder Shorts"` matches the Thunder channel's `showFilter: ['Thunder']`.

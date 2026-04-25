@@ -8,7 +8,7 @@ scan-new-content.js only scans two sources: the Thunder YouTube playlist and the
 
 ## Solution
 
-Add Datadog Illuminated and Enlightning to the script's source list. Add a weekly GitHub Actions workflow so Sheet1 stays current without manual intervention. You Choose and AI Inevitable are out of scope until playlist IDs are confirmed / shows launch.
+Add Datadog Illuminated, Enlightning, and You Choose to the script's source list. Add a weekly GitHub Actions workflow so Sheet1 stays current without manual intervention. AI Inevitable remains out of scope until the show launches.
 
 ## Source of Truth
 
@@ -16,15 +16,15 @@ Full workflow context: `/Users/whitney.lee/Documents/Journal/docs/social-post-wo
 
 ## Milestones
 
-- [ ] M1: Extend scan-new-content.js with Datadog Illuminated and Enlightning playlist scans
+- [ ] M1: Extend scan-new-content.js with Datadog Illuminated, Enlightning, and You Choose playlist scans
 - [ ] M2: Add weekly-scan GitHub Actions workflow
 - [ ] M3: Tests for new playlist sources
 
 ## Milestone Details
 
-### M1: Extend scan-new-content.js with Datadog Illuminated and Enlightning playlist scans
+### M1: Extend scan-new-content.js with Datadog Illuminated, Enlightning, and You Choose playlist scans
 
-Add two new YouTube playlist sources to `src/scan-new-content.js`. Follow the existing pattern of `fetchYouTubeVideos()` (the Thunder fetch function) — it handles pagination, skips private videos, and formats video URLs as `https://youtu.be/{videoId}`.
+Add three new YouTube playlist sources to `src/scan-new-content.js`. Follow the existing pattern of `fetchYouTubeVideos()` (the Thunder fetch function) — it handles pagination, skips private videos, and formats video URLs as `https://youtu.be/{videoId}`.
 
 **Datadog Illuminated**
 - Playlist ID: `PLVOmGuoGYFgpj1-kAXLRKmFWqZ99HAHu7`
@@ -38,17 +38,23 @@ Add two new YouTube playlist sources to `src/scan-new-content.js`. Follow the ex
 - Column B value: `Video`
 - Column C value: `Enlightning`
 
+**You Choose**
+- Playlist ID: `PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z`
+- Channel: DevOps Toolkit YouTube (public channel — not owned by Whitney but readable via YouTube Data API with `youtube.readonly` scope)
+- Column B value: `Video`
+- Column C value: `You Choose`
+
 **Implementation requirements**:
-- Add two separate named functions — `fetchDatadogIlluminatedVideos()` and `fetchEnlightningVideos()` — using the exact signature and internal structure of the existing `fetchYouTubeVideos()`. Do NOT refactor `fetchYouTubeVideos()` into a shared helper.
+- Add three separate named functions — `fetchDatadogIlluminatedVideos()`, `fetchEnlightningVideos()`, and `fetchYouChooseVideos()` — using the exact signature and internal structure of the existing `fetchYouTubeVideos()`. Do NOT refactor `fetchYouTubeVideos()` into a shared helper.
 - Each function must be fully implemented with complete source code. Do NOT use placeholder comments like "// same as above" or "// ... rest of function".
 - Preserve the private-video skip (`snippet.title === "Private video"`)
 - These playlists contain main episodes only — no shorts filter needed
-- Add both new fetch calls to the existing `Promise.all()` in `main()` so they run in parallel with Thunder and SDI
+- Add all three new fetch calls to the existing `Promise.all()` in `main()` so they run in parallel with Thunder and SDI
 - Merge results into `allContent` before duplicate filtering — no change to dedup logic; URL matching against Column G already handles all sources uniformly
-- Leave placeholder comments for You Choose and AI Inevitable in the constants section (playlist IDs TBD)
+- Leave a placeholder comment for AI Inevitable in the constants section (show not yet launched)
 - Do NOT refactor or restructure unrelated parts of the file
 
-**Deferred shows**: You Choose (DevOps Toolkit channel, playlist ID not yet confirmed) and AI Inevitable (show not yet launched). Add only placeholder comments — no fetch logic.
+**Deferred shows**: AI Inevitable only (show not yet launched). Add only a placeholder comment — no fetch logic.
 
 **Validation**: Run `vals exec -f .vals.yaml -- node src/scan-new-content.js --dry-run` and confirm Datadog Illuminated and Enlightning episodes appear in the output alongside Thunder and SDI results.
 
@@ -79,13 +85,13 @@ Create `tests/scan-new-content.test.js` if it doesn't exist. Follow the Jest pat
 
 **What the tests must verify**:
 
-1. Each new fetch function (or the refactored shared fetch function) uses the correct playlist ID for its show
-2. Column B is `"Video"` for both Datadog Illuminated and Enlightning results
-3. Column C is `"Datadog Illuminated"` for Illuminated results and `"Enlightning"` for Enlightning results
+1. Each new fetch function uses the correct playlist ID for its show
+2. Column B is `"Video"` for Datadog Illuminated, Enlightning, and You Choose results
+3. Column C is `"Datadog Illuminated"`, `"Enlightning"`, and `"You Choose"` respectively for each source
 4. Private videos (where `snippet.title === "Private video"`) are excluded from results
 5. Video URLs are formatted as `https://youtu.be/{videoId}`
 6. Pagination is handled — when the API returns a `nextPageToken`, the function fetches the next page until exhausted
-7. Results from both new sources appear in the combined `allContent` array that feeds into duplicate detection
+7. Results from all three new sources appear in the combined `allContent` array that feeds into duplicate detection
 
 **Before writing tests**: Read `tests/sync-content.test.js` to understand whether that file tests exported functions or invokes the module indirectly. Use the same approach for scan-new-content tests. If the new fetch functions need to be exported for testing, add `module.exports` for them — do not export functions that are already internal-only in the existing file.
 
@@ -99,7 +105,8 @@ Create `tests/scan-new-content.test.js` if it doesn't exist. Follow the Jest pat
 |---|---|---|
 | Separate weekly workflow | Yes — new `weekly-scan.yml` | Different schedule, secrets needed, and failure urgency from daily-sync.yml |
 | DatadogCommunity playlist access | Use existing service account + `youtube.readonly` | Public playlists are readable regardless of channel ownership |
-| You Choose / AI Inevitable | Deferred with placeholder comments only | Playlist IDs not yet confirmed / show not yet launched |
+| You Choose | Included — playlist ID confirmed | Playlist `PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z` on DevOps Toolkit YouTube (Decision 1) |
+| AI Inevitable | Deferred with placeholder comment only | Show not yet launched |
 | Shorts filter | None needed for new playlists | These playlist IDs are episode playlists, not shorts playlists |
 
 ## Design Notes
@@ -108,4 +115,6 @@ Create `tests/scan-new-content.test.js` if it doesn't exist. Follow the Jest pat
 
 ## Decision Log
 
-*(No decisions logged yet — add entries here when implementation choices differ from the plan above.)*
+| # | Decision | Date | Rationale |
+|---|---|---|---|
+| 1 | Include You Choose in M1 — playlist ID confirmed as `PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z` on DevOps Toolkit YouTube | 2026-04-25 | Playlist ID was previously unknown; now confirmed. No reason to defer. Channel is public and readable with existing `youtube.readonly` auth. |
