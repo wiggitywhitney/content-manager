@@ -53,7 +53,7 @@ jobs:
             echo "social_has_pending=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Sync content to Micro.blog
+      - name: Sync content to Micro.blog and update About page
         if: steps.priority.outputs.career_first == '1' || steps.priority.outputs.social_has_pending == 'false'
         env:
           DRY_RUN: 'false'  # Explicitly disable dry-run mode for production

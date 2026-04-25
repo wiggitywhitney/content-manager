@@ -128,9 +128,9 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 - About page confirmed live at `https://whitneylee.com/about/` (page ID 849042, discovered dynamically via getPages)
 - `sync-content.js` `validRows` rows have `{ name, type, show, date, ... }` — `getActiveChannels` only needs `type`, `show`, and `date`, all present
 
-- [ ] Add an about-page update step to `daily-sync.yml` (after content sync step, before page visibility update)
-- [ ] Wire `src/update-about-page.js`: pass it the parsed `validRows` array that `sync-content.js` already builds, plus today's date, so it doesn't need its own Sheets API call
-- [ ] Add error handling consistent with `update-page-visibility.js` (same retry/backoff pattern, non-fatal on failure)
+- [x] Add an about-page update step to `daily-sync.yml` (after content sync step, before page visibility update)
+- [x] Wire `src/update-about-page.js`: pass it the parsed `validRows` array that `sync-content.js` already builds, plus today's date, so it doesn't need its own Sheets API call
+- [x] Add error handling consistent with `update-page-visibility.js` (same retry/backoff pattern, non-fatal on failure)
 - [ ] Test end-to-end: content item in spreadsheet → GitHub Actions run → About page reflects updated channel list
 
 **Success Criteria**: About page updates automatically as part of the daily sync cycle without an additional Sheets API call.

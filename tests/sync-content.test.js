@@ -1,7 +1,7 @@
-// ABOUTME: Unit tests for sync-content.js — covers parseRow highlight column parsing.
+// ABOUTME: Unit tests for sync-content.js — covers parseRow highlight column parsing and runAboutPageUpdate integration.
 'use strict';
 
-const { parseRow } = require('../src/sync-content');
+const { parseRow, runAboutPageUpdate } = require('../src/sync-content');
 
 // Minimal valid row fixture (columns A-I, no highlight columns)
 function makeRow({ name = 'Test Talk', type = 'Podcast', show = 'SDI', date = '1/1/2026',
@@ -86,5 +86,30 @@ describe('parseRow', () => {
       const result = parseRow(['Name', 'Type', 'Show', 'Date', 'Location', 'Confirmed', 'Link', 'Micro.blog URL', 'Posted At', 'Highlight', 'Priority'], 0, true);
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('runAboutPageUpdate', () => {
+  const sampleRows = [
+    { type: 'Video', show: '🌩️ Thunder', date: '1/1/2026' },
+    { type: 'Podcast', show: 'Software Defined Interviews', date: '1/15/2026' },
+  ];
+
+  test('calls the update function with validRows and a Date', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({ updated: true });
+    await runAboutPageUpdate(sampleRows, { updateFn: mockUpdate });
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdate).toHaveBeenCalledWith(sampleRows, expect.any(Date));
+  });
+
+  test('does not throw when updateFn rejects', async () => {
+    const mockUpdate = jest.fn().mockRejectedValue(new Error('XML-RPC timeout'));
+    await expect(runAboutPageUpdate(sampleRows, { updateFn: mockUpdate })).resolves.toBeUndefined();
+  });
+
+  test('works with empty validRows', async () => {
+    const mockUpdate = jest.fn().mockResolvedValue({ updated: false });
+    await runAboutPageUpdate([], { updateFn: mockUpdate });
+    expect(mockUpdate).toHaveBeenCalledWith([], expect.any(Date));
   });
 });
