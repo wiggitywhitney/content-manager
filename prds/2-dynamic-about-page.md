@@ -108,8 +108,8 @@ Activity is determined by reading the live production spreadsheet. A channel dis
 
 **Before starting**: All channel URLs in `src/config/about-page-channels.js` are now resolved — Datadog Illuminated (`PLVOmGuoGYFgpj1-kAXLRKmFWqZ99HAHu7`) and You Choose were both confirmed 2026-04-25. No URL gathering needed before starting this milestone.
 
-- [ ] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
-- [ ] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
+- [x] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
+- [x] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
 - [ ] Test on a **non-critical template page first** before touching the About page — the About page is `is_template: true` and rendering depends on Hugo theme; verify `editPage` produces expected output
 - [ ] Test with sample active/inactive channel lists; verify rendered output on Micro.blog
 

@@ -2,7 +2,98 @@
 // ABOUTME: Reads spreadsheet rows to determine active content channels, then pushes Markdown via XML-RPC.
 'use strict';
 
+const https = require('https');
 const { ABOUT_PAGE_CHANNELS } = require('./config/about-page-channels');
+
+// ============================================================================
+// XML-RPC Utilities
+// ============================================================================
+
+const XMLRPC_TIMEOUT_MS = parseInt(process.env.XMLRPC_TIMEOUT_MS || '10000', 10);
+const XMLRPC_MAX_RETRIES = parseInt(process.env.XMLRPC_MAX_RETRIES || '3', 10);
+
+function escapeXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function unescapeXml(str) {
+  return String(str ?? '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function xmlrpcRequest(methodName, params) {
+  return new Promise((resolve, reject) => {
+    const username = process.env.MICROBLOG_USERNAME || 'wiggitywhitney';
+    const token = process.env.MICROBLOG_XMLRPC_TOKEN;
+
+    const paramsXml = params.map(param => {
+      if (typeof param === 'string') {
+        return `<param><value><string>${escapeXml(param)}</string></value></param>`;
+      } else if (typeof param === 'number') {
+        return `<param><value><int>${param}</int></value></param>`;
+      } else if (typeof param === 'boolean') {
+        return `<param><value><boolean>${param ? 1 : 0}</boolean></value></param>`;
+      } else if (param && typeof param === 'object' && !Array.isArray(param)) {
+        const members = Object.entries(param).map(([key, value]) => {
+          let valueXml = '<string></string>';
+          if (typeof value === 'string') {
+            valueXml = `<string>${escapeXml(value)}</string>`;
+          } else if (typeof value === 'boolean') {
+            valueXml = `<boolean>${value ? 1 : 0}</boolean>`;
+          } else if (typeof value === 'number') {
+            valueXml = `<int>${value}</int>`;
+          }
+          return `<member><name>${key}</name><value>${valueXml}</value></member>`;
+        }).join('');
+        return `<param><value><struct>${members}</struct></value></param>`;
+      }
+      return '';
+    }).join('');
+
+    const requestBody = `<?xml version="1.0"?>\n<methodCall>\n  <methodName>${methodName}</methodName>\n  <params>\n    ${paramsXml}\n  </params>\n</methodCall>`;
+
+    const auth = Buffer.from(`${username}:${token}`).toString('base64');
+
+    const options = {
+      hostname: 'micro.blog',
+      path: '/xmlrpc',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml',
+        'Content-Length': Buffer.byteLength(requestBody),
+        'Authorization': 'Basic ' + auth
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+        } else {
+          resolve({ statusCode: res.statusCode, body: data });
+        }
+      });
+    });
+
+    req.setTimeout(XMLRPC_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Request timeout after ${XMLRPC_TIMEOUT_MS}ms`));
+    });
+    req.on('error', reject);
+    req.write(requestBody);
+    req.end();
+  });
+}
 
 // ============================================================================
 // Date Utilities
@@ -109,7 +200,155 @@ function getActiveChannels(validRows, todayDate) {
 }
 
 // ============================================================================
+// About Page Markdown Generation
+// ============================================================================
+
+// Bio text per PRD Decision 3 — finalized by Whitney 2026-04-25
+const BIO_TEXT = 'Whitney Lee is a creator and systems thinker who explores how observability, AI, and platform engineering connect across the cloud native ecosystem. She brings humor, depth, and clarity to complex technologies while building original frameworks that help others understand how systems fit together. She runs a vibrant YouTube channel, hosts Datadog Illuminated and Software Defined Interviews, has delivered two KubeCon keynotes and countless breakout talks, and combines storytelling and technical rigor to illuminate the human side of cloud native engineering.';
+
+/**
+ * Generate the About page Markdown from an ordered list of active channels.
+ * Non-sortLast channels appear in the "Where to Find My Work" section.
+ * sortLast channels (SDI) appear after the --- separator.
+ *
+ * @param {Array} activeChannels - Ordered array from getActiveChannels
+ * @returns {string} Markdown string
+ */
+function generateAboutPageMarkdown(activeChannels) {
+  const mainChannels = activeChannels.filter(c => !c.sortLast);
+  const lastChannels = activeChannels.filter(c => c.sortLast);
+
+  const mainLinks = mainChannels.map(c => `- [${c.name}](${c.url})`).join('\n');
+  const lastLinks = lastChannels.map(c => `- [${c.name}](${c.url})`).join('\n');
+
+  let markdown = `# About Whitney\n\n${BIO_TEXT}\n\n## Where to Find My Work\n\n${mainLinks}`;
+
+  if (lastLinks) {
+    markdown += `\n\n---\n\n${lastLinks}`;
+  }
+
+  return markdown;
+}
+
+// ============================================================================
+// About Page Content Injection
+// ============================================================================
+
+/**
+ * Extract a named member value from an XML-RPC struct string.
+ * Handles <string>, <int>, and <boolean> value types.
+ *
+ * @param {string} structContent - Raw struct XML content
+ * @param {string} memberName - Member name to extract
+ * @returns {string|null}
+ */
+function extractMember(structContent, memberName) {
+  const regex = new RegExp(
+    `<name>\\s*${memberName}\\s*<\\/name>\\s*<value>\\s*` +
+    `(?:<string>([\\s\\S]*?)<\\/string>|<int>(\\d+)<\\/int>|<boolean>([01])<\\/boolean>|<string\\/>)`,
+    'i'
+  );
+  const match = structContent.match(regex);
+  if (!match) return null;
+  return match[1] ?? match[2] ?? match[3] ?? '';
+}
+
+/**
+ * Parse the XML-RPC response from microblog.getPages into page objects.
+ *
+ * @param {string} body - Raw XML response body
+ * @returns {Array<{pageID: string, title: string, description: string}>}
+ */
+function parseGetPagesResponse(body) {
+  const pages = [];
+  const structRegex = /<struct>([\s\S]*?)<\/struct>/g;
+  let match;
+
+  while ((match = structRegex.exec(body)) !== null) {
+    const content = match[1];
+    const pageID = extractMember(content, 'pageID');
+    const title = extractMember(content, 'title');
+    const description = extractMember(content, 'description');
+
+    if (pageID !== null && title !== null) {
+      pages.push({
+        pageID: pageID.trim(),
+        title: unescapeXml(title.trim()),
+        description: description !== null ? unescapeXml(description) : ''
+      });
+    }
+  }
+
+  return pages;
+}
+
+/**
+ * Update the Micro.blog About page if content has changed.
+ * Calls microblog.getPages to find the current description, compares with
+ * the generated Markdown, and calls microblog.editPage only if different.
+ *
+ * @param {Array} validRows - Parsed spreadsheet rows (type, show, date fields)
+ * @param {Date} todayDate - Reference date for freshness checks
+ * @param {Object} [options]
+ * @param {Function} [options.xmlrpcFn] - XML-RPC call function (for testing)
+ * @returns {Promise<{updated: boolean}>}
+ */
+async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest } = {}) {
+  const token = process.env.MICROBLOG_XMLRPC_TOKEN;
+  if (!token) throw new Error('MICROBLOG_XMLRPC_TOKEN not set');
+
+  const username = process.env.MICROBLOG_USERNAME || 'wiggitywhitney';
+  const blogId = 1;
+
+  const activeChannels = getActiveChannels(validRows, todayDate);
+  const newMarkdown = generateAboutPageMarkdown(activeChannels);
+
+  const pagesResponse = await xmlrpcFn('microblog.getPages', [blogId, username, token, 100, 0]);
+
+  if (pagesResponse.body.includes('<fault>')) {
+    throw new Error('microblog.getPages returned a fault');
+  }
+
+  const pages = parseGetPagesResponse(pagesResponse.body);
+  const aboutPage = pages.find(p => p.title === 'About');
+
+  if (!aboutPage) {
+    throw new Error('About page not found in microblog.getPages response');
+  }
+
+  if (aboutPage.description === newMarkdown) {
+    console.log('[update-about-page] About page content unchanged, skipping update');
+    return { updated: false };
+  }
+
+  const pageId = parseInt(aboutPage.pageID, 10);
+
+  for (let attempt = 1; attempt <= XMLRPC_MAX_RETRIES; attempt++) {
+    try {
+      const editResponse = await xmlrpcFn('microblog.editPage', [
+        pageId,
+        username,
+        token,
+        { title: 'About', description: newMarkdown }
+      ]);
+
+      if (editResponse.body.includes('<fault>')) {
+        throw new Error('microblog.editPage returned a fault');
+      }
+
+      console.log('[update-about-page] About page updated successfully');
+      return { updated: true };
+    } catch (error) {
+      if (attempt === XMLRPC_MAX_RETRIES) throw error;
+      const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      console.warn(`[update-about-page] editPage failed (attempt ${attempt}); retrying in ${backoff}ms`);
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+}
+
+// ============================================================================
 // Exports
 // ============================================================================
 
-module.exports = { getActiveChannels };
+module.exports = { getActiveChannels, generateAboutPageMarkdown, updateAboutPage };

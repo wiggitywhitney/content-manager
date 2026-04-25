@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Added
+- (2026-04-25) Added Markdown generator and XML-RPC content injection for the dynamic About page: `generateAboutPageMarkdown()` builds the full page from bio text and active channel links (with SDI after a separator), and `updateAboutPage()` fetches the current About page content via `microblog.getPages`, compares it with the generated Markdown, and calls `microblog.editPage` only when the content has changed. Uses dependency injection for the XML-RPC function so the update logic is fully unit-tested without live network calls. 17 new tests added (39 total for this module).
 - (2026-04-25) Added channel config and activity detection for the dynamic About page: `src/config/about-page-channels.js` defines which content channels (Thunder, Enlightning, Datadog Illuminated, You Choose, Conference Talks, GitHub, SDI) appear based on freshness thresholds, and `getActiveChannels()` in `src/update-about-page.js` filters spreadsheet rows by type and show name to determine which channels have published recently enough to appear. 22 unit tests cover all activity scenarios. Channels sort by most recent content date; SDI always appears last regardless of activity.
 - (2026-04-05) Added social posts queue module with Google Sheets reader, date/platform filter, and 13 unit tests (PRD #22, Milestone 1)
 - (2026-04-05) Added Jest test framework and npm test script (PRD #22, Milestone 1)

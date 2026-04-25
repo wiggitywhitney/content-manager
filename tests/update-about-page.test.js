@@ -1,7 +1,7 @@
-// ABOUTME: Unit tests for update-about-page.js — covers getActiveChannels logic.
+// ABOUTME: Unit tests for update-about-page.js — covers getActiveChannels, generateAboutPageMarkdown, and updateAboutPage.
 'use strict';
 
-const { getActiveChannels } = require('../src/update-about-page');
+const { getActiveChannels, generateAboutPageMarkdown, updateAboutPage } = require('../src/update-about-page');
 
 // Fixed reference date: 2026-04-25
 const TODAY = new Date('2026-04-25T12:00:00Z');
@@ -230,5 +230,177 @@ describe('getActiveChannels', () => {
       const result = getActiveChannels(rows, TODAY);
       expect(result.map(c => c.name)).not.toContain('🌩️ Thunder');
     });
+  });
+});
+
+// ============================================================================
+// generateAboutPageMarkdown tests
+// ============================================================================
+
+const BIO_TEXT = 'Whitney Lee is a creator and systems thinker who explores how observability, AI, and platform engineering connect across the cloud native ecosystem. She brings humor, depth, and clarity to complex technologies while building original frameworks that help others understand how systems fit together. She runs a vibrant YouTube channel, hosts Datadog Illuminated and Software Defined Interviews, has delivered two KubeCon keynotes and countless breakout talks, and combines storytelling and technical rigor to illuminate the human side of cloud native engineering.';
+
+describe('generateAboutPageMarkdown', () => {
+  const thunder = { name: '🌩️ Thunder', url: 'https://thunder.example.com/', sortLast: false };
+  const github = { name: 'GitHub', url: 'https://github.com/wiggitywhitney', sortLast: false };
+  const sdi = { name: 'Software Defined Interviews', url: 'https://www.softwaredefinedinterviews.com/', sortLast: true };
+
+  test('includes # About Whitney heading', () => {
+    expect(generateAboutPageMarkdown([sdi])).toContain('# About Whitney');
+  });
+
+  test('includes bio text verbatim', () => {
+    expect(generateAboutPageMarkdown([sdi])).toContain(BIO_TEXT);
+  });
+
+  test('includes ## Where to Find My Work heading', () => {
+    expect(generateAboutPageMarkdown([thunder, sdi])).toContain('## Where to Find My Work');
+  });
+
+  test('formats non-sortLast channels as markdown links', () => {
+    const result = generateAboutPageMarkdown([thunder, sdi]);
+    expect(result).toContain('- [🌩️ Thunder](https://thunder.example.com/)');
+  });
+
+  test('formats sortLast channels as markdown links', () => {
+    expect(generateAboutPageMarkdown([sdi])).toContain('- [Software Defined Interviews](https://www.softwaredefinedinterviews.com/)');
+  });
+
+  test('non-sortLast channels appear before --- separator', () => {
+    const result = generateAboutPageMarkdown([thunder, sdi]);
+    const sepIdx = result.indexOf('\n---\n');
+    const thunderIdx = result.indexOf('- [🌩️ Thunder]');
+    expect(thunderIdx).toBeGreaterThan(0);
+    expect(thunderIdx).toBeLessThan(sepIdx);
+  });
+
+  test('sortLast channels appear after --- separator', () => {
+    const result = generateAboutPageMarkdown([thunder, sdi]);
+    const sepIdx = result.indexOf('\n---\n');
+    const sdiIdx = result.indexOf('- [Software Defined Interviews]');
+    expect(sdiIdx).toBeGreaterThan(sepIdx);
+  });
+
+  test('sortLast channels do not appear before the separator', () => {
+    const result = generateAboutPageMarkdown([thunder, sdi]);
+    const sepIdx = result.indexOf('\n---\n');
+    const beforeSep = result.substring(0, sepIdx);
+    expect(beforeSep).not.toContain('- [Software Defined Interviews]');
+  });
+
+  test('no --- separator when no sortLast channels', () => {
+    const result = generateAboutPageMarkdown([thunder, github]);
+    expect(result).not.toContain('---');
+  });
+
+  test('multiple non-sortLast channels all appear in the main section', () => {
+    const result = generateAboutPageMarkdown([thunder, github, sdi]);
+    expect(result).toContain('- [🌩️ Thunder]');
+    expect(result).toContain('- [GitHub]');
+  });
+});
+
+// ============================================================================
+// updateAboutPage tests
+// ============================================================================
+
+describe('updateAboutPage', () => {
+  const TODAY = new Date('2026-04-25T12:00:00Z');
+
+  const rows = [
+    { type: 'Video', show: '🌩️ Thunder', date: '03/20/2026', name: 'Test Video', link: 'https://youtube.com' }
+  ];
+
+  beforeEach(() => {
+    process.env.MICROBLOG_XMLRPC_TOKEN = 'test-token';
+    process.env.MICROBLOG_USERNAME = 'testuser';
+  });
+
+  afterEach(() => {
+    delete process.env.MICROBLOG_XMLRPC_TOKEN;
+    delete process.env.MICROBLOG_USERNAME;
+  });
+
+  function xmlEscape(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  function makePagesXml(description) {
+    const escaped = xmlEscape(description);
+    return `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>pageID</name><value><string>6</string></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>${escaped}</string></value></member><member><name>is_template</name><value><boolean>1</boolean></value></member></struct></value></data></array></value></param></params></methodResponse>`;
+  }
+
+  const editSuccessXml = '<?xml version="1.0"?><methodResponse><params><param><value><boolean>1</boolean></value></param></params></methodResponse>';
+
+  test('calls editPage when description differs from generated Markdown', async () => {
+    const xmlrpcFn = jest.fn()
+      .mockResolvedValueOnce({ statusCode: 200, body: makePagesXml('old stale content') })
+      .mockResolvedValueOnce({ statusCode: 200, body: editSuccessXml });
+
+    const result = await updateAboutPage(rows, TODAY, { xmlrpcFn });
+    expect(result.updated).toBe(true);
+    expect(xmlrpcFn).toHaveBeenCalledTimes(2);
+    expect(xmlrpcFn.mock.calls[1][0]).toBe('microblog.editPage');
+  });
+
+  test('does not call editPage when description matches generated Markdown', async () => {
+    const activeChannels = getActiveChannels(rows, TODAY);
+    const currentMarkdown = generateAboutPageMarkdown(activeChannels);
+
+    const xmlrpcFn = jest.fn()
+      .mockResolvedValueOnce({ statusCode: 200, body: makePagesXml(currentMarkdown) });
+
+    const result = await updateAboutPage(rows, TODAY, { xmlrpcFn });
+    expect(result.updated).toBe(false);
+    expect(xmlrpcFn).toHaveBeenCalledTimes(1);
+  });
+
+  test('throws when About page not found in response', async () => {
+    const emptyXml = '<?xml version="1.0"?><methodResponse><params><param><value><array><data></data></array></value></param></params></methodResponse>';
+    const xmlrpcFn = jest.fn().mockResolvedValueOnce({ statusCode: 200, body: emptyXml });
+
+    await expect(updateAboutPage(rows, TODAY, { xmlrpcFn })).rejects.toThrow('About page not found');
+  });
+
+  test('throws when getPages returns a fault', async () => {
+    const faultXml = '<?xml version="1.0"?><methodResponse><fault><value><struct><member><name>faultCode</name><value><int>500</int></value></member></struct></value></fault></methodResponse>';
+    const xmlrpcFn = jest.fn().mockResolvedValueOnce({ statusCode: 200, body: faultXml });
+
+    await expect(updateAboutPage(rows, TODAY, { xmlrpcFn })).rejects.toThrow('fault');
+  });
+
+  test('throws when MICROBLOG_XMLRPC_TOKEN is not set', async () => {
+    delete process.env.MICROBLOG_XMLRPC_TOKEN;
+    await expect(updateAboutPage(rows, TODAY)).rejects.toThrow('MICROBLOG_XMLRPC_TOKEN');
+  });
+
+  test('passes correct pageId and Markdown in editPage call', async () => {
+    const xmlrpcFn = jest.fn()
+      .mockResolvedValueOnce({ statusCode: 200, body: makePagesXml('old content') })
+      .mockResolvedValueOnce({ statusCode: 200, body: editSuccessXml });
+
+    await updateAboutPage(rows, TODAY, { xmlrpcFn });
+
+    const [method, params] = xmlrpcFn.mock.calls[1];
+    expect(method).toBe('microblog.editPage');
+    expect(params[0]).toBe(6);
+    expect(params[3].title).toBe('About');
+    expect(params[3].description).toContain('# About Whitney');
+  });
+
+  test('uses MICROBLOG_USERNAME from env in XML-RPC params', async () => {
+    process.env.MICROBLOG_USERNAME = 'myuser';
+    const xmlrpcFn = jest.fn()
+      .mockResolvedValueOnce({ statusCode: 200, body: makePagesXml('old') })
+      .mockResolvedValueOnce({ statusCode: 200, body: editSuccessXml });
+
+    await updateAboutPage(rows, TODAY, { xmlrpcFn });
+
+    const [, pagesParams] = xmlrpcFn.mock.calls[0];
+    expect(pagesParams[1]).toBe('myuser');
   });
 });
