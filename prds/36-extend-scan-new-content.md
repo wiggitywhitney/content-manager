@@ -1,4 +1,4 @@
-# PRD #36: Extend scan-new-content.js — All Shows + Weekly Automation
+# PRD #36: Extend scan-new-content.js — All Shows + Daily Cron Integration
 
 **GitHub Issue**: https://github.com/wiggitywhitney/content-manager/issues/36
 
@@ -8,7 +8,7 @@ scan-new-content.js only scans two sources: the Thunder YouTube playlist and the
 
 ## Solution
 
-Add Datadog Illuminated, Enlightning, and You Choose to the script's source list. Add a weekly GitHub Actions workflow so Sheet1 stays current without manual intervention. AI Inevitable remains out of scope until the show launches.
+Add Datadog Illuminated, Enlightning, and You Choose to the script's source list. Add a scan step to the existing daily-sync.yml cron so Sheet1 stays current without manual intervention. AI Inevitable remains out of scope until the show launches.
 
 ## Source of Truth
 
@@ -17,7 +17,7 @@ Full workflow context: `/Users/whitney.lee/Documents/Journal/docs/social-post-wo
 ## Milestones
 
 - [ ] M1: Extend scan-new-content.js with Datadog Illuminated, Enlightning, and You Choose playlist scans
-- [ ] M2: Add weekly-scan GitHub Actions workflow
+- [ ] M2: Add scan-new-content.js step to daily-sync.yml
 - [ ] M3: Tests for new playlist sources
 
 ## Milestone Details
@@ -56,28 +56,28 @@ Add three new YouTube playlist sources to `src/scan-new-content.js`. Follow the 
 
 **Deferred shows**: AI Inevitable only (show not yet launched). Add only a placeholder comment — no fetch logic.
 
-**Validation**: Run `vals exec -f .vals.yaml -- node src/scan-new-content.js --dry-run` and confirm Datadog Illuminated and Enlightning episodes appear in the output alongside Thunder and SDI results.
+**Validation**: Run `vals exec -f .vals.yaml -- node src/scan-new-content.js --dry-run` and confirm Datadog Illuminated, Enlightning, and You Choose episodes appear in the output alongside Thunder and SDI results.
 
-### M2: Add weekly-scan GitHub Actions workflow
+### M2: Add scan-new-content.js step to daily-sync.yml
 
-Create `.github/workflows/weekly-scan.yml`. This is a separate workflow from `daily-sync.yml` because it runs weekly (not daily), requires only one secret (not social platform credentials), and has a lower failure urgency — a stale Sheet1 for a week is acceptable; a missed social post is not.
+Add a new step to `.github/workflows/daily-sync.yml` that runs `scan-new-content.js` on every daily cron run. No new workflow file is needed. (Decision 2)
 
-**Schedule**: Sundays at 08:00 UTC (`0 8 * * 0`)
+**Placement**: Insert the step after `npm ci --omit=dev` and before the `Determine post priority` step. Running the scan before the priority and sync steps means any newly discovered Sheet1 rows are available to `sync-content.js` in the same run.
 
-**Required secret**: `GOOGLE_SERVICE_ACCOUNT_JSON` only. YouTube auth uses the same service account already configured for Sheets access — no separate YouTube API key needed.
+**Step definition**:
+```yaml
+- name: Scan for new content
+  env:
+    GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+  run: node src/scan-new-content.js
+```
 
-**Workflow must include**:
-- `workflow_dispatch` trigger for manual testing
-- `on.schedule` at `0 8 * * 0`
-- Node.js 22 (matches daily-sync.yml)
-- `npm ci --omit=dev`
-- `node src/scan-new-content.js` (no `--dry-run` flag)
-- `timeout-minutes: 10`
-- `concurrency` group (e.g., `weekly-scan-${{ github.ref }}`, `cancel-in-progress: true`) to prevent overlapping runs
+**Requirements**:
+- The step runs unconditionally on every daily-sync.yml execution (no `if:` condition)
+- Only `GOOGLE_SERVICE_ACCOUNT_JSON` is needed — YouTube auth uses the same service account already configured for Sheets access
+- Do NOT add yt-dlp setup, social platform secrets, or priority-detection logic to this step — those belong to their own steps in daily-sync.yml
 
-**Workflow must NOT include**: yt-dlp setup, social platform secrets (Bluesky, Mastodon, LinkedIn, Micro.blog), or the priority-detection step — those belong to daily-sync.yml only.
-
-**Validation**: Trigger the workflow manually via `workflow_dispatch` and confirm it completes without error. Check Sheet1 to verify no duplicate rows were added.
+**Validation**: Trigger the `daily-sync` workflow manually via `workflow_dispatch` and confirm the new "Scan for new content" step completes without error. Check that no duplicate Sheet1 rows were added.
 
 ### M3: Tests for new playlist sources
 
@@ -97,13 +97,13 @@ Create `tests/scan-new-content.test.js` if it doesn't exist. Follow the Jest pat
 
 **Mocking**: Mock the `googleapis` YouTube client at the module boundary using `jest.mock('googleapis')`. Do not make real YouTube API calls in tests.
 
-**Do NOT** add tests for the GitHub Actions workflow file itself — workflow correctness is validated by running it manually (M2 validation step).
+**Do NOT** add tests for the daily-sync.yml workflow change itself — workflow correctness is validated by triggering the workflow manually (M2 validation step).
 
 ## Design Decisions
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Separate weekly workflow | Yes — new `weekly-scan.yml` | Different schedule, secrets needed, and failure urgency from daily-sync.yml |
+| Automation approach | Step in daily-sync.yml — no separate workflow | Simpler than a second workflow file; scan is fast and idempotent so running daily is fine (Decision 2) |
 | DatadogCommunity playlist access | Use existing service account + `youtube.readonly` | Public playlists are readable regardless of channel ownership |
 | You Choose | Included — playlist ID confirmed | Playlist `PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z` on DevOps Toolkit YouTube (Decision 1) |
 | AI Inevitable | Deferred with placeholder comment only | Show not yet launched |
@@ -118,3 +118,5 @@ Create `tests/scan-new-content.test.js` if it doesn't exist. Follow the Jest pat
 | # | Decision | Date | Rationale |
 |---|---|---|---|
 | 1 | Include You Choose in M1 — playlist ID confirmed as `PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z` on DevOps Toolkit YouTube | 2026-04-25 | Playlist ID was previously unknown; now confirmed. No reason to defer. Channel is public and readable with existing `youtube.readonly` auth. |
+| 2 | Run scan as a step in daily-sync.yml instead of a separate weekly workflow | 2026-04-25 | Simpler to maintain one workflow file. Scan is fast and idempotent — running daily causes no harm and means Sheet1 is never more than one day stale. |
+| 3 | Datadog Illuminated playlist URL confirmed: `https://www.youtube.com/playlist?list=PLVOmGuoGYFgpj1-kAXLRKmFWqZ99HAHu7` | 2026-04-25 | URL was previously unknown (TODO placeholder). Now confirmed — also resolves the TODO in `src/config/about-page-channels.js` and unblocks PRD #2 M2. |
