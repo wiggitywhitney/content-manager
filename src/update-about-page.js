@@ -71,6 +71,7 @@ function getActiveChannels(validRows, todayDate) {
       const matchingRows = validRows.filter(row => {
         if (row.type !== channel.type) return false;
         if (!channel.showFilter) return true;
+        // showFilter matching is case-insensitive
         const showLower = (row.show || '').toLowerCase();
         return channel.showFilter.some(f => showLower.includes(f.toLowerCase()));
       });
@@ -83,7 +84,8 @@ function getActiveChannels(validRows, todayDate) {
         }
       }
 
-      // Check freshness: skip if no date found or date is outside threshold
+      // Check freshness: skip if no date found or date is outside threshold.
+      // Uses strict > so content published exactly thresholdDays ago is still included.
       if (!mostRecentDate) continue;
       const daysDiff = Math.floor((todayDate - mostRecentDate) / (1000 * 60 * 60 * 24));
       if (daysDiff > channel.thresholdDays) continue;
