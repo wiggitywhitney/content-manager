@@ -1,229 +1,205 @@
-# PRD: Dynamic About Page with Content Highlights
+# PRD: Dynamic About Page
 
 **Issue**: [#2](https://github.com/wiggitywhitney/content-manager/issues/2)
 **Status**: In Progress
 **Priority**: Medium
 **Created**: 2025-09-26
-**Last Updated**: 2026-04-24
+**Last Updated**: 2026-04-25
 
 ## Problem Statement
 
-Whitney's about page on her micro.blog site is currently static and doesn't reflect her latest achievements or content she's particularly proud of. This creates several issues:
-
-- **Missed opportunities**: Outstanding content that could showcase her expertise gets buried over time
-- **Stale representation**: Visitors don't see her most impactful recent work
-- **Manual maintenance burden**: Any updates to the about page require manual intervention
-- **Lack of engagement**: Static about pages don't encourage visitors to explore recent content
-- **Professional branding gap**: No systematic way to highlight career-defining moments or achievements
+Whitney's About page on her micro.blog site is static and doesn't reflect where she is currently active. Visitors can't tell which shows are still publishing, which are on hiatus, and where to find her latest work — without visiting each destination separately.
 
 ## Solution Overview
 
-Create a dynamic about page that automatically features the most recent content Whitney marks as "highlight-worthy" in her Google Sheets tracker. The system will:
+The About page shows:
+1. A professional bio (static, finalized)
+2. A list of links to active content channels, auto-hidden when they go quiet
+3. SDI (Software Defined Interviews) always at the bottom, no freshness rule
 
-1. **Extend spreadsheet schema** with a "Highlight" column to mark showcase-worthy content
-2. **Generate dynamic about page** featuring the most recent highlighted content
-3. **Implement smart fallbacks** when highlighted content becomes stale (3+ months old)
-4. **Integrate with existing sync system** to update about page automatically
-5. **Provide manual override capabilities** for special occasions or campaigns
+Activity is determined by reading the live production spreadsheet. A channel disappears from the list when no new content of its type/show has been published within the channel's freshness threshold. No manual flagging needed — the page stays current as Whitney publishes normally.
 
 ## User Experience
 
-### Current Workflow
-1. Whitney publishes great content (podcast, presentation, etc.)
-2. About page remains unchanged, missing opportunity to showcase the work
-3. Visitors see outdated information about Whitney's recent activities
-
 ### New Workflow
-1. Whitney publishes content and adds it to her spreadsheet
-2. If it's showcase-worthy, she marks "Yes" in the new "Highlight" column
-3. About page automatically updates to feature this content within an hour
-4. If no recent highlights exist, page shows default professional bio plus recent content grid
+1. Whitney publishes content as normal
+2. The daily sync checks the live spreadsheet for recent activity by type and show
+3. The About page updates automatically — active channels appear, quiet channels drop off
+4. SDI always appears regardless of activity
 
-## Technical Requirements
+### Bio Text (Decision 3)
 
-### Spreadsheet Schema Changes
-- **New Column**: "Highlight" (Yes/No values)
-- **Optional Column**: "Highlight_Priority" (1-10 for ranking multiple highlights)
-- **Integration**: Modify existing sync system to read these new columns
+> Whitney Lee is a creator and systems thinker who explores how observability, AI, and platform engineering connect across the cloud native ecosystem. She brings humor, depth, and clarity to complex technologies while building original frameworks that help others understand how systems fit together. She runs a vibrant YouTube channel, hosts Datadog Illuminated and Software Defined Interviews, has delivered two KubeCon keynotes and countless breakout talks, and combines storytelling and technical rigor to illuminate the human side of cloud native engineering.
 
-### Content Selection Logic
-```text
-IF recent_highlighted_content (≤3 months old):
-    Display most recent highlight (or highest priority if tied)
-ELSE:
-    Display default about page with recent content grid
-```
+## Channel Configuration (Decision 2)
 
-### About Page Components
-**Dynamic Section**:
-- Featured content title and link
-- Brief description or excerpt
-- Date and content type
-- "Why I'm proud of this" note (optional new spreadsheet column)
+| Channel | Type (col B) | Show filter (col C) | Freshness threshold | Notes |
+|---|---|---|---|---|
+| Datadog Illuminated | Video | contains "Datadog" or "Illuminated" | 2 months | |
+| 🌩️ Thunder | Video | contains "Thunder" | 2 months | |
+| ⚡️ Enlightning | Video | contains "Enlightning" | 2 months | |
+| You Choose | Video | contains "YouChoose" or "You Choose" | 2 months | |
+| Conference Talks | Presentations | — | 5 months | talks are less frequent |
+| GitHub | — | — | always shown | static link, TBD |
+| Software Defined Interviews | Podcast | — | always shown | always at bottom |
 
-**Static Section**:
-- Professional bio
-- Contact information
-- Social links
+**Ordering**: active channels sorted by most recent content date (newest first); SDI always last.
 
-**Fallback Section** (when no recent highlights):
-- Default bio
-- Grid of 3-6 most recent items across all content types
-- Call-to-action to explore content pages
+## Content Format
 
-### Integration Points
-- **Sync System**: Extend existing Google Sheets sync to process highlight columns
-- **Micro.blog**: Create or update about page template with dynamic content injection
-- **Content Types**: All existing content types (Podcast, Video, Blog, Present, Guest) eligible for highlighting
-
-### Content Format
-About page structure:
 ```markdown
 # About Whitney
 
-## Currently Highlighting
-[Featured Content Title](link)
-*[Content Type] - [Date]*
+[Bio text]
 
-[Brief description or why it's highlighted]
+## Where to Find My Work
+
+- [Datadog Illuminated](playlist-url)
+- [🌩️ Thunder](playlist-url)
+- [⚡️ Enlightning](playlist-url)
+- [You Choose](playlist-url)
+- [Conference Talks](playlist-url)
 
 ---
 
-## About Me
-[Static professional bio]
-
-## Recent Work
-[Grid of recent content when no highlights available]
-
-## Get in Touch
-[Contact information]
+- [Software Defined Interviews](sdi-url)
 ```
 
-## Implementation Approach
+(Only active channels appear in the list. SDI always present below the separator. GitHub link TBD.)
 
-### Technology Integration
-- **Extend existing Node.js sync system** (`src/sync-content.js`) rather than creating new infrastructure
-- **Leverage GitHub Actions** scheduling for updates (weekday runs via `daily-sync.yml`)
-- **Use micro.blog XML-RPC API** (`microblog.editPage`) for about page updates — already tested and working in `src/update-page-visibility.js`
-- **Markdown-based content generation** for about page (Micro.blog renders Markdown natively)
+## Technical Requirements
 
-### Content Management
-- **Highlight selection**: Pick most recent highlighted item ≤3 months old
-- **Conflict resolution**: Use priority column if multiple highlights on same date
-- **Content preview**: Extract first 100-200 characters for description
-- **Link validation**: Ensure highlighted content links are accessible
+### Activity Detection
+- Read live production spreadsheet: group rows by Column B (type) and Column C (show)
+- A channel is "active" if at least one matching row has a Column D (date) within the freshness threshold from today
+- Threshold is calendar-months based (e.g., 2 months = date is within the last ~60 days)
+
+### About Page Generation
+- Build Markdown: bio text, then active channel list, then separator + SDI
+- Only call `microblog.editPage` if generated Markdown differs from current page content — read current `description` first, compare, skip if identical
+- Use existing `microblog.editPage` XML-RPC pattern from `src/update-page-visibility.js` (MarsEdit token, not Micropub)
+- Playlist/page URLs are defined in the channel config — not pulled from the spreadsheet
+
+### No Spreadsheet Schema Changes Needed
+- Reads existing columns (B=Type, C=Show, D=Date) only
+- Note: `sync-content.js` was extended to read columns J/K earlier; those changes are harmless and remain but are not used by this feature
+
+## Implementation Milestones
+
+### Milestone 1: Channel config and activity detection
+
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+
+*Updated per Decision 1: replaces original "Spreadsheet Schema Extension." No spreadsheet columns to add.*
+
+- [ ] Create `src/config/about-page-channels.js` exporting the channel list: each entry has `name`, `type`, `showFilter` (string to match against col C, or null), `thresholdDays`, `url`, `alwaysShow` (bool), `sortLast` (bool). SDI has `alwaysShow: true, sortLast: true`.
+- [ ] Implement `getActiveChannels(validRows, todayDate)` in `src/update-about-page.js`: filters the already-parsed rows array from the live spreadsheet by each channel's type+showFilter, checks if any matching row has a date within `thresholdDays`, returns ordered array of active channel objects. Always-show channels are included regardless.
+- [ ] Write unit tests for `getActiveChannels`: all channels active; some channels inactive (no recent content); all video channels inactive (only SDI and always-shown remain); SDI always at bottom; correct ordering by most recent date.
+
+**Success Criteria**: Given a set of spreadsheet rows and a date, `getActiveChannels` returns the correct active channel list with SDI always last.
+
+---
+
+### Milestone 2: About Page content generator
+
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+
+*Updated per Decisions 1–3: generates channel list + bio instead of featured item. Bio text is finalized.*
+
+- [ ] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
+- [ ] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
+- [ ] Test on a **non-critical template page first** before touching the About page — the About page is `is_template: true` and rendering depends on Hugo theme; verify `editPage` produces expected output
+- [ ] Test with sample active/inactive channel lists; verify rendered output on Micro.blog
+
+**Codebase context**: `src/update-page-visibility.js` has the working `xmlrpcRequest` and `setPageNavigationVisibility` patterns. `getPages` and `editPage` both use `MICROBLOG_XMLRPC_TOKEN` (HTTP Basic auth). See `~/.claude/rules/microblog-api-gotchas.md` for parameter order.
+
+**Success Criteria**: Can generate and push About page Markdown with correct bio text and active channel list.
+
+---
+
+### Milestone 3: Integration with existing sync
+
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+
+- [ ] Add an about-page update step to `daily-sync.yml` (after content sync step, before page visibility update)
+- [ ] Wire `src/update-about-page.js`: pass it the parsed `validRows` array that `sync-content.js` already builds, plus today's date, so it doesn't need its own Sheets API call
+- [ ] Add error handling consistent with `update-page-visibility.js` (same retry/backoff pattern, non-fatal on failure)
+- [ ] Test end-to-end: content item in spreadsheet → GitHub Actions run → About page reflects updated channel list
+
+**Success Criteria**: About page updates automatically as part of the daily sync cycle without an additional Sheets API call.
+
+---
+
+### Milestone 4: Testing and cleanup
+
+- [ ] Test all activity scenarios: all channels active; some inactive; all video channels inactive (SDI + static links only)
+- [ ] Test change detection: no `editPage` call when Markdown hasn't changed
+- [ ] Update PROGRESS.md with feature-level entry
+
+**Success Criteria**: All edge cases handled. No spurious XML-RPC calls.
+
+## Decision Log
+
+| # | Date | Decision | Rationale |
+|---|------|----------|-----------|
+| 1 | 2026-04-25 | Replace Highlight column approach with channel list | Lower maintenance (no manual flagging needed), self-maintaining as Whitney publishes, better visitor experience for discovery over curation |
+| 2 | 2026-04-25 | Channel list and freshness thresholds | Videos/Podcasts: 2 months; Talks: 5 months (less frequent); SDI: always shown (most stable content), always at bottom |
+| 3 | 2026-04-25 | Bio text finalized | Whitney provided final text — hardcode in the generator, no spreadsheet column needed |
 
 ## Success Criteria
 
 ### Functional Requirements
-- [ ] Spreadsheet accepts new "Highlight" column input
-- [ ] System detects highlighted content and updates about page
-- [ ] Most recent highlight appears on about page within sync cycle
-- [ ] About page falls back to default content when highlights are stale
-- [ ] Manual override capability works for special cases
-- [ ] All content types can be highlighted appropriately
+- [ ] About page shows bio text matching Decision 3 verbatim
+- [ ] Active channels appear as links; inactive channels are hidden
+- [ ] SDI always appears at the bottom regardless of activity
+- [ ] Page updates automatically each day without any manual action from Whitney
 
 ### Non-Functional Requirements
-- [ ] About page updates maintain same reliability as existing sync system
-- [ ] Page load performance not degraded by dynamic content
-- [ ] Fallback content provides meaningful value to visitors
-- [ ] System gracefully handles missing or malformed highlight data
-
-## Implementation Milestones
-
-### Milestone 1: Spreadsheet Schema Extension
-**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
-- [ ] Add "Highlight" column to Google Sheets — **manual step**: Whitney adds col J to the live production spreadsheet (`1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs`), header "Highlight", values Yes/No
-- [ ] Add optional "Highlight_Priority" column — **manual step**: Whitney adds col K, header "Highlight_Priority", values 1–10
-- [x] Update sync system to read new columns
-- [x] Test data parsing with new schema
-
-**Success Criteria**: Sync system successfully reads highlight information from spreadsheet
-
-### Milestone 2: About Page Content Generator
-- [ ] Create a new script (`src/update-about-page.js`) that generates Markdown content for the About page
-- [ ] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), then `microblog.editPage` to update its `description` field with generated Markdown
-- [ ] Design fallback content layout — **requires Whitney's input**: what should the default bio text and recent work grid look like?
-- [ ] Test content generation with sample highlight data and verify rendered output on Micro.blog
-
-**Success Criteria**: Can generate and push About page content with both highlighted and fallback variants
-
-### Milestone 3: Highlight Selection Logic
-- [ ] Implement most-recent-highlight selection algorithm
-- [ ] Add 3-month freshness check
-- [ ] Handle priority-based selection for ties
-- [ ] Create comprehensive test cases
-
-**Success Criteria**: System correctly identifies which content to feature
-
-### Milestone 4: Integration with Existing Sync
-**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
-- [ ] Add an about-page update step to `daily-sync.yml` (after content sync, before page visibility)
-- [ ] Wire `src/update-about-page.js` into the workflow: read highlights from spreadsheet → generate Markdown → call `microblog.editPage` with About page ID
-- [ ] Add about page to existing error handling (same retry/backoff pattern as `update-page-visibility.js`)
-- [ ] Test full end-to-end workflow: spreadsheet change → GitHub Actions run → About page updated on whitneylee.com
-
-**Success Criteria**: About page updates automatically as part of the daily sync cycle
-
-### Milestone 5: Manual Override System
-- [ ] Design override mechanism (special spreadsheet row or config)
-- [ ] Implement temporary highlight capability
-- [ ] Add expiration logic for overrides
-- [ ] Test override and restore functionality
-
-**Success Criteria**: Whitney can manually feature specific content temporarily
-
-### Milestone 6: Testing and Deployment
-- [ ] Test with various highlight scenarios (none, one, multiple)
-- [ ] Validate fallback behavior
-- [ ] Performance test about page generation
-- [ ] Documentation for using highlight system
-
-**Success Criteria**: System handles all edge cases gracefully and documentation is complete
+- [ ] About page updates maintain same reliability as existing sync
+- [ ] No unnecessary API calls when page content hasn't changed
+- [ ] System handles missing or malformed spreadsheet data gracefully (fails explicitly, doesn't corrupt the page)
 
 ## Dependencies & Risks
 
 ### External Dependencies
-- **Google Sheets API**: Schema changes require proper column handling — current range is `A:I`, new Highlight column would be J
+- **Google Sheets API**: Already used by sync-content.js — no new API changes needed
 - **Micro.blog XML-RPC API**: `microblog.editPage` confirmed working for page content updates (uses MarsEdit token, not Micropub token)
-- **Existing Sync System**: Must not break current functionality — `sync-content.js` reads `A:I`
 
 ### Technical Risks
-- **Schema Migration**: Adding Column J requires extending the RANGE constant in sync-content.js (currently `A:I`)
-- **Template Page Rendering**: About page is a Hugo template page (`is_template: true`). Editing `description` updates raw content, but final rendering depends on theme template. Must test before relying on complex layouts.
-- **Content Quality**: Highlighted content might not always be appropriate for about page
-- **Performance Impact**: Minimal — one additional XML-RPC call per sync cycle
+- **Template Page Rendering**: About page is a Hugo template page (`is_template: true`). Editing `description` updates raw content, but final rendering depends on the Hugo theme template. Must test on a non-critical page first.
+- **Change detection reliability**: `microblog.getPages` must return the current `description` field for diffing to work. Verify this before relying on it; fall back to always pushing if `description` is not returned.
 
-### Mitigation Strategies
-- **Test on non-critical page first**: Verify `editPage` behavior on a template page before touching the About page
-- **Content Validation**: Add checks for appropriate highlight content
-- **Performance Optimization**: Only update about page when highlights change (compare before/after)
-- **Separate column or sheet**: Consider a separate "Highlights" sheet instead of adding Column J, to avoid schema churn on the main sheet
+### Notes
+- `sync-content.js` reads columns J/K (highlight/priority) — those changes from 2026-04-24 remain in code and are harmless. They are not used by this feature.
+- Playlist/page URLs for each channel need to be gathered and added to `about-page-channels.js` config before Milestone 2 can complete.
 
 ## Definition of Done
 
-The feature is complete when:
-1. Whitney can mark any content as "Highlight: Yes" in her spreadsheet
-2. The about page automatically features the most recent highlighted content within 1 hour
-3. When highlighted content is >3 months old, about page shows default content with recent work grid
-4. System handles edge cases (no highlights, multiple highlights, missing data) gracefully
-5. About page maintains fast load times and good user experience
-6. Whitney has clear documentation on how to use the highlight system
+1. About page bio text matches Decision 3 exactly
+2. Active content channels appear as clickable links
+3. Channels auto-hide when they go quiet (per Decision 2 thresholds)
+4. SDI always appears at the bottom
+5. Page updates automatically via the daily sync cycle — no manual action needed
 
 ## Progress Log
+
+### 2026-04-25
+- **Design Pivot (Decision 1)**: Replaced Highlight column approach with channel list. Original Milestones 1, 3, 5 redesigned; Milestone 6 folded into new Milestone 4.
+- **Bio Text Finalized (Decision 3)**: Whitney provided final bio text; hardcoded in generator.
+- **Channel Config Defined (Decision 2)**: Freshness thresholds set: 2 months for video/podcast, 5 months for talks. SDI always shown.
+
+### 2026-04-24
+- **Partial Milestone 1 work**: `sync-content.js` extended to read columns J/K (highlight/priority) with 13 unit tests. These code changes remain but the Highlight column approach was superseded by Decision 1 above.
 
 ### 2026-04-08 (Freshness Check)
 - **API Blocker Resolved**: `microblog.editPage` XML-RPC method confirmed capable of updating About page content. Already battle-tested in `src/update-page-visibility.js` for category navigation pages.
 - **Technology Updated**: Python references removed. Stack is 100% Node.js/JavaScript (CommonJS).
-- **Schema Updated**: Current spreadsheet range is `A:I`. Column H = Micro.blog URL, Column I = Posted At timestamp (added April 2026). New Highlight column would be J.
 - **Risk Identified**: About page is a Hugo template page (`is_template: true`). Rendering of edited content depends on theme template — must test on a non-critical page first.
 - **Research Documented**: See [Research: Micro.blog API](../docs/research/microblog-api.md)
-- **Approach Clarified**: Use XML-RPC `editPage` (not Micropub) for about page updates. Generate Markdown content, push via API.
 
 ### 2025-09-26
 - **PRD Created**: Initial requirements gathering and documentation
 - **GitHub Issue**: [#2](https://github.com/wiggitywhitney/content-manager/issues/2) created
-- **Next Steps**: Discuss highlight column design with Whitney and begin Milestone 1
 
 ---
 
