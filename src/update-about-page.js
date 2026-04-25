@@ -377,6 +377,7 @@ async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest 
       await new Promise(r => setTimeout(r, backoff));
     }
   }
+  throw new Error('editPage failed: no retry attempts were made (XMLRPC_MAX_RETRIES is 0)');
 }
 
 // ============================================================================
