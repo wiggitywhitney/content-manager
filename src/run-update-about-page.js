@@ -9,7 +9,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXS
 const RANGE = (process.env.SHEET_NAME || 'Sheet1') + '!A:H';
 
 async function main() {
-  console.log('Reading live production spreadsheet...');
+  console.log('Reading live production spreadsheet...'); // eslint-disable-line no-console
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const auth = new google.auth.GoogleAuth({
     credentials,
@@ -29,14 +29,14 @@ async function main() {
     }))
     .filter(r => r.type && r.date);
 
-  console.log(`Found ${validRows.length} valid rows`);
-  console.log('Updating About page...');
+  console.log(`Found ${validRows.length} valid rows`); // eslint-disable-line no-console
+  console.log('Updating About page...'); // eslint-disable-line no-console
 
   const result = await updateAboutPage(validRows, new Date());
   if (result.updated) {
-    console.log('About page updated. Check whitneylee.com/about to verify.');
+    console.log('About page updated. Check whitneylee.com/about to verify.'); // eslint-disable-line no-console
   } else {
-    console.log('About page already up to date — no change made.');
+    console.log('About page already up to date — no change made.'); // eslint-disable-line no-console
   }
 }
 

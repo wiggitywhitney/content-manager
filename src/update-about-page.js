@@ -346,7 +346,7 @@ async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest 
   }
 
   if (aboutPage.description === newMarkdown) {
-    console.log('[update-about-page] About page content unchanged, skipping update');
+    console.log('[update-about-page] About page content unchanged, skipping update'); // eslint-disable-line no-console
     return { updated: false };
   }
 
@@ -368,7 +368,7 @@ async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest 
         throw new Error('microblog.editPage returned a fault');
       }
 
-      console.log('[update-about-page] About page updated successfully');
+      console.log('[update-about-page] About page updated successfully'); // eslint-disable-line no-console
       return { updated: true };
     } catch (error) {
       if (attempt === XMLRPC_MAX_RETRIES) throw error;
