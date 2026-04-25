@@ -22,12 +22,13 @@ function escapeXml(str) {
 }
 
 function unescapeXml(str) {
+  // &amp; must be replaced last to avoid double-unescaping (e.g. &amp;lt; → &lt; not <)
   return String(str ?? '')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 function xmlrpcRequest(methodName, params) {
@@ -52,7 +53,7 @@ function xmlrpcRequest(methodName, params) {
           } else if (typeof value === 'number') {
             valueXml = `<int>${value}</int>`;
           }
-          return `<member><name>${key}</name><value>${valueXml}</value></member>`;
+          return `<member><name>${escapeXml(key)}</name><value>${valueXml}</value></member>`;
         }).join('');
         return `<param><value><struct>${members}</struct></value></param>`;
       }
@@ -261,11 +262,37 @@ function extractMember(structContent, memberName) {
  */
 function parseGetPagesResponse(body) {
   const pages = [];
-  const structRegex = /<struct>([\s\S]*?)<\/struct>/g;
-  let match;
+  let searchFrom = 0;
 
-  while ((match = structRegex.exec(body)) !== null) {
-    const content = match[1];
+  while (searchFrom < body.length) {
+    const openIdx = body.indexOf('<struct>', searchFrom);
+    if (openIdx === -1) break;
+
+    // Find the matching </struct> using depth-counting to handle nested structs.
+    // A non-greedy regex would stop at the first inner </struct>, truncating the page.
+    let depth = 1;
+    let pos = openIdx + '<struct>'.length;
+
+    while (pos < body.length && depth > 0) {
+      const nextOpen = body.indexOf('<struct>', pos);
+      const nextClose = body.indexOf('</struct>', pos);
+
+      if (nextClose === -1) { depth = -1; break; }
+
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        pos = nextOpen + '<struct>'.length;
+      } else {
+        depth--;
+        pos = nextClose + '</struct>'.length;
+      }
+    }
+
+    if (depth !== 0) break;
+
+    const closeIdx = pos - '</struct>'.length;
+    const content = body.substring(openIdx + '<struct>'.length, closeIdx);
+
     const pageID = extractMember(content, 'pageID');
     const title = extractMember(content, 'title');
     const description = extractMember(content, 'description');
@@ -277,6 +304,8 @@ function parseGetPagesResponse(body) {
         description: description !== null ? unescapeXml(description) : ''
       });
     }
+
+    searchFrom = pos;
   }
 
   return pages;
