@@ -88,7 +88,7 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 
 ### Milestone 1: Channel config and activity detection
 
-**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../../docs/research/microblog-api.md)
 
 *Updated per Decision 1: replaces original "Spreadsheet Schema Extension." No spreadsheet columns to add.*
 
@@ -102,7 +102,7 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 
 ### Milestone 2: About Page content generator
 
-**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../../docs/research/microblog-api.md)
 
 *Updated per Decisions 1–3: generates channel list + bio instead of featured item. Bio text is finalized.*
 
@@ -121,7 +121,7 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 
 ### Milestone 3: Integration with existing sync
 
-**Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md) and `~/.claude/rules/microblog-api-gotchas.md` (updated with Micro.blog-specific quirks discovered during M2 live testing).
+**Step 0:** Read related research before starting: [Research: Micro.blog API](../../docs/research/microblog-api.md) and `~/.claude/rules/microblog-api-gotchas.md` (updated with Micro.blog-specific quirks discovered during M2 live testing).
 
 **Codebase context for wiring:**
 - `updateAboutPage(validRows, todayDate)` is already implemented in `src/update-about-page.js` — call it with the `validRows` array from `sync-content.js`'s existing Sheets read and `new Date()`
@@ -210,7 +210,7 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 - **API Blocker Resolved**: `microblog.editPage` XML-RPC method confirmed capable of updating About page content. Already battle-tested in `src/update-page-visibility.js` for category navigation pages.
 - **Technology Updated**: Python references removed. Stack is 100% Node.js/JavaScript (CommonJS).
 - **Risk Identified**: About page is a Hugo template page (`is_template: true`). Rendering of edited content depends on theme template — must test on a non-critical page first.
-- **Research Documented**: See [Research: Micro.blog API](../docs/research/microblog-api.md)
+- **Research Documented**: See [Research: Micro.blog API](../../docs/research/microblog-api.md)
 
 ### 2025-09-26
 - **PRD Created**: Initial requirements gathering and documentation

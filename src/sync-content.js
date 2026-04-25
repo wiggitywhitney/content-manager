@@ -1772,7 +1772,11 @@ async function syncContent() {
       }
     }
 
-    await runAboutPageUpdate(validRows);
+    if (DRY_RUN) {
+      log('[DRY-RUN] Skipping About page update');
+    } else {
+      await runAboutPageUpdate(validRows);
+    }
 
   } catch (error) {
     // Classify the error

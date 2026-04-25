@@ -373,7 +373,7 @@ async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest 
     } catch (error) {
       if (attempt === XMLRPC_MAX_RETRIES) throw error;
       const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-      console.warn(`[update-about-page] editPage failed (attempt ${attempt}); retrying in ${backoff}ms`);
+      console.warn(`[update-about-page] editPage failed (attempt ${attempt}); retrying in ${backoff}ms`); // eslint-disable-line no-console
       await new Promise(r => setTimeout(r, backoff));
     }
   }

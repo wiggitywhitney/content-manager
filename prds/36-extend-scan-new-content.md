@@ -12,7 +12,7 @@ Add Datadog Illuminated, Enlightning, and You Choose to the script's source list
 
 ## Source of Truth
 
-Full workflow context: `/Users/whitney.lee/Documents/Journal/docs/social-post-workflow.md`
+Full workflow context: see `Journal/docs/social-post-workflow.md` in the Journal repo
 
 ## Milestones
 

@@ -10,6 +10,9 @@ const RANGE = (process.env.SHEET_NAME || 'Sheet1') + '!A:H';
 
 async function main() {
   console.log('Reading live production spreadsheet...'); // eslint-disable-line no-console
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is required');
+  }
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const auth = new google.auth.GoogleAuth({
     credentials,
