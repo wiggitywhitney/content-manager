@@ -1,7 +1,8 @@
 # PRD: Dynamic About Page
 
 **Issue**: [#2](https://github.com/wiggitywhitney/content-manager/issues/2)
-**Status**: In Progress
+**Status**: Complete
+**Completed**: 2026-04-25
 **Priority**: Medium
 **Created**: 2025-09-26
 **Last Updated**: 2026-04-25
