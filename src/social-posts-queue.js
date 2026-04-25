@@ -9,7 +9,7 @@ const { google } = require('googleapis');
 const STAGED_SPREADSHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
 const SOCIAL_POSTS_TAB = 'Social Posts Queue';
 
-// Column indices (0-based) matching the PRD schema
+// Column indices (0-based) matching the schema
 const COL = {
   SHOW: 0,
   TITLE: 1,
@@ -24,6 +24,7 @@ const COL = {
   BSKY_POST_URL: 10,
   MASTODON_POST_URL: 11,
   MICROBLOG_POST_URL: 12,
+  GROUP_ID: 13,  // Column N — groups platform-variant rows that should post on the same day
 };
 
 /**
@@ -66,6 +67,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       bskyPostUrl: (row[COL.BSKY_POST_URL] || '').trim(),
       mastodonPostUrl: (row[COL.MASTODON_POST_URL] || '').trim(),
       microblogPostUrl: (row[COL.MICROBLOG_POST_URL] || '').trim(),
+      groupId: (row[COL.GROUP_ID] || '').trim() || null,
     });
   }
 
@@ -109,7 +111,7 @@ async function fetchPendingPostsForToday(todayDate) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:M`;
+  const range = `${SOCIAL_POSTS_TAB}!A:N`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -124,12 +126,22 @@ async function fetchPendingPostsForToday(todayDate) {
 }
 
 /**
- * Fetch the oldest pending post from the Social Posts Queue tab, regardless of scheduled date.
- * Returns the first pending row in sheet order (oldest queued), or null if none exist.
+ * Returns true if a post's only platform is micro.blog.
+ * These rows are held back until the non-micro.blog queue and career backlog are clear.
  *
- * @returns {Promise<Object|null>} The oldest pending post, or null
+ * @param {Object} post - Parsed post object
+ * @returns {boolean}
  */
-async function fetchOldestPendingPost() {
+function isMicroblogOnly(post) {
+  return post.platforms.length === 1 && post.platforms[0] === 'micro.blog';
+}
+
+/**
+ * Shared helper: authenticates with Sheets API and reads all Social Posts Queue rows.
+ *
+ * @returns {Promise<Object[]>} All parsed post objects
+ */
+async function fetchAllSocialPosts() {
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is required');
@@ -142,18 +154,67 @@ async function fetchOldestPendingPost() {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:M`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
-    range,
+    range: `${SOCIAL_POSTS_TAB}!A:N`,
   });
 
   const rows = response.data.values || [];
-  const posts = parseSocialPostRows(rows, { hasHeader: true });
-  // Exclude short posts — they are dispatched by the view-count scan, not the regular queue
-  const pending = posts.filter(p => p.status === 'pending' && p.postType !== 'short');
+  return parseSocialPostRows(rows, { hasHeader: true });
+}
 
+/**
+ * Fetch the oldest pending post from the Social Posts Queue tab, regardless of scheduled date.
+ * Excludes micro.blog-only rows — those are dispatched separately by fetchOldestPendingMicroblogPost.
+ * Returns the first pending non-micro.blog row in sheet order, or null if none exist.
+ *
+ * @returns {Promise<Object|null>} The oldest pending non-micro.blog post, or null
+ */
+async function fetchOldestPendingPost() {
+  const posts = await fetchAllSocialPosts();
+  const pending = posts.filter(p =>
+    p.status === 'pending' && p.postType !== 'short' && !isMicroblogOnly(p)
+  );
+  return pending.length > 0 ? pending[0] : null;
+}
+
+/**
+ * Fetch the oldest pending group of non-micro.blog posts.
+ * If the oldest pending post has a Group ID, returns all pending non-micro.blog posts
+ * sharing that Group ID so they can be dispatched together on the same day.
+ * If no Group ID, returns a single-element array.
+ * Returns an empty array if no pending non-micro.blog posts exist.
+ *
+ * @returns {Promise<Object[]>} Posts to dispatch together, or empty array
+ */
+async function fetchOldestPendingGroup() {
+  const posts = await fetchAllSocialPosts();
+  const pending = posts.filter(p =>
+    p.status === 'pending' && p.postType !== 'short' && !isMicroblogOnly(p)
+  );
+
+  if (pending.length === 0) return [];
+
+  const oldest = pending[0];
+  if (!oldest.groupId) return [oldest];
+
+  // Return all pending non-micro.blog posts sharing the same Group ID
+  return pending.filter(p => p.groupId === oldest.groupId);
+}
+
+/**
+ * Fetch the oldest pending micro.blog-only post.
+ * Only called after the non-micro.blog queue and career backlog are confirmed empty.
+ * Returns null if no pending micro.blog posts exist.
+ *
+ * @returns {Promise<Object|null>} The oldest pending micro.blog post, or null
+ */
+async function fetchOldestPendingMicroblogPost() {
+  const posts = await fetchAllSocialPosts();
+  const pending = posts.filter(p =>
+    p.status === 'pending' && p.postType !== 'short' && isMicroblogOnly(p)
+  );
   return pending.length > 0 ? pending[0] : null;
 }
 
@@ -177,7 +238,7 @@ async function fetchRecentShortRows(limit = 10) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:M`;
+  const range = `${SOCIAL_POSTS_TAB}!A:N`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -192,4 +253,4 @@ async function fetchRecentShortRows(limit = 10) {
   return shortPosts.slice(-limit);
 }
 
-module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchRecentShortRows };
+module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly };

@@ -3,8 +3,8 @@
 
 'use strict';
 
-const { fetchOldestPendingPost } = require('./social-posts-queue');
-const { checkCareerPostedToday } = require('./career-post-guard');
+const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('./social-posts-queue');
+const { checkCareerPostedToday, checkAllCareerPostsPublished } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
@@ -95,9 +95,19 @@ async function dispatchPost(post, today) {
 }
 
 /**
- * Fetch and dispatch the oldest pending social post.
- * On career-priority days (odd day of month, CAREER_PRIORITY=1), defers if career posted today.
- * On social-priority days (even day of month, CAREER_PRIORITY=0), posts regardless of career.
+ * Fetch and dispatch the next eligible social post(s).
+ *
+ * Dispatch priority order:
+ * 1. Career-priority check: on odd days (CAREER_PRIORITY=1), skip if career posted today.
+ * 2. Non-micro.blog group: dispatch the oldest pending group of LinkedIn/Bluesky/Mastodon rows.
+ *    If the group has a Group ID (col N), all rows sharing that ID post together in one run.
+ * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND the career post
+ *    backlog is cleared (no unpublished rows in the live spreadsheet). Then post one micro.blog row.
+ *
+ * Micro.blog rows from the social queue are held back because posting to micro.blog triggers
+ * its cross-posting to LinkedIn/Bluesky/Mastodon, which would duplicate posts already sent
+ * directly. Deferring until all other queues are clear prevents that duplication.
+ *
  * Exported for testability.
  *
  * @param {string} today - Date in YYYY-MM-DD format
@@ -110,15 +120,35 @@ async function processPostsForDate(today) {
     return;
   }
 
-  const post = await fetchOldestPendingPost();
+  // Step 1: try non-micro.blog group dispatch
+  const group = await fetchOldestPendingGroup();
 
-  if (!post) {
+  if (group.length > 0) {
+    const groupId = group[0].groupId || '(no group)';
+    console.log(`[social] Dispatching group "${groupId}" — ${group.length} post(s)`); // eslint-disable-line no-console
+    for (const post of group) {
+      console.log(`[social]   Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`); // eslint-disable-line no-console
+      await dispatchPost(post, today);
+    }
+    return;
+  }
+
+  // Step 2: non-micro.blog queue is empty — check micro.blog eligibility
+  const careerBacklogClear = await checkAllCareerPostsPublished();
+  if (!careerBacklogClear) {
+    console.log('[social] No non-micro.blog posts pending; micro.blog deferred until career backlog clears'); // eslint-disable-line no-console
+    return;
+  }
+
+  // Step 3: all clear — dispatch oldest pending micro.blog post
+  const microblogPost = await fetchOldestPendingMicroblogPost();
+  if (!microblogPost) {
     console.log('[social] No pending posts in queue'); // eslint-disable-line no-console
     return;
   }
 
-  console.log(`[social] Dispatching oldest pending post — Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`); // eslint-disable-line no-console
-  await dispatchPost(post, today);
+  console.log(`[social] Dispatching micro.blog post — Row ${microblogPost.rowIndex}: ${microblogPost.title} (${microblogPost.postType})`); // eslint-disable-line no-console
+  await dispatchPost(microblogPost, today);
 }
 
 /**

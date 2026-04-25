@@ -12,7 +12,7 @@ const SHEETS_WRITE_DELAY_MS = 1500;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
 const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
-const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:I`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL, Micro.blog Posted At
+const RANGE = process.env.SHEET_RANGE || `${SHEET_NAME}!A:K`; // Name, Type, Show, Date, Location, Confirmed, Link, Micro.blog URL, Micro.blog Posted At, Highlight, Highlight Priority
 
 // Dry-run mode: when enabled, logs actions without making actual API calls
 // Defaults to true (safe) unless explicitly disabled with DRY_RUN=false
@@ -379,14 +379,16 @@ function parseRow(row, rowIndex, isHeaderRow = false) {
     return null;
   }
 
-  // Extract fields by column position (A-H)
-  const [name, type, show, date, location, confirmed, link, microblogUrl] = row;
+  // Extract fields by column position (A-K)
+  const [name, type, show, date, location, confirmed, link, microblogUrl, , rawHighlight, rawPriority] = row;
 
   // Normalize type: "Presentation" (singular) → "Presentations" (plural)
   let normalizedType = (type || '').trim();
   if (normalizedType === 'Presentation') {
     normalizedType = 'Presentations';
   }
+
+  const parsedPriority = parseInt(rawPriority, 10);
 
   // Return structured object
   return {
@@ -398,6 +400,8 @@ function parseRow(row, rowIndex, isHeaderRow = false) {
     confirmed: (confirmed || '').trim(),
     link: (link || '').trim(),
     microblogUrl: (microblogUrl || '').trim(),  // Column H
+    highlight: (rawHighlight || '').trim().toLowerCase() === 'yes',  // Column J
+    highlightPriority: isNaN(parsedPriority) ? null : parsedPriority,  // Column K
     rowIndex: rowIndex + 1 // Convert to 1-based for readability (matches spreadsheet row numbers)
   };
 }
@@ -1775,6 +1779,7 @@ if (require.main === module) {
 module.exports = {
   syncContent,
   // Exported for unit testing
+  parseRow,
   queryMicroblogPosts,
   detectChanges,
   parseDateToISO,

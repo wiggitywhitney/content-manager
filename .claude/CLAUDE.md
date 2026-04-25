@@ -28,7 +28,15 @@ Whitney publishes three distinct types of posts. This system manages the first t
 
 Implementation: on even days when social has a pending post, the workflow skips the career sync step entirely. The social step receives `CAREER_PRIORITY=0` (set in `daily-sync.yml`) and skips its career-posted-today guard. On odd days, `CAREER_PRIORITY=1` and the guard fires normally.
 
-**Social queue dispatch**: posts the oldest pending row (by row order in the Social Posts Queue tab), regardless of scheduled date. Exactly one post per run. After a successful post, today's date is written to Column G as the actual post date.
+**Social queue dispatch**: On each run, finds the oldest pending row by row order (not by date). If that row has a Group ID in Column N, posts all pending rows sharing that Group ID in the same run — one post per platform, same day. Rows with no Group ID post individually. After posting, today's date is written to Column G.
+
+**Cross-repo relationship — Social Posts Queue**: This queue is a shared contract between two repos.
+- **Producer**: Journal repo's `/write-social-posts` skill writes rows here.
+- **Consumer**: `src/post-social-content.js` in this repo reads and posts them.
+- **Runtime instructions for the skill**: live in the **Social Instructions** spreadsheet tab (`1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts`, gid=444239135) — the skill reads this tab on every run.
+- **Written schema reference**: `Journal/docs/social-posts-queue.md`.
+- **When schema changes** (new column, new behavior): update all three — the Social Instructions tab, `Journal/docs/social-posts-queue.md`, and `src/post-social-content.js`.
+- **Do NOT edit** `Journal/.claude/skills/write-social-posts/SKILL.md` directly. When a schema or behavioral change requires the skill to act differently, tell Whitney what needs to change and why so she can relay the instructions to the Journal repo's Claude Code instance.
 
 ## Content Sources to Monitor
 

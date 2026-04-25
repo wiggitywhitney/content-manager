@@ -1,10 +1,10 @@
 # PRD: Dynamic About Page with Content Highlights
 
 **Issue**: [#2](https://github.com/wiggitywhitney/content-manager/issues/2)
-**Status**: Planning
+**Status**: In Progress
 **Priority**: Medium
 **Created**: 2025-09-26
-**Last Updated**: 2026-04-08
+**Last Updated**: 2026-04-24
 
 ## Problem Statement
 
@@ -133,10 +133,10 @@ About page structure:
 
 ### Milestone 1: Spreadsheet Schema Extension
 **Step 0:** Read related research before starting: [Research: Micro.blog API](../docs/research/microblog-api.md)
-- [ ] Add "Highlight" column to Google Sheets
-- [ ] Add optional "Highlight_Priority" column
-- [ ] Update sync system to read new columns
-- [ ] Test data parsing with new schema
+- [ ] Add "Highlight" column to Google Sheets — **manual step**: Whitney adds col J to the live production spreadsheet (`1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs`), header "Highlight", values Yes/No
+- [ ] Add optional "Highlight_Priority" column — **manual step**: Whitney adds col K, header "Highlight_Priority", values 1–10
+- [x] Update sync system to read new columns
+- [x] Test data parsing with new schema
 
 **Success Criteria**: Sync system successfully reads highlight information from spreadsheet
 
