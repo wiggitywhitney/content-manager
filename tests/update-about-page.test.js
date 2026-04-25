@@ -392,6 +392,13 @@ describe('updateAboutPage', () => {
     expect(pagesParams[1]).toBe('myuser');
   });
 
+  test('throws when About page has a non-numeric pageID', async () => {
+    const badIdXml = `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>id</name><value><string>not-a-number</string></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>old</string></value></member></struct></value></data></array></value></param></params></methodResponse>`;
+    const xmlrpcFn = jest.fn().mockResolvedValueOnce({ statusCode: 200, body: badIdXml });
+
+    await expect(updateAboutPage(rows, TODAY, { xmlrpcFn })).rejects.toThrow('Invalid About page ID');
+  });
+
   test('correctly finds About page when response contains nested structs', async () => {
     // Simulate a getPages response where each page struct contains an author nested struct
     const nestedStructXml = `<?xml version="1.0"?><methodResponse><params><param><value><array><data><value><struct><member><name>id</name><value><string>6</string></value></member><member><name>author</name><value><struct><member><name>name</name><value><string>Whitney</string></value></member></struct></value></member><member><name>title</name><value><string>About</string></value></member><member><name>description</name><value><string>old content</string></value></member><member><name>is_template</name><value><boolean>1</boolean></value></member></struct></value></data></array></value></param></params></methodResponse>`;

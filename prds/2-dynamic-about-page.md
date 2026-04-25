@@ -139,9 +139,9 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 
 ### Milestone 4: Testing and cleanup
 
-- [ ] Test all activity scenarios: all channels active; some inactive; all video channels inactive (SDI + static links only)
-- [ ] Test change detection: no `editPage` call when Markdown hasn't changed
-- [ ] Update PROGRESS.md with feature-level entry
+- [x] Test all activity scenarios: all channels active; some inactive; all video channels inactive (SDI + static links only)
+- [x] Test change detection: no `editPage` call when Markdown hasn't changed
+- [x] Update PROGRESS.md with feature-level entry
 
 **Success Criteria**: All edge cases handled. No spurious XML-RPC calls.
 
@@ -157,15 +157,15 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 ## Success Criteria
 
 ### Functional Requirements
-- [ ] About page shows bio text matching Decision 3 verbatim
-- [ ] Active channels appear as links; inactive channels are hidden
-- [ ] SDI always appears at the bottom regardless of activity
+- [x] About page shows bio text matching Decision 3 verbatim
+- [x] Active channels appear as links; inactive channels are hidden
+- [x] SDI always appears at the bottom regardless of activity
 - [ ] Page updates automatically each day without any manual action from Whitney
 
 ### Non-Functional Requirements
-- [ ] About page updates maintain same reliability as existing sync
-- [ ] No unnecessary API calls when page content hasn't changed
-- [ ] System handles missing or malformed spreadsheet data gracefully (fails explicitly, doesn't corrupt the page)
+- [x] About page updates maintain same reliability as existing sync
+- [x] No unnecessary API calls when page content hasn't changed
+- [x] System handles missing or malformed spreadsheet data gracefully (fails explicitly, doesn't corrupt the page)
 
 ## Dependencies & Risks
 
