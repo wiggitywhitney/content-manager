@@ -74,7 +74,7 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 - Threshold is calendar-months based (e.g., 2 months = date is within the last ~60 days)
 
 ### About Page Generation
-- Build Markdown: bio text, then active channel list, then separator + SDI
+- Build Markdown: HTML photo+bio block, then flat channel link list (no headings or separators); SDI last by ordering
 - Only call `microblog.editPage` if generated Markdown differs from current page content — read current `description` first, compare, skip if identical
 - Use existing `microblog.editPage` XML-RPC pattern from `src/update-page-visibility.js` (MarsEdit token, not Micropub)
 - Playlist/page URLs are defined in the channel config — not pulled from the spreadsheet
@@ -107,7 +107,7 @@ Only active channels appear in the list. SDI always last by ordering (no visual 
 
 **Before starting**: All channel URLs in `src/config/about-page-channels.js` are now resolved — Datadog Illuminated (`PLVOmGuoGYFgpj1-kAXLRKmFWqZ99HAHu7`) and You Choose were both confirmed 2026-04-25. No URL gathering needed before starting this milestone.
 
-- [x] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — bio text (hardcoded from Decision 3), `## Where to Find My Work` section with active channel links, separator, SDI at bottom
+- [x] Implement `generateAboutPageMarkdown(activeChannels)` in `src/update-about-page.js`: produces the About page Markdown — HTML photo+bio block (hardcoded from Decision 3), flat channel link list (no headings or separators), SDI last by ordering
 - [x] Implement content injection: call `microblog.getPages` to find the About page ID (`is_template: true`, title "About"), read current `description`, compare with generated Markdown, and call `microblog.editPage` only if different
 - [x] Test on a **non-critical template page first** before touching the About page — the About page is `is_template: true` and rendering depends on Hugo theme; verify `editPage` produces expected output
 - [x] Test with sample active/inactive channel lists; verify rendered output on Micro.blog
