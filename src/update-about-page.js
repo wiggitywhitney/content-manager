@@ -351,6 +351,9 @@ async function updateAboutPage(validRows, todayDate, { xmlrpcFn = xmlrpcRequest 
   }
 
   const pageId = parseInt(aboutPage.pageID, 10);
+  if (!Number.isFinite(pageId)) {
+    throw new Error(`Invalid About page ID: ${aboutPage.pageID}`);
+  }
 
   for (let attempt = 1; attempt <= XMLRPC_MAX_RETRIES; attempt++) {
     try {
