@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules npx jest --config jest.integration.config.js",
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules npx jest --config jest.e2e.config.js",
     "sync": "vals exec -f .vals.yaml -- node src/sync-content.js",
     "sync:test": "DRY_RUN=true LOG_LEVEL=DEBUG vals exec -f .vals.yaml -- node -r dotenv/config src/sync-content.js",
     "delete-old-posts": "vals exec -f .vals.yaml -- node src/delete-old-posts.js",
@@ -20,6 +22,9 @@
     "node": ">=18.14.0"
   },
   "type": "commonjs",
+  "jest": {
+    "testPathIgnorePatterns": ["/node_modules/", "/tests/integration/", "/tests/e2e/"]
+  },
   "devDependencies": {
     "commit-story": "file:../commit_story/commit-story-1.2.1.tgz",
     "jest": "^30.3.0"

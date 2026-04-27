@@ -180,6 +180,46 @@ describe('dispatchPost', () => {
     });
   });
 
+  describe('DRY_RUN mode', () => {
+    beforeEach(() => {
+      process.env.DRY_RUN = 'true';
+    });
+
+    afterEach(() => {
+      delete process.env.DRY_RUN;
+    });
+
+    test('does not call any platform posting functions', async () => {
+      await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky', 'mastodon', 'linkedin'] }), '2026-04-27');
+      expect(postToBluesky).not.toHaveBeenCalled();
+      expect(postToMastodon).not.toHaveBeenCalled();
+      expect(postToLinkedIn).not.toHaveBeenCalled();
+      expect(postToMicroblog).not.toHaveBeenCalled();
+    });
+
+    test('does not call updatePostResult', async () => {
+      await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky'] }), '2026-04-27');
+      expect(updatePostResult).not.toHaveBeenCalled();
+    });
+
+    test('does not download video for short posts', async () => {
+      await dispatchPost(makePost({ postType: 'short', platforms: ['bluesky'] }), '2026-04-27');
+      expect(downloadShortVideo).not.toHaveBeenCalled();
+    });
+
+    test('does not create a tmpDir for short posts', async () => {
+      await dispatchPost(makePost({ postType: 'short', platforms: ['bluesky'] }), '2026-04-27');
+      expect(mkdtempSyncSpy).not.toHaveBeenCalled();
+    });
+
+    test('logs what would be dispatched', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky', 'mastodon'] }), '2026-04-27');
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('DRY_RUN'));
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('talk post type', () => {
     test('does not call downloadShortVideo for talk posts', async () => {
       await dispatchPost(makePost({ postType: 'talk', groupId: 'talk-otel-basics' }), '2026-04-27');

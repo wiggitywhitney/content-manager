@@ -200,8 +200,10 @@ async function postToMicroblog(post, { bypassViewCount = false } = {}) {
  *
  * This runs independently of the platforms column — micro.blog posting is driven
  * entirely by view count, not by what platforms are listed in Column H.
+ *
+ * @param {boolean} dryRun - When true, logs what would be posted instead of posting
  */
-async function scanAndPostShorts() {
+async function scanAndPostShorts(dryRun = false) {
   const { fetchRecentShortRows } = require('./social-posts-queue');
   const { updateMicroblogPostUrl } = require('./update-social-post-status');
 
@@ -217,6 +219,11 @@ async function scanAndPostShorts() {
   for (const post of shortRows) {
     if (post.microblogPostUrl) {
       console.log(`[microblog] Row ${post.rowIndex}: already posted to micro.blog, skipping`); // eslint-disable-line no-console
+      continue;
+    }
+
+    if (dryRun) {
+      console.log(`[microblog] DRY_RUN: Would check view count and post short row ${post.rowIndex}: ${post.title}`); // eslint-disable-line no-console
       continue;
     }
 

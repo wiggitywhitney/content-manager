@@ -1,5 +1,5 @@
 // ABOUTME: Reads and filters the social posts queue from the staged spreadsheet.
-// ABOUTME: Provides parseSocialPostRows and filterPostsForDate for use by the daily cron.
+// ABOUTME: Exports COL column indices and queue fetch functions for use by the daily cron and tests.
 
 'use strict';
 
@@ -253,4 +253,4 @@ async function fetchRecentShortRows(limit = 10) {
   return shortPosts.slice(-limit);
 }
 
-module.exports = { parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly };
+module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly };
