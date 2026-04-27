@@ -28,6 +28,9 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
     lxm: 'com.atproto.repo.uploadBlob',
     exp: Math.floor(Date.now() / 1000) + 60 * 30,
   });
+  if (!serviceAuth.token) {
+    throw new Error('Protocol error: getServiceAuth returned no token');
+  }
 
   const uploadUrl = `${VIDEO_SERVICE}/xrpc/app.bsky.video.uploadVideo?did=${encodeURIComponent(agent.session.did)}&name=video.mp4`;
   const uploadRes = await fetch(uploadUrl, {
@@ -43,6 +46,9 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
     throw new Error(`Bluesky video upload failed: ${uploadRes.status}`);
   }
   const { jobId } = await uploadRes.json();
+  if (!jobId) {
+    throw new Error('Protocol error: video upload response missing jobId');
+  }
 
   let blob;
   const maxPolls = 120; // 2-minute ceiling at 1s intervals

@@ -187,7 +187,7 @@ describe('postToMastodon', () => {
       mockMediaFetch.mockResolvedValue({ id: MOCK_MEDIA_ID, url: null, error: 'codec not supported' });
       const assertion = expect(
         postToMastodon(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })
-      ).rejects.toThrow('codec not supported');
+      ).rejects.toThrow('Mastodon video processing failed');
       await jest.runAllTimersAsync();
       await assertion;
     });

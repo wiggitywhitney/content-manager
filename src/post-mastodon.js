@@ -47,7 +47,7 @@ async function postToMastodon(post, { videoBuffer } = {}) {
       await new Promise(r => setTimeout(r, 2000));
       ready = await masto.v1.mediaAttachments.$select(attachment.id).fetch();
       if (ready.error) {
-        throw new Error(`Mastodon video processing failed: ${ready.error}`);
+        throw new Error(`Mastodon video processing failed: ${JSON.stringify(ready.error)}`);
       }
     }
 
