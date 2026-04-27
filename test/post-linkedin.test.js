@@ -277,6 +277,21 @@ describe('postToLinkedIn', () => {
       expect(result.postUrl).toBe(`https://www.linkedin.com/feed/update/${MOCK_POST_URN}/`);
     });
 
+    test('throws if chunk PUT response is missing ETag header', async () => {
+      global.fetch.mockReset();
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            value: { video: MOCK_VIDEO_URN, uploadToken: '', uploadInstructions: [{ uploadUrl: MOCK_UPLOAD_URL, firstByte: 0, lastByte: 99 }] },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, headers: { get: () => null } });
+      await expect(
+        postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })
+      ).rejects.toThrow('missing ETag');
+    });
+
     test('throws when video processing fails', async () => {
       global.fetch.mockReset();
       global.fetch

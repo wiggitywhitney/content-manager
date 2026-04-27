@@ -90,7 +90,11 @@ async function uploadVideoToLinkedIn(videoBuffer, personUrn, accessToken) {
     if (!putRes.ok) {
       throw new Error(`LinkedIn video chunk upload failed: ${putRes.status}`);
     }
-    const etag = putRes.headers.get('etag').replace(/"/g, ''); // strip surrounding quotes
+    const rawEtag = putRes.headers.get('etag');
+    if (!rawEtag) {
+      throw new Error('LinkedIn video chunk upload missing ETag header');
+    }
+    const etag = rawEtag.replace(/"/g, ''); // strip surrounding quotes
     uploadedPartIds.push(etag);
   }
 
