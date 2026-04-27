@@ -135,6 +135,7 @@ describe('postToBluesky - video path', () => {
         json: async () => ({ jobId: MOCK_JOB_ID }),
       })
       .mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ jobStatus: { blob: MOCK_BLOB } }),
       });
     global.fetch = mockFetch;
@@ -197,5 +198,21 @@ describe('postToBluesky - video path', () => {
     mockFetch = jest.fn().mockResolvedValueOnce({ ok: false, status: 500 });
     global.fetch = mockFetch;
     await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('500');
+  });
+
+  test('throws if job status poll returns non-ok response', async () => {
+    mockFetch = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) })
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+    global.fetch = mockFetch;
+    await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('503');
+  });
+
+  test('throws if job status indicates failure', async () => {
+    mockFetch = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'codec not supported' } }) });
+    global.fetch = mockFetch;
+    await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('codec not supported');
   });
 });

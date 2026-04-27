@@ -44,11 +44,22 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
   const { jobId } = await uploadRes.json();
 
   let blob;
+  const maxPolls = 120; // 2-minute ceiling at 1s intervals
+  let pollCount = 0;
   while (!blob) {
+    if (pollCount++ >= maxPolls) {
+      throw new Error('Bluesky video processing timed out after 2 minutes');
+    }
     const statusRes = await fetch(
       `${VIDEO_SERVICE}/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`
     );
+    if (!statusRes.ok) {
+      throw new Error(`Bluesky job status check failed: ${statusRes.status}`);
+    }
     const { jobStatus } = await statusRes.json();
+    if (jobStatus.state === 'failed' || jobStatus.error) {
+      throw new Error(`Bluesky video processing failed: ${jobStatus.error || 'unknown error'}`);
+    }
     if (jobStatus.blob) {
       blob = jobStatus.blob;
     } else {
