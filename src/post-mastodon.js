@@ -29,7 +29,7 @@ async function postToMastodon(post, { videoBuffer } = {}) {
   };
 
   if (videoBuffer) {
-    console.log('[mastodon] Uploading video...');
+    console.log('[mastodon] Uploading video...'); // eslint-disable-line no-console
     const attachment = await masto.v2.media.create({
       file: new Blob([videoBuffer], { type: 'video/mp4' }),
       description: post.altText,

@@ -22,7 +22,7 @@ function buildBskyWebUrl(handle, uri) {
 }
 
 async function uploadVideoToBluesky(agent, videoBuffer) {
-  console.log('[bluesky] Uploading video...');
+  console.log('[bluesky] Uploading video...'); // eslint-disable-line no-console
   const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
     aud: 'did:web:video.bsky.app',
     lxm: 'com.atproto.repo.uploadBlob',

@@ -50,7 +50,7 @@ function checkTokenExpiry(expiresAt) {
  * @returns {Promise<string>} LinkedIn video URN (e.g. 'urn:li:video:...')
  */
 async function uploadVideoToLinkedIn(videoBuffer, personUrn, accessToken) {
-  console.log('[linkedin] Uploading video...');
+  console.log('[linkedin] Uploading video...'); // eslint-disable-line no-console
   const jsonHeaders = {
     Authorization: `Bearer ${accessToken}`,
     'Linkedin-Version': LINKEDIN_VERSION,
