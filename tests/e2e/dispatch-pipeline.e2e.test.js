@@ -14,7 +14,12 @@ const SCRIPT_PATH = path.join(__dirname, '../../src/post-social-content.js');
 function getSheets() {
   const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!json) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is required for e2e tests');
-  const credentials = JSON.parse(json);
+  let credentials;
+  try {
+    credentials = JSON.parse(json);
+  } catch (err) {
+    throw new Error(`GOOGLE_SERVICE_ACCOUNT_JSON is invalid JSON: ${err.message}`);
+  }
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
