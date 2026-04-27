@@ -80,7 +80,8 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
  *
  * @param {Object} post - Post object from the social posts queue
  * @param {string} post.postText - Text to post
- * @param {Buffer} [videoBuffer] - Optional video buffer for short posts
+ * @param {Object} [options] - Optional posting options
+ * @param {Buffer} [options.videoBuffer] - Optional video buffer for short posts
  * @returns {Promise<{postUrl: string}>} The URL of the created post
  */
 async function postToBluesky(post, { videoBuffer } = {}) {
