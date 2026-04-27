@@ -26,8 +26,9 @@ function getTodayDate() {
 
 /**
  * Dispatch a single post to all of its specified platforms.
- * Collects all results before writing to the sheet so that a failure on one
- * platform cannot overwrite a success written by an earlier platform.
+ * When DRY_RUN=true, logs what would be dispatched and returns immediately.
+ * Otherwise, collects all results before writing to the sheet so that a failure
+ * on one platform cannot overwrite a success written by an earlier platform.
  *
  * @param {Object} post - Parsed post object from the social posts queue
  * @param {string} today - Date in YYYY-MM-DD format used for Column G write-back

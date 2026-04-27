@@ -1,5 +1,5 @@
 // ABOUTME: Reads and filters the social posts queue from the staged spreadsheet.
-// ABOUTME: Provides parseSocialPostRows and filterPostsForDate for use by the daily cron.
+// ABOUTME: Exports COL column indices and queue fetch functions for use by the daily cron and tests.
 
 'use strict';
 
