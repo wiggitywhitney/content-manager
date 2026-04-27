@@ -29,6 +29,7 @@ async function postToMastodon(post, { videoBuffer } = {}) {
   };
 
   if (videoBuffer) {
+    console.log('[mastodon] Uploading video...');
     const attachment = await masto.v2.media.create({
       file: new Blob([videoBuffer], { type: 'video/mp4' }),
       description: post.altText,
@@ -44,6 +45,9 @@ async function postToMastodon(post, { videoBuffer } = {}) {
       }
       await new Promise(r => setTimeout(r, 2000));
       ready = await masto.v1.mediaAttachments.$select(attachment.id).fetch();
+      if (ready.error) {
+        throw new Error(`Mastodon video processing failed: ${ready.error}`);
+      }
     }
 
     statusArgs.mediaIds = [attachment.id];

@@ -22,6 +22,7 @@ function buildBskyWebUrl(handle, uri) {
 }
 
 async function uploadVideoToBluesky(agent, videoBuffer) {
+  console.log('[bluesky] Uploading video...');
   const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
     aud: 'did:web:video.bsky.app',
     lxm: 'com.atproto.repo.uploadBlob',
@@ -58,7 +59,7 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
     }
     const { jobStatus } = await statusRes.json();
     if (jobStatus.state === 'failed' || jobStatus.error) {
-      throw new Error(`Bluesky video processing failed: ${jobStatus.error || 'unknown error'}`);
+      throw new Error(`Bluesky video processing failed: ${jobStatus.error ? JSON.stringify(jobStatus.error) : 'unknown error'}`);
     }
     if (jobStatus.blob) {
       blob = jobStatus.blob;

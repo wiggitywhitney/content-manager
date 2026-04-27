@@ -262,6 +262,15 @@ describe('postToMicroblog', () => {
     });
     await expect(postToMicroblog(makePost())).rejects.toThrow('400');
   });
+
+  test('throws when yt-dlp exits 0 but video.mp4 was not written', async () => {
+    // Simulate yt-dlp exiting 0 without creating the output file (e.g., ffmpeg absent during merge)
+    childProcess.spawnSync.mockImplementation((bin, args) => {
+      if (args && args[0] === '--version') return { status: 0, stdout: Buffer.from('2026.03.03') };
+      return { status: 0, stderr: Buffer.from('') }; // exits 0 but writes no file
+    });
+    await expect(postToMicroblog(makePost())).rejects.toThrow('video.mp4 was not written');
+  });
 });
 
 describe('scanAndPostShorts', () => {

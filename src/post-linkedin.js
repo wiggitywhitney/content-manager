@@ -1,5 +1,5 @@
 // ABOUTME: LinkedIn posting module using the REST API with OAuth access token auth.
-// ABOUTME: Exports postToLinkedIn(post), buildLinkedInWebUrl(urn), and checkTokenExpiry(expiresAt).
+// ABOUTME: Exports postToLinkedIn(post, {videoBuffer}), buildLinkedInWebUrl(urn), and checkTokenExpiry(expiresAt).
 
 'use strict';
 
@@ -50,6 +50,7 @@ function checkTokenExpiry(expiresAt) {
  * @returns {Promise<string>} LinkedIn video URN (e.g. 'urn:li:video:...')
  */
 async function uploadVideoToLinkedIn(videoBuffer, personUrn, accessToken) {
+  console.log('[linkedin] Uploading video...');
   const jsonHeaders = {
     Authorization: `Bearer ${accessToken}`,
     'Linkedin-Version': LINKEDIN_VERSION,
@@ -77,6 +78,9 @@ async function uploadVideoToLinkedIn(videoBuffer, personUrn, accessToken) {
   const videoUrn = uploadData.video;
   const uploadToken = uploadData.uploadToken;
   const uploadInstructions = uploadData.uploadInstructions;
+  if (!Array.isArray(uploadInstructions)) {
+    throw new Error(`LinkedIn initializeUpload response missing uploadInstructions: ${JSON.stringify(uploadData)}`);
+  }
 
   // Step 2: Upload each part to the pre-signed URL, collect ETags
   const uploadedPartIds = [];

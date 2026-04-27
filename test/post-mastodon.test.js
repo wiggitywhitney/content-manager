@@ -182,6 +182,16 @@ describe('postToMastodon', () => {
       await assertion;
     });
 
+    test('throws if media attachment processing fails with error field', async () => {
+      jest.useFakeTimers();
+      mockMediaFetch.mockResolvedValue({ id: MOCK_MEDIA_ID, url: null, error: 'codec not supported' });
+      const assertion = expect(
+        postToMastodon(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })
+      ).rejects.toThrow('codec not supported');
+      await jest.runAllTimersAsync();
+      await assertion;
+    });
+
     test('propagates media upload failure', async () => {
       mockMediaCreate.mockRejectedValue(new Error('Upload failed'));
       await expect(postToMastodon(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })).rejects.toThrow('Upload failed');

@@ -47,6 +47,11 @@ function downloadShortVideo(youtubeUrl, tmpDir) {
     throw new Error(`yt-dlp failed (exit ${result.status}): ${stderr}`);
   }
 
+  // yt-dlp exits 0 but skips the merge when ffmpeg is absent, leaving stream files instead of video.mp4
+  if (!fs.existsSync(outputPath)) {
+    throw new Error('yt-dlp exited 0 but video.mp4 was not written — ffmpeg may be absent');
+  }
+
   return { buffer: fs.readFileSync(outputPath), mimeType: 'video/mp4', filename: 'video.mp4' };
 }
 
