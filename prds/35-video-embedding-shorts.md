@@ -66,13 +66,13 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `postToBluesky(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
+- [x] In `postToBluesky(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
   1. Acquire a scoped service token via `agent.com.atproto.server.getServiceAuth` with `lxm: 'com.atproto.repo.uploadBlob'` and 30-minute expiry
   2. POST the buffer to `https://video.bsky.app/xrpc/app.bsky.video.uploadVideo` with query params `did` and `name=video.mp4`; use the service token in `Authorization: Bearer`
   3. Poll `app.bsky.video.getJobStatus({ jobId })` on the `video.bsky.app` agent until `jobStatus.blob` is populated
   4. Include `embed: { $type: 'app.bsky.embed.video', video: blob, aspectRatio: { width: 9, height: 16 } }` in the `agent.post()` call
-- [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
-- [ ] Write unit tests: video path calls the upload flow; text-only path skips it
+- [x] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
+- [x] Write unit tests: video path calls the upload flow; text-only path skips it
 
 **Codebase context**: `post-bluesky.js` imports `BskyAgent` from `@atproto/api` and creates `const agent = new BskyAgent({ service: BSKY_SERVICE })` inside `postToBluesky`. For polling job status, create a separate `AtpAgent` (also from `@atproto/api`) pointed at `https://video.bsky.app` — do NOT reuse the `BskyAgent`. `agent.session.did` is available after `agent.login()`. Add new tests to `test/post-bluesky.test.js` (not `tests/`). The `videoBuffer` arrives from `dispatchPost()` in `post-social-content.js` — Milestone 2 is already complete.
 
@@ -81,6 +81,11 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 - `aspectRatio` is required — omitting it silently breaks the embed
 - `getServiceAuth` scope must be `'com.atproto.repo.uploadBlob'` exactly
 - Do NOT add the `AtpAgent` import if `BskyAgent` already covers it — check whether `@atproto/api` exports both before adding a second import line
+
+**Implementation notes (from Milestone 3 execution)**:
+- `@atproto/api`'s `AtpAgent` does NOT have `app.bsky.video` namespace in the installed version — use `fetch()` directly for both the upload POST and the job status poll GET. Do NOT attempt `videoAgent.app.bsky.video.getJobStatus()`.
+- `agent.dispatchUrl` is `undefined` — hardcode `aud: 'did:web:video.bsky.app'` in `getServiceAuth`. The `aud` is the video service's DID, not the user's PDS DID.
+- `agent.session.did` IS available after `agent.login()`. Use it to build the upload URL query param.
 
 **Success criteria**: A `post_type = short` post on Bluesky embeds the video inline. Unit tests cover both paths.
 
