@@ -1,4 +1,4 @@
-// ABOUTME: Unit tests for scan-new-content.js — covers the three new YouTube playlist fetch functions.
+// ABOUTME: Unit tests for scan-new-content.js — covers YouTube playlist fetch functions (filtering, pagination, URL format).
 'use strict';
 
 jest.mock('googleapis', () => ({

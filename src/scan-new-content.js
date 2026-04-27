@@ -85,6 +85,8 @@ async function fetchYouTubeVideos(auth) {
     for (const item of response.data.items) {
       const snippet = item.snippet;
       if (snippet.title === "Private video") continue;
+      const videoId = snippet?.resourceId?.videoId;
+      if (!videoId) continue;
 
       const publishedAt = new Date(snippet.publishedAt);
       const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
@@ -94,7 +96,7 @@ async function fetchYouTubeVideos(auth) {
         type: "Video",
         show: "🌩️ Thunder",
         date: dateStr,
-        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        url: `https://youtu.be/${videoId}`,
         publishedAt
       });
     }
@@ -124,6 +126,8 @@ async function fetchDatadogIlluminatedVideos(auth) {
     for (const item of response.data.items) {
       const snippet = item.snippet;
       if (snippet.title === "Private video") continue;
+      const videoId = snippet?.resourceId?.videoId;
+      if (!videoId) continue;
 
       const publishedAt = new Date(snippet.publishedAt);
       const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
@@ -133,7 +137,7 @@ async function fetchDatadogIlluminatedVideos(auth) {
         type: "Video",
         show: "Datadog Illuminated",
         date: dateStr,
-        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        url: `https://youtu.be/${videoId}`,
         publishedAt
       });
     }
@@ -163,6 +167,8 @@ async function fetchEnlightningVideos(auth) {
     for (const item of response.data.items) {
       const snippet = item.snippet;
       if (snippet.title === "Private video") continue;
+      const videoId = snippet?.resourceId?.videoId;
+      if (!videoId) continue;
 
       const publishedAt = new Date(snippet.publishedAt);
       const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
@@ -172,7 +178,7 @@ async function fetchEnlightningVideos(auth) {
         type: "Video",
         show: "Enlightning",
         date: dateStr,
-        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        url: `https://youtu.be/${videoId}`,
         publishedAt
       });
     }
@@ -202,6 +208,8 @@ async function fetchYouChooseVideos(auth) {
     for (const item of response.data.items) {
       const snippet = item.snippet;
       if (snippet.title === "Private video") continue;
+      const videoId = snippet?.resourceId?.videoId;
+      if (!videoId) continue;
 
       const publishedAt = new Date(snippet.publishedAt);
       const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
@@ -211,7 +219,7 @@ async function fetchYouChooseVideos(auth) {
         type: "Video",
         show: "You Choose",
         date: dateStr,
-        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        url: `https://youtu.be/${videoId}`,
         publishedAt
       });
     }
