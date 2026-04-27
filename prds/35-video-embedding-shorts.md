@@ -141,9 +141,9 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 ### Milestone 6: Integration tests and documentation
 
-- [ ] Run `npm test` — all existing tests pass, new tests from Milestones 1–5 pass
-- [ ] Update PROGRESS.md with feature-level entry
-- [ ] Verify that `downloadShortVideo` is not duplicated between `src/video-download.js` and `src/post-microblog.js` (only defined in one place)
+- [x] Run `npm test` — all existing tests pass, new tests from Milestones 1–5 pass
+- [x] Update PROGRESS.md with feature-level entry
+- [x] Verify that `downloadShortVideo` is not duplicated between `src/video-download.js` and `src/post-microblog.js` (only defined in one place)
 
 **Success criteria**: Full test suite green. No duplicate download logic.
 
@@ -151,14 +151,14 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 ### Functional Requirements
 - [ ] YouTube Short posts on Bluesky, Mastodon, and LinkedIn display the video inline in the feed
-- [ ] Micro.blog behavior is unchanged (already embeds video)
-- [ ] Non-short posts (`post_type = episode`) are unaffected — still post text only
-- [ ] If video download fails, the row is marked `failed` and no platform receives the post
+- [x] Micro.blog behavior is unchanged (already embeds video)
+- [x] Non-short posts (`post_type = episode`) are unaffected — still post text only
+- [x] If video download fails, the row is marked `failed` and no platform receives the post
 
 ### Non-Functional Requirements
-- [ ] Video is downloaded once per dispatch run, not once per platform
-- [ ] Temp files are cleaned up after each dispatch (success or failure)
-- [ ] Platform posters remain independently testable with mock buffers
+- [x] Video is downloaded once per dispatch run, not once per platform
+- [x] Temp files are cleaned up after each dispatch (success or failure)
+- [x] Platform posters remain independently testable with mock buffers
 
 ## Dependencies & Risks
 
