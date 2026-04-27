@@ -95,12 +95,12 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `postToMastodon(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
+- [x] In `postToMastodon(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
   1. Call `masto.v2.media.create({ file: new Blob([videoBuffer], { type: 'video/mp4' }), description: post.altText })`
   2. Poll `masto.v1.mediaAttachments.$select(attachment.id).fetch()` every 2 seconds until `.url` is populated (video processing is async — upload returns 202)
   3. Include `mediaIds: [attachment.id]` in the `masto.v1.statuses.create()` call
-- [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
-- [ ] Write unit tests: video path calls upload + poll + attaches mediaId; text-only path skips it
+- [x] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
+- [x] Write unit tests: video path calls upload + poll + attaches mediaId; text-only path skips it
 
 **Codebase context**: `post-mastodon.js` creates `const masto = createRestAPIClient({ url: instanceUrl, accessToken })` inside `postToMastodon`. Use this same `masto` client for the v2 media upload — do not create a second client. Add new tests to `test/post-mastodon.test.js`. masto.js has ESM-only transitive deps — Jest auto-mock fails; the existing test file already uses a manual factory (`jest.mock('masto', () => ...)`). The `videoBuffer` arrives from `dispatchPost()` — Milestone 2 is already complete.
 
