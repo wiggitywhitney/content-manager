@@ -107,7 +107,7 @@ async function fetchYouTubeVideos(auth) {
 }
 
 async function fetchDatadogIlluminatedVideos(auth) {
-  console.log("Fetching YouTube Datadog Illuminated playlist...");
+  console.log("Fetching YouTube Datadog Illuminated playlist..."); // eslint-disable-line no-console
   const youtube = google.youtube({ version: "v3", auth });
 
   const videos = [];
@@ -141,12 +141,12 @@ async function fetchDatadogIlluminatedVideos(auth) {
     pageToken = response.data.nextPageToken;
   } while (pageToken);
 
-  console.log(`  Found ${videos.length} Datadog Illuminated videos`);
+  console.log(`  Found ${videos.length} Datadog Illuminated videos`); // eslint-disable-line no-console
   return videos;
 }
 
 async function fetchEnlightningVideos(auth) {
-  console.log("Fetching YouTube Enlightning playlist...");
+  console.log("Fetching YouTube Enlightning playlist..."); // eslint-disable-line no-console
   const youtube = google.youtube({ version: "v3", auth });
 
   const videos = [];
@@ -180,12 +180,12 @@ async function fetchEnlightningVideos(auth) {
     pageToken = response.data.nextPageToken;
   } while (pageToken);
 
-  console.log(`  Found ${videos.length} Enlightning videos`);
+  console.log(`  Found ${videos.length} Enlightning videos`); // eslint-disable-line no-console
   return videos;
 }
 
 async function fetchYouChooseVideos(auth) {
-  console.log("Fetching YouTube You Choose playlist...");
+  console.log("Fetching YouTube You Choose playlist..."); // eslint-disable-line no-console
   const youtube = google.youtube({ version: "v3", auth });
 
   const videos = [];
@@ -219,7 +219,7 @@ async function fetchYouChooseVideos(auth) {
     pageToken = response.data.nextPageToken;
   } while (pageToken);
 
-  console.log(`  Found ${videos.length} You Choose videos`);
+  console.log(`  Found ${videos.length} You Choose videos`); // eslint-disable-line no-console
   return videos;
 }
 
