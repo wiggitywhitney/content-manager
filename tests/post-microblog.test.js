@@ -55,11 +55,13 @@ describe('extractYouTubeVideoId', () => {
 });
 
 describe('postToMicroblog', () => {
-  let originalEnv;
+  let originalMicroblogToken;
+  let originalGoogleServiceAccountJson;
   let fetchSpy;
 
   beforeEach(() => {
-    originalEnv = process.env.MICROBLOG_APP_TOKEN;
+    originalMicroblogToken = process.env.MICROBLOG_APP_TOKEN;
+    originalGoogleServiceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     process.env.MICROBLOG_APP_TOKEN = 'test-token';
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
 
@@ -95,8 +97,12 @@ describe('postToMicroblog', () => {
   });
 
   afterEach(() => {
-    process.env.MICROBLOG_APP_TOKEN = originalEnv;
-    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    process.env.MICROBLOG_APP_TOKEN = originalMicroblogToken;
+    if (originalGoogleServiceAccountJson === undefined) {
+      delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    } else {
+      process.env.GOOGLE_SERVICE_ACCOUNT_JSON = originalGoogleServiceAccountJson;
+    }
     jest.restoreAllMocks();
   });
 
