@@ -9,6 +9,21 @@ const BSKY_SERVICE = 'https://bsky.social';
 const VIDEO_SERVICE = 'https://video.bsky.app';
 const SHORTS_ASPECT_RATIO = { width: 9, height: 16 };
 
+async function fetchWithTimeout(url, init, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error(`Bluesky request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Build a Bluesky web URL from a handle and an AT Protocol URI.
  *
@@ -33,7 +48,7 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
   }
 
   const uploadUrl = `${VIDEO_SERVICE}/xrpc/app.bsky.video.uploadVideo?did=${encodeURIComponent(agent.session.did)}&name=video.mp4`;
-  const uploadRes = await fetch(uploadUrl, {
+  const uploadRes = await fetchWithTimeout(uploadUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${serviceAuth.token}`,
@@ -41,7 +56,7 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
       'Content-Length': String(videoBuffer.length),
     },
     body: videoBuffer,
-  });
+  }, 120000);
   if (!uploadRes.ok) {
     throw new Error(`Bluesky video upload failed: ${uploadRes.status}`);
   }
@@ -57,8 +72,10 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
     if (pollCount++ >= maxPolls) {
       throw new Error('Bluesky video processing timed out after 2 minutes');
     }
-    const statusRes = await fetch(
-      `${VIDEO_SERVICE}/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`
+    const statusRes = await fetchWithTimeout(
+      `${VIDEO_SERVICE}/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`,
+      {},
+      15000
     );
     if (!statusRes.ok) {
       throw new Error(`Bluesky job status check failed: ${statusRes.status}`);
