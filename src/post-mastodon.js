@@ -1,5 +1,5 @@
 // ABOUTME: Mastodon posting module using masto.js REST API client with access token auth.
-// ABOUTME: Exports postToMastodon(post) helper.
+// ABOUTME: Exports postToMastodon(post, {videoBuffer}) helper.
 
 'use strict';
 
@@ -10,9 +10,12 @@ const { createRestAPIClient } = require('masto');
  *
  * @param {Object} post - Post object from the social posts queue
  * @param {string} post.postText - Text to post
+ * @param {string} [post.altText] - Alt text for video attachment
+ * @param {Object} [options] - Optional posting options
+ * @param {Buffer} [options.videoBuffer] - Optional video buffer for short posts
  * @returns {Promise<{postUrl: string}>} The URL of the created status
  */
-async function postToMastodon(post) {
+async function postToMastodon(post, { videoBuffer } = {}) {
   const accessToken = process.env.MASTODON_ACCESS_TOKEN;
   const instanceUrl = process.env.MASTODON_INSTANCE_URL;
 
@@ -20,11 +23,38 @@ async function postToMastodon(post) {
   if (!instanceUrl) throw new Error('MASTODON_INSTANCE_URL environment variable is required');
 
   const masto = createRestAPIClient({ url: instanceUrl, accessToken });
-  const status = await masto.v1.statuses.create({
+
+  const statusArgs = {
     status: post.postText,
     visibility: 'public',
-  });
+  };
 
+  if (videoBuffer) {
+    console.log('[mastodon] Uploading video...'); // eslint-disable-line no-console
+    const attachment = await masto.v2.media.create({
+      file: new Blob([videoBuffer], { type: 'video/mp4' }),
+      description: post.altText,
+    });
+
+    // Video processing is async — upload returns 202 with url=null; poll until populated
+    const MAX_POLLS = 60; // ~2 minutes at 2s intervals
+    let ready = attachment;
+    let pollCount = 0;
+    while (!ready.url) {
+      if (++pollCount > MAX_POLLS) {
+        throw new Error(`Mastodon video processing timed out after ${MAX_POLLS * 2} seconds`);
+      }
+      await new Promise(r => setTimeout(r, 2000));
+      ready = await masto.v1.mediaAttachments.$select(attachment.id).fetch();
+      if (ready.error) {
+        throw new Error(`Mastodon video processing failed: ${JSON.stringify(ready.error)}`);
+      }
+    }
+
+    statusArgs.mediaIds = [attachment.id];
+  }
+
+  const status = await masto.v1.statuses.create(statusArgs);
   return { postUrl: status.url };
 }
 

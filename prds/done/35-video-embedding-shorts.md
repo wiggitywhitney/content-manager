@@ -1,10 +1,11 @@
 # PRD: Video Embedding for YouTube Shorts
 
 **Issue**: [#35](https://github.com/wiggitywhitney/content-manager/issues/35)
-**Status**: Planning
+**Status**: Complete
 **Priority**: Medium
 **Created**: 2026-04-25
-**Last Updated**: 2026-04-25
+**Last Updated**: 2026-04-27
+**Completed**: 2026-04-27
 
 ## Problem Statement
 
@@ -38,9 +39,9 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] Create `src/video-download.js` that exports `downloadShortVideo(youtubeUrl, tmpDir)` — move the function from `post-microblog.js` as-is, no behavior changes
-- [ ] Update `post-microblog.js` to import `downloadShortVideo` from `src/video-download.js`
-- [ ] Verify all existing `post-microblog.js` tests still pass after the refactor
+- [x] Create `src/video-download.js` that exports `downloadShortVideo(youtubeUrl, tmpDir)` — move the function from `post-microblog.js` as-is, no behavior changes
+- [x] Update `post-microblog.js` to import `downloadShortVideo` from `src/video-download.js`
+- [x] Verify all existing `post-microblog.js` tests still pass after the refactor
 
 **Success criteria**: All existing Micro.blog tests pass. `downloadShortVideo` is importable from `src/video-download.js`.
 
@@ -52,11 +53,11 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `dispatchPost()` in `post-social-content.js`, before calling platform posters, check if `post.postType === 'short'`
-- [ ] If short: call `downloadShortVideo(post.youtubeUrl, tmpDir)` from the shared utility; store the resulting `{ buffer, mimeType }` in a local variable
-- [ ] Pass `{ videoBuffer: buffer }` as the second argument to each platform poster call that supports it (`postToBluesky`, `postToMastodon`, `postToLinkedIn`)
-- [ ] Clean up the temp directory in a `finally` block so cleanup runs on both success and failure
-- [ ] If download throws, call `updatePostResult(post.rowIndex, { status: 'failed' })` and return — do not continue with any platform dispatch
+- [x] In `dispatchPost()` in `post-social-content.js`, before calling platform posters, check if `post.postType === 'short'`
+- [x] If short: call `downloadShortVideo(post.youtubeUrl, tmpDir)` from the shared utility; store the resulting `{ buffer, mimeType }` in a local variable
+- [x] Pass `{ videoBuffer: buffer }` as the second argument to each platform poster call that supports it (`postToBluesky`, `postToMastodon`, `postToLinkedIn`)
+- [x] Clean up the temp directory in a `finally` block so cleanup runs on both success and failure
+- [x] If download throws, call `updatePostResult(post.rowIndex, { status: 'failed' })` and return — do not continue with any platform dispatch
 
 **Success criteria**: For a `post_type = short` row, `dispatchPost` downloads the video once and passes the buffer to all three platform posters. Temp directory is always cleaned up.
 
@@ -66,21 +67,26 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `postToBluesky(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
+- [x] In `postToBluesky(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
   1. Acquire a scoped service token via `agent.com.atproto.server.getServiceAuth` with `lxm: 'com.atproto.repo.uploadBlob'` and 30-minute expiry
   2. POST the buffer to `https://video.bsky.app/xrpc/app.bsky.video.uploadVideo` with query params `did` and `name=video.mp4`; use the service token in `Authorization: Bearer`
   3. Poll `app.bsky.video.getJobStatus({ jobId })` on the `video.bsky.app` agent until `jobStatus.blob` is populated
   4. Include `embed: { $type: 'app.bsky.embed.video', video: blob, aspectRatio: { width: 9, height: 16 } }` in the `agent.post()` call
-- [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
-- [ ] Write unit tests: video path calls the upload flow; text-only path skips it
+- [x] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
+- [x] Write unit tests: video path calls the upload flow; text-only path skips it
 
-**Codebase context**: `post-bluesky.js` imports `BskyAgent` from `@atproto/api` and creates `const agent = new BskyAgent({ service: BSKY_SERVICE })` inside `postToBluesky`. For polling job status, create a separate `AtpAgent` (also from `@atproto/api`) pointed at `https://video.bsky.app` — do NOT reuse the `BskyAgent`. `agent.session.did` is available after `agent.login()`.
+**Codebase context**: `post-bluesky.js` imports `BskyAgent` from `@atproto/api` and creates `const agent = new BskyAgent({ service: BSKY_SERVICE })` inside `postToBluesky`. For polling job status, create a separate `AtpAgent` (also from `@atproto/api`) pointed at `https://video.bsky.app` — do NOT reuse the `BskyAgent`. `agent.session.did` is available after `agent.login()`. Add new tests to `test/post-bluesky.test.js` (not `tests/`). The `videoBuffer` arrives from `dispatchPost()` in `post-social-content.js` — Milestone 2 is already complete.
 
 **Critical gotchas** (from research):
 - The video service is `video.bsky.app`, NOT the user's PDS — the session JWT is rejected; must use `getServiceAuth`
 - `aspectRatio` is required — omitting it silently breaks the embed
 - `getServiceAuth` scope must be `'com.atproto.repo.uploadBlob'` exactly
 - Do NOT add the `AtpAgent` import if `BskyAgent` already covers it — check whether `@atproto/api` exports both before adding a second import line
+
+**Implementation notes (from Milestone 3 execution)**:
+- `@atproto/api`'s `AtpAgent` does NOT have `app.bsky.video` namespace in the installed version — use `fetch()` directly for both the upload POST and the job status poll GET. Do NOT attempt `videoAgent.app.bsky.video.getJobStatus()`.
+- `agent.dispatchUrl` is `undefined` — hardcode `aud: 'did:web:video.bsky.app'` in `getServiceAuth`. The `aud` is the video service's DID, not the user's PDS DID.
+- `agent.session.did` IS available after `agent.login()`. Use it to build the upload URL query param.
 
 **Success criteria**: A `post_type = short` post on Bluesky embeds the video inline. Unit tests cover both paths.
 
@@ -90,14 +96,14 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `postToMastodon(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
+- [x] In `postToMastodon(post, { videoBuffer } = {})`, when `videoBuffer` is provided:
   1. Call `masto.v2.media.create({ file: new Blob([videoBuffer], { type: 'video/mp4' }), description: post.altText })`
   2. Poll `masto.v1.mediaAttachments.$select(attachment.id).fetch()` every 2 seconds until `.url` is populated (video processing is async — upload returns 202)
   3. Include `mediaIds: [attachment.id]` in the `masto.v1.statuses.create()` call
-- [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
-- [ ] Write unit tests: video path calls upload + poll + attaches mediaId; text-only path skips it
+- [x] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
+- [x] Write unit tests: video path calls upload + poll + attaches mediaId; text-only path skips it
 
-**Codebase context**: `post-mastodon.js` creates `const masto = createRestAPIClient({ url: instanceUrl, accessToken })` inside `postToMastodon`. Use this same `masto` client for the v2 media upload — do not create a second client.
+**Codebase context**: `post-mastodon.js` creates `const masto = createRestAPIClient({ url: instanceUrl, accessToken })` inside `postToMastodon`. Use this same `masto` client for the v2 media upload — do not create a second client. Add new tests to `test/post-mastodon.test.js`. masto.js has ESM-only transitive deps — Jest auto-mock fails; the existing test file already uses a manual factory (`jest.mock('masto', () => ...)`). The `videoBuffer` arrives from `dispatchPost()` — Milestone 2 is already complete.
 
 **Critical gotchas** (from research):
 - Always use `masto.v2.media.create`, not v1 — v1 is deprecated for uploads
@@ -112,16 +118,16 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `postToLinkedIn(post, { videoBuffer } = {})`, when `videoBuffer` is provided, implement the 4-step flow:
+- [x] In `postToLinkedIn(post, { videoBuffer } = {})`, when `videoBuffer` is provided, implement the 4-step flow:
   1. `POST /rest/videos?action=initializeUpload` with `{ owner: personUrn, fileSizeBytes, uploadCaptions: false, uploadThumbnail: false }` — returns `video` URN + `uploadInstructions` array
   2. For each instruction in `uploadInstructions`: `PUT` the buffer slice (`firstByte` to `lastByte + 1`, inclusive) to the `uploadUrl`; save the `etag` response header value (strip surrounding quotes)
   3. `POST /rest/videos?action=finalizeUpload` with `{ video: videoUrn, uploadToken, uploadedPartIds: [etags...] }`
   4. Poll `GET /rest/videos/{encodedUrn}` every 3 seconds until `status === "AVAILABLE"`; throw if `PROCESSING_FAILED`
   5. Include `content: { media: { title: 'Short video', id: videoUrn } }` in the post body
-- [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
-- [ ] Write unit tests: video path runs all 4 steps; text-only path skips them; ETag stripping is correct
+- [x] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
+- [x] Write unit tests: video path runs all 4 steps; text-only path skips them; ETag stripping is correct
 
-**Codebase context**: `post-linkedin.js` reads `personUrn` from `process.env.LINKEDIN_PERSON_URN` and `accessToken` from `process.env.LINKEDIN_ACCESS_TOKEN`. The constant `LINKEDIN_VERSION = '202603'` and `LINKEDIN_API_BASE = 'https://api.linkedin.com'` are already defined at the top of the file — use them, do not hardcode the version string inline.
+**Codebase context**: `post-linkedin.js` reads `personUrn` from `process.env.LINKEDIN_PERSON_URN` and `accessToken` from `process.env.LINKEDIN_ACCESS_TOKEN`. The constant `LINKEDIN_VERSION = '202603'` and `LINKEDIN_API_BASE = 'https://api.linkedin.com'` are already defined at the top of the file — use them, do not hardcode the version string inline. Add new tests to `test/post-linkedin.test.js`. The `videoBuffer` arrives from `dispatchPost()` — Milestone 2 is already complete.
 
 **Critical gotchas** (from research):
 - Must poll for `AVAILABLE` before creating the post — creating it while `WAITING_UPLOAD` returns 400
@@ -136,9 +142,9 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 ### Milestone 6: Integration tests and documentation
 
-- [ ] Run `npm test` — all existing tests pass, new tests from Milestones 1–5 pass
-- [ ] Update PROGRESS.md with feature-level entry
-- [ ] Verify that `downloadShortVideo` is not duplicated between `src/video-download.js` and `src/post-microblog.js` (only defined in one place)
+- [x] Run `npm test` — all existing tests pass, new tests from Milestones 1–5 pass
+- [x] Update PROGRESS.md with feature-level entry
+- [x] Verify that `downloadShortVideo` is not duplicated between `src/video-download.js` and `src/post-microblog.js` (only defined in one place)
 
 **Success criteria**: Full test suite green. No duplicate download logic.
 
@@ -146,14 +152,14 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 ### Functional Requirements
 - [ ] YouTube Short posts on Bluesky, Mastodon, and LinkedIn display the video inline in the feed
-- [ ] Micro.blog behavior is unchanged (already embeds video)
-- [ ] Non-short posts (`post_type = episode`) are unaffected — still post text only
-- [ ] If video download fails, the row is marked `failed` and no platform receives the post
+- [x] Micro.blog behavior is unchanged (already embeds video)
+- [x] Non-short posts (`post_type = episode`) are unaffected — still post text only
+- [x] If video download fails, the row is marked `failed` and no platform receives the post
 
 ### Non-Functional Requirements
-- [ ] Video is downloaded once per dispatch run, not once per platform
-- [ ] Temp files are cleaned up after each dispatch (success or failure)
-- [ ] Platform posters remain independently testable with mock buffers
+- [x] Video is downloaded once per dispatch run, not once per platform
+- [x] Temp files are cleaned up after each dispatch (success or failure)
+- [x] Platform posters remain independently testable with mock buffers
 
 ## Dependencies & Risks
 
