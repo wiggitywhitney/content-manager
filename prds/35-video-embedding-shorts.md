@@ -74,7 +74,7 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 - [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
 - [ ] Write unit tests: video path calls the upload flow; text-only path skips it
 
-**Codebase context**: `post-bluesky.js` imports `BskyAgent` from `@atproto/api` and creates `const agent = new BskyAgent({ service: BSKY_SERVICE })` inside `postToBluesky`. For polling job status, create a separate `AtpAgent` (also from `@atproto/api`) pointed at `https://video.bsky.app` — do NOT reuse the `BskyAgent`. `agent.session.did` is available after `agent.login()`.
+**Codebase context**: `post-bluesky.js` imports `BskyAgent` from `@atproto/api` and creates `const agent = new BskyAgent({ service: BSKY_SERVICE })` inside `postToBluesky`. For polling job status, create a separate `AtpAgent` (also from `@atproto/api`) pointed at `https://video.bsky.app` — do NOT reuse the `BskyAgent`. `agent.session.did` is available after `agent.login()`. Add new tests to `test/post-bluesky.test.js` (not `tests/`). The `videoBuffer` arrives from `dispatchPost()` in `post-social-content.js` — Milestone 2 is already complete.
 
 **Critical gotchas** (from research):
 - The video service is `video.bsky.app`, NOT the user's PDS — the session JWT is rejected; must use `getServiceAuth`
@@ -97,7 +97,7 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 - [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
 - [ ] Write unit tests: video path calls upload + poll + attaches mediaId; text-only path skips it
 
-**Codebase context**: `post-mastodon.js` creates `const masto = createRestAPIClient({ url: instanceUrl, accessToken })` inside `postToMastodon`. Use this same `masto` client for the v2 media upload — do not create a second client.
+**Codebase context**: `post-mastodon.js` creates `const masto = createRestAPIClient({ url: instanceUrl, accessToken })` inside `postToMastodon`. Use this same `masto` client for the v2 media upload — do not create a second client. Add new tests to `test/post-mastodon.test.js`. masto.js has ESM-only transitive deps — Jest auto-mock fails; the existing test file already uses a manual factory (`jest.mock('masto', () => ...)`). The `videoBuffer` arrives from `dispatchPost()` — Milestone 2 is already complete.
 
 **Critical gotchas** (from research):
 - Always use `masto.v2.media.create`, not v1 — v1 is deprecated for uploads
@@ -121,7 +121,7 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 - [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
 - [ ] Write unit tests: video path runs all 4 steps; text-only path skips them; ETag stripping is correct
 
-**Codebase context**: `post-linkedin.js` reads `personUrn` from `process.env.LINKEDIN_PERSON_URN` and `accessToken` from `process.env.LINKEDIN_ACCESS_TOKEN`. The constant `LINKEDIN_VERSION = '202603'` and `LINKEDIN_API_BASE = 'https://api.linkedin.com'` are already defined at the top of the file — use them, do not hardcode the version string inline.
+**Codebase context**: `post-linkedin.js` reads `personUrn` from `process.env.LINKEDIN_PERSON_URN` and `accessToken` from `process.env.LINKEDIN_ACCESS_TOKEN`. The constant `LINKEDIN_VERSION = '202603'` and `LINKEDIN_API_BASE = 'https://api.linkedin.com'` are already defined at the top of the file — use them, do not hardcode the version string inline. Add new tests to `test/post-linkedin.test.js`. The `videoBuffer` arrives from `dispatchPost()` — Milestone 2 is already complete.
 
 **Critical gotchas** (from research):
 - Must poll for `AVAILABLE` before creating the post — creating it while `WAITING_UPLOAD` returns 400
