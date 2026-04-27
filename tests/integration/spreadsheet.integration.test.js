@@ -4,7 +4,7 @@
 'use strict';
 
 const { google } = require('googleapis');
-const { fetchPendingPostsForToday } = require('../../src/social-posts-queue');
+const { COL, fetchPendingPostsForToday } = require('../../src/social-posts-queue');
 
 const STAGED_SPREADSHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
 const LIVE_SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
@@ -60,7 +60,7 @@ describe('Spreadsheet integration tests', () => {
       // Row 0 is header — start from row 1
       const dataRows = rows.slice(1);
       for (const row of dataRows) {
-        const status = (row[8] || '').trim(); // COL.STATUS = 8
+        const status = (row[COL.STATUS] || '').trim();
         if (!status) continue; // skip rows with no status
         expect(status).toBe(status.toLowerCase());
       }
@@ -70,7 +70,7 @@ describe('Spreadsheet integration tests', () => {
       const dataRows = rows.slice(1);
       const datePattern = /^\d{4}-\d{2}-\d{2}$/;
       for (const row of dataRows) {
-        const scheduledDate = (row[6] || '').trim(); // COL.SCHEDULED_DATE = 6
+        const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
         if (!scheduledDate) continue; // skip rows with no date
         expect(scheduledDate).toMatch(datePattern);
       }

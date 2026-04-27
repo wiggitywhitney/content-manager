@@ -67,6 +67,7 @@ jobs:
         run: npm run test:e2e
 
   daily-sync:
+    needs: e2e-tests
     runs-on: ubuntu-latest
     permissions:
       contents: read

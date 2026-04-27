@@ -12,7 +12,9 @@ const SOCIAL_POSTS_TAB = 'Social Posts Queue';
 const SCRIPT_PATH = path.join(__dirname, '../../src/post-social-content.js');
 
 function getSheets() {
-  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!json) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is required for e2e tests');
+  const credentials = JSON.parse(json);
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -27,6 +29,7 @@ function getTodayDate() {
 describe('Dispatch pipeline e2e', () => {
   let testRowIndex; // 1-based sheet row index of the inserted test row
   let sheetId;     // numeric sheet ID for batchUpdate
+  let pipelineOutput; // shared stdout from the single DRY_RUN pipeline run
 
   beforeAll(async () => {
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
@@ -68,6 +71,24 @@ describe('Dispatch pipeline e2e', () => {
     const rowMatch = updatedRange.match(/:([A-Z]+)(\d+)$/);
     if (!rowMatch) throw new Error(`Could not parse row number from range: ${updatedRange}`);
     testRowIndex = parseInt(rowMatch[2], 10);
+
+    // Run the pipeline once and cache output for both tests to share
+    const nodeExec = process.execPath;
+    try {
+      const stdout = execFileSync(nodeExec, [SCRIPT_PATH], {
+        env: {
+          ...process.env,
+          DRY_RUN: 'true',
+          CAREER_PRIORITY: '0', // override date-based priority to exercise social dispatch path
+        },
+        timeout: 30000,
+      }).toString();
+      pipelineOutput = stdout;
+    } catch (err) {
+      const stdout = (err.stdout || Buffer.alloc(0)).toString();
+      const stderr = (err.stderr || Buffer.alloc(0)).toString();
+      throw new Error(`Pipeline exited with error:\nstdout: ${stdout}\nstderr: ${stderr}`);
+    }
   });
 
   afterAll(async () => {
@@ -97,54 +118,26 @@ describe('Dispatch pipeline e2e', () => {
   });
 
   test('pipeline runs in DRY_RUN mode, exits 0, and logs key checkpoints', () => {
-    const nodeExec = process.execPath;
-    let stdout;
-    let stderr;
-
-    try {
-      stdout = execFileSync(nodeExec, [SCRIPT_PATH], {
-        env: {
-          ...process.env,
-          DRY_RUN: 'true',
-          CAREER_PRIORITY: '0', // override date-based priority to exercise social dispatch path
-        },
-        timeout: 30000,
-      }).toString();
-      stderr = '';
-    } catch (err) {
-      stdout = (err.stdout || Buffer.alloc(0)).toString();
-      stderr = (err.stderr || Buffer.alloc(0)).toString();
-      throw new Error(`Pipeline exited with error:\nstdout: ${stdout}\nstderr: ${stderr}`);
-    }
-
-    const output = stdout + stderr;
+    expect(pipelineOutput).toBeDefined();
 
     // Pipeline started
-    expect(output).toContain('[social] Checking queue for posts due');
+    expect(pipelineOutput).toContain('[social] Checking queue for posts due');
 
     // DRY_RUN mode was active
-    expect(output).toContain('[social] DRY_RUN mode active');
+    expect(pipelineOutput).toContain('[social] DRY_RUN mode active');
 
     // Career guard was checked (appears in main() before short scan decision)
-    expect(output).toContain('[career-guard]');
+    expect(pipelineOutput).toContain('[career-guard]');
 
     // DRY_RUN dispatch occurred (either our test row or an existing pending row)
-    expect(output).toContain('[social] DRY_RUN: Would dispatch row');
+    expect(pipelineOutput).toContain('[social] DRY_RUN: Would dispatch row');
   });
 
   test('DRY_RUN dispatch targets correct platforms for the dispatched row', () => {
-    const nodeExec = process.execPath;
-    const stdout = execFileSync(nodeExec, [SCRIPT_PATH], {
-      env: {
-        ...process.env,
-        DRY_RUN: 'true',
-        CAREER_PRIORITY: '0',
-      },
-      timeout: 30000,
-    }).toString();
+    expect(pipelineOutput).toBeDefined();
 
     // Find any DRY_RUN dispatch lines and verify they name real platforms
-    const dispatchLines = stdout.split('\n').filter(l => l.includes('DRY_RUN: Would dispatch row'));
+    const dispatchLines = pipelineOutput.split('\n').filter(l => l.includes('DRY_RUN: Would dispatch row'));
     expect(dispatchLines.length).toBeGreaterThan(0);
 
     // Every dispatched row must target at least one known platform
