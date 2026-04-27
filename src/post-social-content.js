@@ -33,6 +33,11 @@ function getTodayDate() {
  * @param {string} today - Date in YYYY-MM-DD format used for Column G write-back
  */
 async function dispatchPost(post, today) {
+  if (process.env.DRY_RUN === 'true') {
+    console.log(`[social] DRY_RUN: Would dispatch row ${post.rowIndex} to [${post.platforms.join(',')}] (${post.postType}): ${post.title}`); // eslint-disable-line no-console
+    return;
+  }
+
   let tmpDir = null;
   let videoBuffer = null;
   let failureCount = 0;
@@ -177,7 +182,9 @@ async function processPostsForDate(today) {
  */
 async function main() {
   const today = getTodayDate();
+  const dryRun = process.env.DRY_RUN === 'true';
   console.log(`[social] Checking queue for posts due ${today}`); // eslint-disable-line no-console
+  if (dryRun) console.log('[social] DRY_RUN mode active — no posts will be sent'); // eslint-disable-line no-console
 
   try {
     await processPostsForDate(today);
@@ -190,7 +197,7 @@ async function main() {
   const careerPostedToday = await checkCareerPostedToday().catch(() => false);
   if (!careerPostedToday) {
     try {
-      await scanAndPostShorts();
+      await scanAndPostShorts(dryRun);
     } catch (err) {
       console.error('[social] micro.blog short scan failed:', err.message); // eslint-disable-line no-console
       // Non-fatal: regular platform dispatch already completed
