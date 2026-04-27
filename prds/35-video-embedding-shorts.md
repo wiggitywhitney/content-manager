@@ -1,7 +1,7 @@
 # PRD: Video Embedding for YouTube Shorts
 
 **Issue**: [#35](https://github.com/wiggitywhitney/content-manager/issues/35)
-**Status**: Planning
+**Status**: In Progress
 **Priority**: Medium
 **Created**: 2026-04-25
 **Last Updated**: 2026-04-25
@@ -38,9 +38,9 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] Create `src/video-download.js` that exports `downloadShortVideo(youtubeUrl, tmpDir)` — move the function from `post-microblog.js` as-is, no behavior changes
-- [ ] Update `post-microblog.js` to import `downloadShortVideo` from `src/video-download.js`
-- [ ] Verify all existing `post-microblog.js` tests still pass after the refactor
+- [x] Create `src/video-download.js` that exports `downloadShortVideo(youtubeUrl, tmpDir)` — move the function from `post-microblog.js` as-is, no behavior changes
+- [x] Update `post-microblog.js` to import `downloadShortVideo` from `src/video-download.js`
+- [x] Verify all existing `post-microblog.js` tests still pass after the refactor
 
 **Success criteria**: All existing Micro.blog tests pass. `downloadShortVideo` is importable from `src/video-download.js`.
 
