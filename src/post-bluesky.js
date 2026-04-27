@@ -28,7 +28,7 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
     lxm: 'com.atproto.repo.uploadBlob',
     exp: Math.floor(Date.now() / 1000) + 60 * 30,
   });
-  if (!serviceAuth.token) {
+  if (!serviceAuth?.token) {
     throw new Error('Protocol error: getServiceAuth returned no token');
   }
 
@@ -64,6 +64,9 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
       throw new Error(`Bluesky job status check failed: ${statusRes.status}`);
     }
     const { jobStatus } = await statusRes.json();
+    if (!jobStatus || typeof jobStatus !== 'object') {
+      throw new Error('Protocol error: job status response missing jobStatus');
+    }
     if (jobStatus.state === 'failed' || jobStatus.error) {
       throw new Error(`Bluesky video processing failed: ${jobStatus.error ? JSON.stringify(jobStatus.error) : 'unknown error'}`);
     }
