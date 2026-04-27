@@ -16,9 +16,9 @@ Full workflow context: see `Journal/docs/social-post-workflow.md` in the Journal
 
 ## Milestones
 
-- [ ] M1: Extend scan-new-content.js with Datadog Illuminated, Enlightning, and You Choose playlist scans
-- [ ] M2: Add scan-new-content.js step to daily-sync.yml
-- [ ] M3: Tests for new playlist sources
+- [x] M1: Extend scan-new-content.js with Datadog Illuminated, Enlightning, and You Choose playlist scans
+- [x] M2: Add scan-new-content.js step to daily-sync.yml
+- [x] M3: Tests for new playlist sources
 
 ## Milestone Details
 
