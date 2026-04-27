@@ -1,5 +1,5 @@
-// ABOUTME: Scans YouTube and Software Defined Interviews for new content.
-// ABOUTME: Adds missing items to the staged spreadsheet.
+// ABOUTME: Scans YouTube playlists and Software Defined Interviews for new content.
+// ABOUTME: Adds missing items to the staged spreadsheet. Run directly or imported for testing.
 
 /**
  * Scan YouTube and Software Defined Interviews for new content
@@ -23,6 +23,10 @@ const { google } = require("googleapis");
 const STAGED_SPREADSHEET_ID = "1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts";
 const YOUTUBE_CHANNEL_ID = "UCaGYZkSCN3MPwqRpt24KBKA"; // wiggitywhitney
 const THUNDER_PLAYLIST_ID = "PLBexUsYDijawXI7x707H1YDdNT2vi98e_";
+const DATADOG_ILLUMINATED_PLAYLIST_ID = "PLVOmGuoGYFgpj1-kAXLRKmFWqZ99HAHu7"; // DatadogCommunity channel
+const ENLIGHTNING_PLAYLIST_ID = "PLBexUsYDijaz09nH8BVPmPio_16V115i4"; // wiggitywhitney channel
+const YOU_CHOOSE_PLAYLIST_ID = "PLyicRj904Z9-FzCPvGpVHgRQVYJpVmx3Z"; // DevOps Toolkit YouTube channel
+// AI Inevitable playlist: deferred — show not yet launched
 const SDI_URL = "https://www.softwaredefinedinterviews.com/";
 
 // Parse command line args
@@ -99,6 +103,123 @@ async function fetchYouTubeVideos(auth) {
   } while (pageToken);
 
   console.log(`  Found ${videos.length} Thunder videos`);
+  return videos;
+}
+
+async function fetchDatadogIlluminatedVideos(auth) {
+  console.log("Fetching YouTube Datadog Illuminated playlist...");
+  const youtube = google.youtube({ version: "v3", auth });
+
+  const videos = [];
+  let pageToken = null;
+
+  do {
+    const response = await youtube.playlistItems.list({
+      part: "snippet",
+      playlistId: DATADOG_ILLUMINATED_PLAYLIST_ID,
+      maxResults: 50,
+      pageToken
+    });
+
+    for (const item of response.data.items) {
+      const snippet = item.snippet;
+      if (snippet.title === "Private video") continue;
+
+      const publishedAt = new Date(snippet.publishedAt);
+      const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
+
+      videos.push({
+        title: snippet.title,
+        type: "Video",
+        show: "Datadog Illuminated",
+        date: dateStr,
+        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        publishedAt
+      });
+    }
+
+    pageToken = response.data.nextPageToken;
+  } while (pageToken);
+
+  console.log(`  Found ${videos.length} Datadog Illuminated videos`);
+  return videos;
+}
+
+async function fetchEnlightningVideos(auth) {
+  console.log("Fetching YouTube Enlightning playlist...");
+  const youtube = google.youtube({ version: "v3", auth });
+
+  const videos = [];
+  let pageToken = null;
+
+  do {
+    const response = await youtube.playlistItems.list({
+      part: "snippet",
+      playlistId: ENLIGHTNING_PLAYLIST_ID,
+      maxResults: 50,
+      pageToken
+    });
+
+    for (const item of response.data.items) {
+      const snippet = item.snippet;
+      if (snippet.title === "Private video") continue;
+
+      const publishedAt = new Date(snippet.publishedAt);
+      const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
+
+      videos.push({
+        title: snippet.title,
+        type: "Video",
+        show: "Enlightning",
+        date: dateStr,
+        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        publishedAt
+      });
+    }
+
+    pageToken = response.data.nextPageToken;
+  } while (pageToken);
+
+  console.log(`  Found ${videos.length} Enlightning videos`);
+  return videos;
+}
+
+async function fetchYouChooseVideos(auth) {
+  console.log("Fetching YouTube You Choose playlist...");
+  const youtube = google.youtube({ version: "v3", auth });
+
+  const videos = [];
+  let pageToken = null;
+
+  do {
+    const response = await youtube.playlistItems.list({
+      part: "snippet",
+      playlistId: YOU_CHOOSE_PLAYLIST_ID,
+      maxResults: 50,
+      pageToken
+    });
+
+    for (const item of response.data.items) {
+      const snippet = item.snippet;
+      if (snippet.title === "Private video") continue;
+
+      const publishedAt = new Date(snippet.publishedAt);
+      const dateStr = `${String(publishedAt.getMonth() + 1).padStart(2, "0")}/${String(publishedAt.getDate()).padStart(2, "0")}/${publishedAt.getFullYear()}`;
+
+      videos.push({
+        title: snippet.title,
+        type: "Video",
+        show: "You Choose",
+        date: dateStr,
+        url: `https://youtu.be/${snippet.resourceId.videoId}`,
+        publishedAt
+      });
+    }
+
+    pageToken = response.data.nextPageToken;
+  } while (pageToken);
+
+  console.log(`  Found ${videos.length} You Choose videos`);
   return videos;
 }
 
@@ -211,14 +332,17 @@ async function main() {
   const sheets = google.sheets({ version: "v4", auth });
 
   // Fetch all data
-  const [sdiEpisodes, youtubeVideos, existing] = await Promise.all([
+  const [sdiEpisodes, youtubeVideos, datadogIlluminatedVideos, enlightningVideos, youChooseVideos, existing] = await Promise.all([
     fetchSDIEpisodes(),
     fetchYouTubeVideos(auth),
+    fetchDatadogIlluminatedVideos(auth),
+    fetchEnlightningVideos(auth),
+    fetchYouChooseVideos(auth),
     getExistingContent(sheets)
   ]);
 
   // Combine and filter
-  let allContent = [...sdiEpisodes, ...youtubeVideos];
+  let allContent = [...sdiEpisodes, ...youtubeVideos, ...datadogIlluminatedVideos, ...enlightningVideos, ...youChooseVideos];
 
   if (FILTER_MONTH || FILTER_YEAR) {
     allContent = filterByMonthAndYear(allContent, FILTER_MONTH, FILTER_YEAR);
@@ -237,7 +361,11 @@ async function main() {
   await addNewContent(sheets, newItems, existing.rowCount);
 }
 
-main().catch(err => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error("Error:", err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { fetchDatadogIlluminatedVideos, fetchEnlightningVideos, fetchYouChooseVideos };

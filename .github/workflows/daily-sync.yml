@@ -34,6 +34,11 @@ jobs:
       - name: Set up yt-dlp
         uses: AnimMouse/setup-yt-dlp@v3
 
+      - name: Scan for new content
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node src/scan-new-content.js
+
       - name: Determine post priority
         id: priority
         env:
