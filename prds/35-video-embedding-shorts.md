@@ -52,11 +52,11 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `dispatchPost()` in `post-social-content.js`, before calling platform posters, check if `post.postType === 'short'`
-- [ ] If short: call `downloadShortVideo(post.youtubeUrl, tmpDir)` from the shared utility; store the resulting `{ buffer, mimeType }` in a local variable
-- [ ] Pass `{ videoBuffer: buffer }` as the second argument to each platform poster call that supports it (`postToBluesky`, `postToMastodon`, `postToLinkedIn`)
-- [ ] Clean up the temp directory in a `finally` block so cleanup runs on both success and failure
-- [ ] If download throws, call `updatePostResult(post.rowIndex, { status: 'failed' })` and return — do not continue with any platform dispatch
+- [x] In `dispatchPost()` in `post-social-content.js`, before calling platform posters, check if `post.postType === 'short'`
+- [x] If short: call `downloadShortVideo(post.youtubeUrl, tmpDir)` from the shared utility; store the resulting `{ buffer, mimeType }` in a local variable
+- [x] Pass `{ videoBuffer: buffer }` as the second argument to each platform poster call that supports it (`postToBluesky`, `postToMastodon`, `postToLinkedIn`)
+- [x] Clean up the temp directory in a `finally` block so cleanup runs on both success and failure
+- [x] If download throws, call `updatePostResult(post.rowIndex, { status: 'failed' })` and return — do not continue with any platform dispatch
 
 **Success criteria**: For a `post_type = short` row, `dispatchPost` downloads the video once and passes the buffer to all three platform posters. Temp directory is always cleaned up.
 
