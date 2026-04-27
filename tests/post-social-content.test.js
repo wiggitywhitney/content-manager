@@ -179,4 +179,57 @@ describe('dispatchPost', () => {
       );
     });
   });
+
+  describe('talk post type', () => {
+    test('does not call downloadShortVideo for talk posts', async () => {
+      await dispatchPost(makePost({ postType: 'talk', groupId: 'talk-otel-basics' }), '2026-04-27');
+      expect(downloadShortVideo).not.toHaveBeenCalled();
+    });
+
+    test('does not create a tmpDir for talk posts', async () => {
+      await dispatchPost(makePost({ postType: 'talk', groupId: 'talk-otel-basics' }), '2026-04-27');
+      expect(mkdtempSyncSpy).not.toHaveBeenCalled();
+    });
+
+    test('dispatches to all specified platforms for talk posts', async () => {
+      await dispatchPost(
+        makePost({ postType: 'talk', platforms: ['linkedin', 'bluesky', 'mastodon'], groupId: 'talk-otel-basics' }),
+        '2026-04-27'
+      );
+      expect(postToLinkedIn).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'talk' }),
+        { videoBuffer: null }
+      );
+      expect(postToBluesky).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'talk' }),
+        { videoBuffer: null }
+      );
+      expect(postToMastodon).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'talk' }),
+        { videoBuffer: null }
+      );
+    });
+
+    test('dispatches to micro.blog for talk posts with micro.blog platform', async () => {
+      await dispatchPost(
+        makePost({ postType: 'talk', platforms: ['micro.blog'], groupId: 'talk-otel-basics' }),
+        '2026-04-27'
+      );
+      expect(postToMicroblog).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'talk' }),
+        { bypassViewCount: true }
+      );
+    });
+
+    test('marks talk post as posted after successful dispatch', async () => {
+      await dispatchPost(
+        makePost({ postType: 'talk', platforms: ['linkedin'], groupId: 'talk-otel-basics' }),
+        '2026-04-27'
+      );
+      expect(updatePostResult).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ status: 'posted' })
+      );
+    });
+  });
 });
