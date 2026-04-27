@@ -170,6 +170,18 @@ describe('postToMastodon', () => {
       expect(result.postUrl).toBe(MOCK_STATUS_URL);
     });
 
+    test('throws if video processing times out', async () => {
+      // url never gets populated — all polls return null
+      mockMediaFetch.mockResolvedValue({ id: MOCK_MEDIA_ID, url: null });
+      jest.useFakeTimers();
+      // Register the assertion before advancing timers so the rejection is handled immediately
+      const assertion = expect(
+        postToMastodon(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })
+      ).rejects.toThrow('timed out');
+      await jest.runAllTimersAsync();
+      await assertion;
+    });
+
     test('propagates media upload failure', async () => {
       mockMediaCreate.mockRejectedValue(new Error('Upload failed'));
       await expect(postToMastodon(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })).rejects.toThrow('Upload failed');

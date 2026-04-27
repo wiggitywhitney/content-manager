@@ -35,8 +35,13 @@ async function postToMastodon(post, { videoBuffer } = {}) {
     });
 
     // Video processing is async — upload returns 202 with url=null; poll until populated
+    const MAX_POLLS = 60; // ~2 minutes at 2s intervals
     let ready = attachment;
+    let pollCount = 0;
     while (!ready.url) {
+      if (++pollCount > MAX_POLLS) {
+        throw new Error(`Mastodon video processing timed out after ${MAX_POLLS * 2} seconds`);
+      }
       await new Promise(r => setTimeout(r, 2000));
       ready = await masto.v1.mediaAttachments.$select(attachment.id).fetch();
     }
