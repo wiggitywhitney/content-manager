@@ -117,14 +117,14 @@ All YouTube Shorts are vertical 9:16. Hardcode `{ width: 9, height: 16 }` in the
 
 **Step 0:** Read related research before starting: [Research: Video Upload APIs](../docs/research/video-upload-apis.md)
 
-- [ ] In `postToLinkedIn(post, { videoBuffer } = {})`, when `videoBuffer` is provided, implement the 4-step flow:
+- [x] In `postToLinkedIn(post, { videoBuffer } = {})`, when `videoBuffer` is provided, implement the 4-step flow:
   1. `POST /rest/videos?action=initializeUpload` with `{ owner: personUrn, fileSizeBytes, uploadCaptions: false, uploadThumbnail: false }` — returns `video` URN + `uploadInstructions` array
   2. For each instruction in `uploadInstructions`: `PUT` the buffer slice (`firstByte` to `lastByte + 1`, inclusive) to the `uploadUrl`; save the `etag` response header value (strip surrounding quotes)
   3. `POST /rest/videos?action=finalizeUpload` with `{ video: videoUrn, uploadToken, uploadedPartIds: [etags...] }`
   4. Poll `GET /rest/videos/{encodedUrn}` every 3 seconds until `status === "AVAILABLE"`; throw if `PROCESSING_FAILED`
   5. Include `content: { media: { title: 'Short video', id: videoUrn } }` in the post body
-- [ ] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
-- [ ] Write unit tests: video path runs all 4 steps; text-only path skips them; ETag stripping is correct
+- [x] When `videoBuffer` is not provided, post text only (existing behavior unchanged)
+- [x] Write unit tests: video path runs all 4 steps; text-only path skips them; ETag stripping is correct
 
 **Codebase context**: `post-linkedin.js` reads `personUrn` from `process.env.LINKEDIN_PERSON_URN` and `accessToken` from `process.env.LINKEDIN_ACCESS_TOKEN`. The constant `LINKEDIN_VERSION = '202603'` and `LINKEDIN_API_BASE = 'https://api.linkedin.com'` are already defined at the top of the file — use them, do not hardcode the version string inline. Add new tests to `test/post-linkedin.test.js`. The `videoBuffer` arrives from `dispatchPost()` — Milestone 2 is already complete.
 

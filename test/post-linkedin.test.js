@@ -161,4 +161,157 @@ describe('postToLinkedIn', () => {
     global.fetch.mockRejectedValue(new Error('Network error'));
     await expect(postToLinkedIn(makePost())).rejects.toThrow('Network error');
   });
+
+  describe('text-only path (no videoBuffer)', () => {
+    test('sends exactly one fetch call', async () => {
+      mockSuccess();
+      await postToLinkedIn(makePost());
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('post body has no content field', async () => {
+      mockSuccess();
+      await postToLinkedIn(makePost());
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.content).toBeUndefined();
+    });
+  });
+
+  describe('video path (videoBuffer provided)', () => {
+    const fakeBuffer = Buffer.from('x'.repeat(100));
+    const MOCK_VIDEO_URN = 'urn:li:video:C5F10AQGtest123';
+    const MOCK_UPLOAD_URL = 'https://storage.linkedin.com/upload/chunk1';
+    const MOCK_RAW_ETAG = '"etag-abc123"';
+    const MOCK_ETAG = 'etag-abc123';
+    const MOCK_POST_URN = 'urn:li:share:6844785523593134080';
+
+    function setupVideoMocks({ pollStatus = 'AVAILABLE' } = {}) {
+      global.fetch
+        // Step 1: initializeUpload
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            value: {
+              video: MOCK_VIDEO_URN,
+              uploadToken: '',
+              uploadInstructions: [{ uploadUrl: MOCK_UPLOAD_URL, firstByte: 0, lastByte: 99 }],
+            },
+          }),
+        })
+        // Step 2: PUT chunk
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: { get: (h) => (h === 'etag' ? MOCK_RAW_ETAG : null) },
+        })
+        // Step 3: finalizeUpload
+        .mockResolvedValueOnce({ ok: true })
+        // Step 4: poll status
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ status: pollStatus }),
+        })
+        // Step 5: POST /rest/posts
+        .mockResolvedValueOnce({
+          status: 201,
+          headers: { get: (h) => (h === 'x-restli-id' ? MOCK_POST_URN : null) },
+        });
+    }
+
+    beforeEach(() => {
+      setupVideoMocks();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('calls initializeUpload with owner, fileSizeBytes, and no captions/thumbnail', async () => {
+      await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      const [url, opts] = global.fetch.mock.calls[0];
+      expect(url).toContain('/rest/videos?action=initializeUpload');
+      const body = JSON.parse(opts.body);
+      expect(body.initializeUploadRequest.owner).toBe('urn:li:person:abc123');
+      expect(body.initializeUploadRequest.fileSizeBytes).toBe(fakeBuffer.length);
+      expect(body.initializeUploadRequest.uploadCaptions).toBe(false);
+      expect(body.initializeUploadRequest.uploadThumbnail).toBe(false);
+    });
+
+    test('uploads correct buffer slice to the upload URL', async () => {
+      await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      const [url, opts] = global.fetch.mock.calls[1];
+      expect(url).toBe(MOCK_UPLOAD_URL);
+      expect(opts.method).toBe('PUT');
+      // lastByte 99 is inclusive → subarray(0, 100) = full 100-byte buffer
+      expect(opts.body.length).toBe(100);
+    });
+
+    test('strips surrounding quotes from ETags in finalizeUpload', async () => {
+      await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      const [url, opts] = global.fetch.mock.calls[2];
+      expect(url).toContain('/rest/videos?action=finalizeUpload');
+      const body = JSON.parse(opts.body);
+      expect(body.finalizeUploadRequest.uploadedPartIds).toEqual([MOCK_ETAG]);
+    });
+
+    test('calls finalizeUpload with video URN and uploadToken', async () => {
+      await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      const body = JSON.parse(global.fetch.mock.calls[2][1].body);
+      expect(body.finalizeUploadRequest.video).toBe(MOCK_VIDEO_URN);
+      expect(body.finalizeUploadRequest.uploadToken).toBe('');
+    });
+
+    test('polls video status before posting', async () => {
+      await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      const [pollUrl] = global.fetch.mock.calls[3];
+      expect(pollUrl).toContain(`/rest/videos/${encodeURIComponent(MOCK_VIDEO_URN)}`);
+    });
+
+    test('post body includes video content with correct URN', async () => {
+      await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      const body = JSON.parse(global.fetch.mock.calls[4][1].body);
+      expect(body.content).toEqual({ media: { title: 'Short video', id: MOCK_VIDEO_URN } });
+    });
+
+    test('returns postUrl on success', async () => {
+      const result = await postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer });
+      expect(result.postUrl).toBe(`https://www.linkedin.com/feed/update/${MOCK_POST_URN}/`);
+    });
+
+    test('throws when video processing fails', async () => {
+      global.fetch.mockReset();
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            value: { video: MOCK_VIDEO_URN, uploadToken: '', uploadInstructions: [{ uploadUrl: MOCK_UPLOAD_URL, firstByte: 0, lastByte: 99 }] },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, headers: { get: () => MOCK_RAW_ETAG } })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'PROCESSING_FAILED' }) });
+      await expect(
+        postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })
+      ).rejects.toThrow('processing failed');
+    });
+
+    test('throws if video processing times out', async () => {
+      global.fetch.mockReset();
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            value: { video: MOCK_VIDEO_URN, uploadToken: '', uploadInstructions: [{ uploadUrl: MOCK_UPLOAD_URL, firstByte: 0, lastByte: 99 }] },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, headers: { get: () => MOCK_RAW_ETAG } })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValue({ ok: true, json: async () => ({ status: 'WAITING_UPLOAD' }) });
+      jest.useFakeTimers();
+      const assertion = expect(
+        postToLinkedIn(makePost({ postType: 'short' }), { videoBuffer: fakeBuffer })
+      ).rejects.toThrow('timed out');
+      await jest.runAllTimersAsync();
+      await assertion;
+    });
+  });
 });
