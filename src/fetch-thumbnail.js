@@ -19,7 +19,7 @@ function extractVideoId(youtubeUrl) {
   }
 
   if (url.hostname === 'youtu.be') {
-    const id = url.pathname.slice(1);
+    const id = url.pathname.split('/').filter(Boolean)[0];
     if (!id) throw new Error(`No video ID in YouTube URL: ${youtubeUrl}`);
     return id;
   }

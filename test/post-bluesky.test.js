@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the Bluesky posting module.
-// ABOUTME: Verifies app password auth, post creation, URL construction, video embed, and failure handling.
+// ABOUTME: Verifies app password auth, post creation, URL construction, video embed, image embed, and failure handling.
 
 'use strict';
 
@@ -103,6 +103,87 @@ describe('postToBluesky', () => {
   test('does not include embed when no videoBuffer', async () => {
     await postToBluesky(makePost());
     expect(mockPost).toHaveBeenCalledWith({ text: 'Check out this episode! https://youtu.be/abc123' });
+  });
+});
+
+describe('postToBluesky - image path', () => {
+  const FAKE_IMAGE_BUFFER = Buffer.from('fake-jpeg-data');
+  const FAKE_BLOB = { $type: 'blob', ref: { $link: 'bafybeifake' }, mimeType: 'image/jpeg', size: 100 };
+  const FAKE_POST_URI = 'at://did:plc:testuser/app.bsky.feed.post/rkey123';
+
+  let mockAgent;
+
+  beforeEach(() => {
+    process.env.BLUESKY_HANDLE = 'whitney.bsky.social';
+    process.env.BLUESKY_APP_PASSWORD = 'test-app-password';
+
+    mockAgent = {
+      login: jest.fn().mockResolvedValue(undefined),
+      post: jest.fn().mockResolvedValue({ uri: FAKE_POST_URI }),
+      uploadBlob: jest.fn().mockResolvedValue({ data: { blob: FAKE_BLOB } }),
+      session: { did: 'did:plc:testuser' },
+      com: { atproto: { server: { getServiceAuth: jest.fn().mockResolvedValue({ data: { token: 'service-token' } }) } } },
+    };
+
+    BskyAgent.mockImplementation(() => mockAgent);
+  });
+
+  afterEach(() => {
+    delete process.env.BLUESKY_HANDLE;
+    delete process.env.BLUESKY_APP_PASSWORD;
+    jest.clearAllMocks();
+    jest.useRealTimers();
+  });
+
+  test('calls agent.uploadBlob with image/jpeg encoding', async () => {
+    await postToBluesky({ postText: 'Episode!', altText: 'Thumbnail' }, { imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(mockAgent.uploadBlob).toHaveBeenCalledWith(FAKE_IMAGE_BUFFER, { encoding: 'image/jpeg' });
+  });
+
+  test('builds app.bsky.embed.images embed with blob and alt text', async () => {
+    await postToBluesky({ postText: 'Episode!', altText: 'Thumbnail' }, { imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(mockAgent.post).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ image: FAKE_BLOB, alt: 'Thumbnail' }],
+        },
+      })
+    );
+  });
+
+  test('does not use app.bsky.embed.video embed type for image posts', async () => {
+    await postToBluesky({ postText: 'Episode!', altText: 'Thumbnail' }, { imageBuffer: FAKE_IMAGE_BUFFER });
+    const postCall = mockAgent.post.mock.calls[0][0];
+    expect(postCall.embed.$type).toBe('app.bsky.embed.images');
+  });
+
+  test('returns postUrl from built web URL', async () => {
+    const result = await postToBluesky({ postText: 'Episode!', altText: 'Thumbnail' }, { imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(result.postUrl).toContain('bsky.app');
+    expect(result.postUrl).toContain('rkey123');
+  });
+
+  test('throws when image upload times out', async () => {
+    jest.useFakeTimers();
+    mockAgent.uploadBlob.mockImplementation(() => new Promise(() => {}));
+    const assertion = expect(
+      postToBluesky({ postText: 'Episode!', altText: 'Thumbnail' }, { imageBuffer: FAKE_IMAGE_BUFFER })
+    ).rejects.toThrow('Bluesky image upload timed out after 60 seconds');
+    await jest.runAllTimersAsync();
+    await assertion;
+  });
+
+  test('video takes priority over image when both buffers provided', async () => {
+    const fakeVideoBuffer = Buffer.from('fake-video');
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ jobId: 'job1' }) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ jobStatus: { blob: FAKE_BLOB } }) });
+
+    await postToBluesky({ postText: 'Short!', altText: 'Alt' }, { videoBuffer: fakeVideoBuffer, imageBuffer: FAKE_IMAGE_BUFFER });
+
+    expect(mockAgent.uploadBlob).not.toHaveBeenCalled();
+    delete global.fetch;
   });
 });
 

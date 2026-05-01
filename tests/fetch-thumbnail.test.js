@@ -27,6 +27,14 @@ describe('extractVideoId', () => {
     expect(() => extractVideoId('https://youtu.be/')).toThrow('No video ID in YouTube URL');
   });
 
+  test('handles youtu.be URL with trailing slash', () => {
+    expect(extractVideoId('https://youtu.be/abc123/')).toBe('abc123');
+  });
+
+  test('ignores extra path segments in youtu.be URL', () => {
+    expect(extractVideoId('https://youtu.be/abc123/extra')).toBe('abc123');
+  });
+
   test('throws when youtube.com has no v param', () => {
     expect(() => extractVideoId('https://www.youtube.com/watch')).toThrow('No video ID in YouTube URL');
   });

@@ -61,6 +61,7 @@ async function dispatchPost(post, today) {
 
     if (post.postType === 'episode' && post.youtubeUrl) {
       try {
+        console.log(`[social] Fetching thumbnail for row ${post.rowIndex}...`); // eslint-disable-line no-console
         imageBuffer = await fetchThumbnail(post.youtubeUrl);
       } catch (err) {
         console.warn(`[social] Warning: thumbnail fetch failed for row ${post.rowIndex} — posting without image`); // eslint-disable-line no-console
