@@ -1,5 +1,5 @@
 // ABOUTME: LinkedIn posting module using the REST API with OAuth access token auth.
-// ABOUTME: Exports postToLinkedIn(post, {videoBuffer}), buildLinkedInWebUrl(urn), and checkTokenExpiry(expiresAt).
+// ABOUTME: Exports postToLinkedIn(post, {videoBuffer, imageBuffer}), buildLinkedInWebUrl(urn), and checkTokenExpiry(expiresAt).
 
 'use strict';
 
@@ -144,14 +144,65 @@ async function uploadVideoToLinkedIn(videoBuffer, personUrn, accessToken) {
 }
 
 /**
+ * Upload an image to LinkedIn using the Images API (single-part PUT, no finalize step).
+ * Returns the image URN to include in the post body.
+ *
+ * @param {Buffer} imageBuffer - Image file bytes (JPEG)
+ * @param {string} personUrn - LinkedIn person URN for the authenticated user
+ * @param {string} accessToken - OAuth access token
+ * @returns {Promise<string>} LinkedIn image URN (e.g. 'urn:li:image:...')
+ */
+async function uploadImageToLinkedIn(imageBuffer, personUrn, accessToken) {
+  console.log('[linkedin] Uploading image...'); // eslint-disable-line no-console
+  const jsonHeaders = {
+    Authorization: `Bearer ${accessToken}`,
+    'Linkedin-Version': LINKEDIN_VERSION,
+    'X-Restli-Protocol-Version': '2.0.0',
+    'Content-Type': 'application/json',
+  };
+
+  // Step 1: Initialize upload — get pre-signed upload URL and image URN
+  const initRes = await fetch(`${LINKEDIN_API_BASE}/rest/images?action=initializeUpload`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      initializeUploadRequest: { owner: personUrn },
+    }),
+  });
+  if (!initRes.ok) {
+    throw new Error(`LinkedIn image initializeUpload failed: ${initRes.status}`);
+  }
+  const { value: uploadData } = await initRes.json();
+  const imageUrn = uploadData.image;
+  const uploadUrl = uploadData.uploadUrl;
+  if (!imageUrn || !uploadUrl) {
+    throw new Error(`LinkedIn image initializeUpload response missing fields: ${JSON.stringify(uploadData)}`);
+  }
+
+  // Step 2: Single-part PUT — images are synchronous, no finalize or polling needed
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/jpeg' },
+    body: imageBuffer,
+  });
+  if (!putRes.ok) {
+    throw new Error(`LinkedIn image upload failed: ${putRes.status}`);
+  }
+
+  return imageUrn;
+}
+
+/**
  * Post a social post to LinkedIn using OAuth access token authentication.
  *
  * @param {Object} post - Post object from the social posts queue
  * @param {string} post.postText - Text to post
- * @param {Buffer} [videoBuffer] - Optional video buffer for short posts
+ * @param {Object} [options] - Optional posting options
+ * @param {Buffer} [options.videoBuffer] - Optional video buffer for short posts
+ * @param {Buffer} [options.imageBuffer] - Optional image buffer for episode posts
  * @returns {Promise<{postUrl: string}>} The URL of the created post
  */
-async function postToLinkedIn(post, { videoBuffer } = {}) {
+async function postToLinkedIn(post, { videoBuffer, imageBuffer } = {}) {
   const accessToken = process.env.LINKEDIN_ACCESS_TOKEN;
   const personUrn = process.env.LINKEDIN_PERSON_URN;
 
@@ -163,6 +214,11 @@ async function postToLinkedIn(post, { videoBuffer } = {}) {
   let videoUrn;
   if (videoBuffer) {
     videoUrn = await uploadVideoToLinkedIn(videoBuffer, personUrn, accessToken);
+  }
+
+  let imageUrn;
+  if (imageBuffer && !videoBuffer) {
+    imageUrn = await uploadImageToLinkedIn(imageBuffer, personUrn, accessToken);
   }
 
   const body = {
@@ -180,6 +236,8 @@ async function postToLinkedIn(post, { videoBuffer } = {}) {
 
   if (videoUrn) {
     body.content = { media: { title: 'Short video', id: videoUrn } };
+  } else if (imageUrn) {
+    body.content = { media: { id: imageUrn } };
   }
 
   const response = await fetch(`${LINKEDIN_API_BASE}/rest/posts`, {

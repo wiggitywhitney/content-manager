@@ -14,6 +14,7 @@ const { postToLinkedIn } = require('./post-linkedin');
 const { scanAndPostShorts, postToMicroblog } = require('./post-microblog');
 const { updatePostResult } = require('./update-social-post-status');
 const { downloadShortVideo } = require('./video-download');
+const { fetchThumbnail } = require('./fetch-thumbnail');
 
 /**
  * Return today's date as a YYYY-MM-DD string in UTC.
@@ -41,6 +42,7 @@ async function dispatchPost(post, today) {
 
   let tmpDir = null;
   let videoBuffer = null;
+  let imageBuffer = null;
   let failureCount = 0;
   let attemptCount = 0;
   let bskyPostUrl, mastodonPostUrl, linkedinPostUrl, microblogPostUrl;
@@ -57,10 +59,19 @@ async function dispatchPost(post, today) {
       }
     }
 
+    if (post.postType === 'episode' && post.youtubeUrl) {
+      try {
+        imageBuffer = await fetchThumbnail(post.youtubeUrl);
+      } catch (err) {
+        console.warn(`[social] Warning: thumbnail fetch failed for row ${post.rowIndex} — posting without image`); // eslint-disable-line no-console
+        imageBuffer = null;
+      }
+    }
+
     if (post.platforms.includes('bluesky')) {
       attemptCount++;
       try {
-        ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer }));
+        ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer, imageBuffer }));
         console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`); // eslint-disable-line no-console
       } catch (err) {
         console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`); // eslint-disable-line no-console
@@ -71,7 +82,7 @@ async function dispatchPost(post, today) {
     if (post.platforms.includes('mastodon')) {
       attemptCount++;
       try {
-        ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer }));
+        ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer, imageBuffer }));
         console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`); // eslint-disable-line no-console
       } catch (err) {
         console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`); // eslint-disable-line no-console
@@ -82,7 +93,7 @@ async function dispatchPost(post, today) {
     if (post.platforms.includes('linkedin')) {
       attemptCount++;
       try {
-        ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer }));
+        ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer, imageBuffer }));
         console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`); // eslint-disable-line no-console
       } catch (err) {
         console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`); // eslint-disable-line no-console

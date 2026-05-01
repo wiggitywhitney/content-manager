@@ -30,6 +30,9 @@ jest.mock('../src/update-social-post-status', () => ({
 jest.mock('../src/video-download', () => ({
   downloadShortVideo: jest.fn(),
 }));
+jest.mock('../src/fetch-thumbnail', () => ({
+  fetchThumbnail: jest.fn(),
+}));
 
 const { dispatchPost } = require('../src/post-social-content');
 const { postToBluesky } = require('../src/post-bluesky');
@@ -38,12 +41,14 @@ const { postToLinkedIn } = require('../src/post-linkedin');
 const { postToMicroblog } = require('../src/post-microblog');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { downloadShortVideo } = require('../src/video-download');
+const { fetchThumbnail } = require('../src/fetch-thumbnail');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const FAKE_TMP_DIR = '/tmp/social-abc123';
 const FAKE_VIDEO_BUFFER = Buffer.from('fake-video-data');
+const FAKE_IMAGE_BUFFER = Buffer.from('fake-image-data');
 
 function makePost(overrides = {}) {
   return {
@@ -72,6 +77,7 @@ describe('dispatchPost', () => {
     jest.spyOn(path, 'join').mockImplementation((...parts) => parts.join('/'));
 
     downloadShortVideo.mockReturnValue({ buffer: FAKE_VIDEO_BUFFER, mimeType: 'video/mp4', filename: 'video.mp4' });
+    fetchThumbnail.mockResolvedValue(FAKE_IMAGE_BUFFER);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/test/post/1' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@test/1' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:1/' });
@@ -115,6 +121,14 @@ describe('dispatchPost', () => {
       expect(postToLinkedIn).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'short' }),
         expect.objectContaining({ videoBuffer: FAKE_VIDEO_BUFFER })
+      );
+    });
+
+    test('passes imageBuffer null to platform posters for short posts', async () => {
+      await dispatchPost(makePost(), '2026-04-27');
+      expect(postToBluesky).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'short' }),
+        expect.objectContaining({ imageBuffer: null })
       );
     });
 
@@ -171,12 +185,49 @@ describe('dispatchPost', () => {
       expect(mkdtempSyncSpy).not.toHaveBeenCalled();
     });
 
-    test('calls postToBluesky without videoBuffer for episode posts', async () => {
+    test('calls fetchThumbnail with the post youtubeUrl for episode posts', async () => {
+      await dispatchPost(makePost({ postType: 'episode' }), '2026-04-27');
+      expect(fetchThumbnail).toHaveBeenCalledWith('https://youtu.be/abc123');
+    });
+
+    test('passes imageBuffer to postToBluesky for episode posts', async () => {
       await dispatchPost(makePost({ postType: 'episode' }), '2026-04-27');
       expect(postToBluesky).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'episode' }),
-        { videoBuffer: null }
+        { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER }
       );
+    });
+
+    test('passes imageBuffer to postToMastodon for episode posts', async () => {
+      await dispatchPost(makePost({ postType: 'episode' }), '2026-04-27');
+      expect(postToMastodon).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'episode' }),
+        { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER }
+      );
+    });
+
+    test('passes imageBuffer to postToLinkedIn for episode posts', async () => {
+      await dispatchPost(makePost({ postType: 'episode' }), '2026-04-27');
+      expect(postToLinkedIn).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'episode' }),
+        { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER }
+      );
+    });
+
+    test('posts without image when fetchThumbnail throws (non-fatal fallback)', async () => {
+      fetchThumbnail.mockRejectedValue(new Error('network error'));
+      await dispatchPost(makePost({ postType: 'episode' }), '2026-04-27');
+      expect(postToBluesky).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'episode' }),
+        { videoBuffer: null, imageBuffer: null }
+      );
+      // Post still dispatched (not marked failed)
+      expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({ status: 'posted' }));
+    });
+
+    test('does not call fetchThumbnail when episode post has no youtubeUrl', async () => {
+      await dispatchPost(makePost({ postType: 'episode', youtubeUrl: '' }), '2026-04-27');
+      expect(fetchThumbnail).not.toHaveBeenCalled();
     });
   });
 
@@ -238,15 +289,15 @@ describe('dispatchPost', () => {
       );
       expect(postToLinkedIn).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'talk' }),
-        { videoBuffer: null }
+        { videoBuffer: null, imageBuffer: null }
       );
       expect(postToBluesky).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'talk' }),
-        { videoBuffer: null }
+        { videoBuffer: null, imageBuffer: null }
       );
       expect(postToMastodon).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'talk' }),
-        { videoBuffer: null }
+        { videoBuffer: null, imageBuffer: null }
       );
     });
 

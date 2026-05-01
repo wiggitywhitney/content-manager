@@ -1,5 +1,5 @@
 // ABOUTME: Bluesky posting module using @atproto/api with app password authentication.
-// ABOUTME: Exports postToBluesky(post, {videoBuffer}) and buildBskyWebUrl(handle, uri) helpers.
+// ABOUTME: Exports postToBluesky(post, {videoBuffer, imageBuffer}) and buildBskyWebUrl(handle, uri) helpers.
 
 'use strict';
 
@@ -106,11 +106,13 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
  *
  * @param {Object} post - Post object from the social posts queue
  * @param {string} post.postText - Text to post
+ * @param {string} [post.altText] - Alt text for image attachment
  * @param {Object} [options] - Optional posting options
  * @param {Buffer} [options.videoBuffer] - Optional video buffer for short posts
+ * @param {Buffer} [options.imageBuffer] - Optional image buffer for episode posts
  * @returns {Promise<{postUrl: string}>} The URL of the created post
  */
-async function postToBluesky(post, { videoBuffer } = {}) {
+async function postToBluesky(post, { videoBuffer, imageBuffer } = {}) {
   const handle = process.env.BLUESKY_HANDLE;
   const appPassword = process.env.BLUESKY_APP_PASSWORD;
 
@@ -123,6 +125,12 @@ async function postToBluesky(post, { videoBuffer } = {}) {
   const postArgs = { text: post.postText };
   if (videoBuffer) {
     postArgs.embed = await uploadVideoToBluesky(agent, videoBuffer);
+  } else if (imageBuffer) {
+    const { data: { blob } } = await agent.uploadBlob(imageBuffer, { encoding: 'image/jpeg' });
+    postArgs.embed = {
+      $type: 'app.bsky.embed.images',
+      images: [{ image: blob, alt: post.altText }],
+    };
   }
 
   const result = await agent.post(postArgs);
