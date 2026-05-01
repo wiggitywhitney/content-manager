@@ -26,7 +26,6 @@
     "testPathIgnorePatterns": ["/node_modules/", "/tests/integration/", "/tests/e2e/"]
   },
   "devDependencies": {
-    "commit-story": "file:../commit_story/commit-story-1.2.1.tgz",
     "jest": "^30.3.0"
   },
   "dependencies": {
