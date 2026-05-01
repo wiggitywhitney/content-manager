@@ -64,6 +64,8 @@ async function checkCareerPostedToday() {
 
     if (posted) {
       console.log(`[career-guard] Career content already posted today (${today}) — skipping social dispatch`); // eslint-disable-line no-console
+    } else {
+      console.log(`[career-guard] No career content posted today (${today})`); // eslint-disable-line no-console
     }
     return posted;
   } catch (err) {
