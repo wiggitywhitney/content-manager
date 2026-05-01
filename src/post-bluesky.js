@@ -128,10 +128,17 @@ async function postToBluesky(post, { videoBuffer, imageBuffer } = {}) {
   } else if (imageBuffer) {
     console.log('[bluesky] Uploading image...'); // eslint-disable-line no-console
     const uploadPromise = agent.uploadBlob(imageBuffer, { encoding: 'image/jpeg' });
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Bluesky image upload timed out after 60 seconds')), 60000)
-    );
-    const { data: { blob } } = await Promise.race([uploadPromise, timeoutPromise]);
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Bluesky image upload timed out after 60 seconds')), 60000);
+    });
+    let blobResult;
+    try {
+      blobResult = await Promise.race([uploadPromise, timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    const { data: { blob } } = blobResult;
     postArgs.embed = {
       $type: 'app.bsky.embed.images',
       images: [{ image: blob, alt: post.altText }],
