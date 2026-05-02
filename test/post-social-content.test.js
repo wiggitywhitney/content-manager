@@ -19,6 +19,9 @@ jest.mock('../src/update-social-post-status');
 jest.mock('../src/video-download', () => ({
   downloadShortVideo: jest.fn().mockReturnValue({ buffer: Buffer.from('fake'), mimeType: 'video/mp4', filename: 'video.mp4' }),
 }));
+jest.mock('../src/fetch-thumbnail', () => ({
+  fetchThumbnail: jest.fn(),
+}));
 
 const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('../src/social-posts-queue');
 const { checkCareerPostedToday, checkAllCareerPostsPublished } = require('../src/career-post-guard');
@@ -27,7 +30,10 @@ const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
 const { scanAndPostShorts, postToMicroblog } = require('../src/post-microblog');
 const { updatePostResult } = require('../src/update-social-post-status');
+const { fetchThumbnail } = require('../src/fetch-thumbnail');
 const { processPostsForDate } = require('../src/post-social-content');
+
+const FAKE_IMAGE_BUFFER = Buffer.from('fake-thumbnail');
 
 function makePost(overrides = {}) {
   return {
@@ -65,6 +71,7 @@ describe('processPostsForDate', () => {
     postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/test-episode' });
     scanAndPostShorts.mockResolvedValue(undefined);
     updatePostResult.mockResolvedValue(undefined);
+    fetchThumbnail.mockResolvedValue(FAKE_IMAGE_BUFFER);
   });
 
   afterEach(() => {
@@ -102,7 +109,7 @@ describe('processPostsForDate', () => {
 
     await processPostsForDate(TODAY);
 
-    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null });
+    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   // ── Non-micro.blog group dispatch ─────────────────────────────────────────
@@ -124,7 +131,7 @@ describe('processPostsForDate', () => {
     await processPostsForDate(TODAY);
 
     expect(postToBluesky).toHaveBeenCalledTimes(1);
-    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null });
+    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   test('dispatches all posts in a group in one run', async () => {
@@ -134,8 +141,8 @@ describe('processPostsForDate', () => {
 
     await processPostsForDate(TODAY);
 
-    expect(postToBluesky).toHaveBeenCalledWith(bskyPost, { videoBuffer: null });
-    expect(postToMastodon).toHaveBeenCalledWith(mastoPost, { videoBuffer: null });
+    expect(postToBluesky).toHaveBeenCalledWith(bskyPost, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(postToMastodon).toHaveBeenCalledWith(mastoPost, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
     expect(updatePostResult).toHaveBeenCalledTimes(2);
   });
 
@@ -145,7 +152,7 @@ describe('processPostsForDate', () => {
 
     await processPostsForDate(TODAY);
 
-    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null });
+    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   test('updates sheet with posted status and Bluesky URL on success', async () => {
@@ -196,7 +203,7 @@ describe('processPostsForDate', () => {
 
     await processPostsForDate(TODAY);
 
-    expect(postToMastodon).toHaveBeenCalledWith(post, { videoBuffer: null });
+    expect(postToMastodon).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   test('updates sheet with posted status and Mastodon URL on success', async () => {
@@ -237,7 +244,7 @@ describe('processPostsForDate', () => {
 
     await processPostsForDate(TODAY);
 
-    expect(postToLinkedIn).toHaveBeenCalledWith(post, { videoBuffer: null });
+    expect(postToLinkedIn).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   test('updates sheet with posted status and LinkedIn URL on success', async () => {
@@ -278,9 +285,9 @@ describe('processPostsForDate', () => {
 
     await processPostsForDate(TODAY);
 
-    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null });
-    expect(postToMastodon).toHaveBeenCalledWith(post, { videoBuffer: null });
-    expect(postToLinkedIn).toHaveBeenCalledWith(post, { videoBuffer: null });
+    expect(postToBluesky).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(postToMastodon).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(postToLinkedIn).toHaveBeenCalledWith(post, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   test('writes today\'s date to Column G on successful post', async () => {

@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the LinkedIn posting module.
-// ABOUTME: Verifies token validation, expiry warning, post creation, URL extraction, and failure handling.
+// ABOUTME: Verifies token validation, expiry warning, post creation, URL extraction, image upload, and failure handling.
 
 'use strict';
 
@@ -174,6 +174,89 @@ describe('postToLinkedIn', () => {
       await postToLinkedIn(makePost());
       const body = JSON.parse(global.fetch.mock.calls[0][1].body);
       expect(body.content).toBeUndefined();
+    });
+  });
+
+  describe('image path (imageBuffer provided)', () => {
+    const FAKE_IMAGE_BUFFER = Buffer.from('fake-jpeg-data');
+    const FAKE_IMAGE_URN = 'urn:li:image:C5F10AQGtestimage';
+    const FAKE_UPLOAD_URL = 'https://api.linkedin.com/mediaUpload/fake';
+
+    function setupImageMocks() {
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ value: { image: FAKE_IMAGE_URN, uploadUrl: FAKE_UPLOAD_URL } }),
+        })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          status: 201,
+          headers: { get: (h) => (h === 'x-restli-id' ? 'urn:li:share:123' : null) },
+        });
+    }
+
+    test('calls initializeUpload on the Images API (not the Videos API)', async () => {
+      setupImageMocks();
+      await postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
+      const initCall = global.fetch.mock.calls[0];
+      expect(initCall[0]).toContain('/rest/images?action=initializeUpload');
+      const body = JSON.parse(initCall[1].body);
+      expect(body.initializeUploadRequest.owner).toBe('urn:li:person:abc123');
+    });
+
+    test('performs single-part PUT with image/jpeg content type and no finalize step', async () => {
+      setupImageMocks();
+      await postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
+      expect(global.fetch).toHaveBeenCalledTimes(3); // initializeUpload, PUT, POST /rest/posts
+      const putCall = global.fetch.mock.calls[1];
+      expect(putCall[0]).toBe(FAKE_UPLOAD_URL);
+      expect(putCall[1].method).toBe('PUT');
+      expect(putCall[1].headers['Content-Type']).toBe('image/jpeg');
+      expect(putCall[1].body).toBe(FAKE_IMAGE_BUFFER);
+    });
+
+    test('includes image URN in post body content.media.id', async () => {
+      setupImageMocks();
+      await postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
+      const postBody = JSON.parse(global.fetch.mock.calls[2][1].body);
+      expect(postBody.content).toEqual({ media: { id: FAKE_IMAGE_URN } });
+    });
+
+    test('throws when initializeUpload fails', async () => {
+      global.fetch.mockResolvedValueOnce({ ok: false, status: 422 });
+      await expect(postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER }))
+        .rejects.toThrow('LinkedIn image initializeUpload failed: 422');
+    });
+
+    test('throws when PUT upload fails', async () => {
+      global.fetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ value: { image: FAKE_IMAGE_URN, uploadUrl: FAKE_UPLOAD_URL } }) })
+        .mockResolvedValueOnce({ ok: false, status: 400 });
+      await expect(postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER }))
+        .rejects.toThrow('LinkedIn image upload failed: 400');
+    });
+
+    test('video takes priority over image when both buffers provided', async () => {
+      const fakeVideoBuffer = Buffer.from('x'.repeat(10));
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            value: {
+              video: 'urn:li:video:fakevideo',
+              uploadToken: '',
+              uploadInstructions: [{ uploadUrl: FAKE_UPLOAD_URL, firstByte: 0, lastByte: 9 }],
+            },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, headers: { get: () => '"etag1"' } })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'AVAILABLE' }) })
+        .mockResolvedValueOnce({ status: 201, headers: { get: (h) => h === 'x-restli-id' ? 'urn:li:share:123' : null } });
+
+      await postToLinkedIn(makePost(), { videoBuffer: fakeVideoBuffer, imageBuffer: FAKE_IMAGE_BUFFER });
+      const imageCalls = global.fetch.mock.calls.filter(c => c[0].includes('/rest/images?action=initializeUpload'));
+      expect(imageCalls).toHaveLength(0);
     });
   });
 

@@ -1,5 +1,5 @@
 // ABOUTME: Mastodon posting module using masto.js REST API client with access token auth.
-// ABOUTME: Exports postToMastodon(post, {videoBuffer}) helper.
+// ABOUTME: Exports postToMastodon(post, {videoBuffer, imageBuffer}) helper.
 
 'use strict';
 
@@ -10,12 +10,13 @@ const { createRestAPIClient } = require('masto');
  *
  * @param {Object} post - Post object from the social posts queue
  * @param {string} post.postText - Text to post
- * @param {string} [post.altText] - Alt text for video attachment
+ * @param {string} [post.altText] - Alt text for media attachment
  * @param {Object} [options] - Optional posting options
  * @param {Buffer} [options.videoBuffer] - Optional video buffer for short posts
+ * @param {Buffer} [options.imageBuffer] - Optional image buffer for episode posts
  * @returns {Promise<{postUrl: string}>} The URL of the created status
  */
-async function postToMastodon(post, { videoBuffer } = {}) {
+async function postToMastodon(post, { videoBuffer, imageBuffer } = {}) {
   const accessToken = process.env.MASTODON_ACCESS_TOKEN;
   const instanceUrl = process.env.MASTODON_INSTANCE_URL;
 
@@ -51,6 +52,14 @@ async function postToMastodon(post, { videoBuffer } = {}) {
       }
     }
 
+    statusArgs.mediaIds = [attachment.id];
+  } else if (imageBuffer) {
+    console.log('[mastodon] Uploading image...'); // eslint-disable-line no-console
+    const attachment = await masto.v2.media.create({
+      file: new Blob([imageBuffer], { type: 'image/jpeg' }),
+      description: post.altText,
+    });
+    // Images process synchronously — no polling loop needed
     statusArgs.mediaIds = [attachment.id];
   }
 

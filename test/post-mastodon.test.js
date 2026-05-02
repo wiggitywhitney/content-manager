@@ -1,5 +1,5 @@
 // ABOUTME: Tests for the Mastodon posting module.
-// ABOUTME: Verifies access token auth, status creation, URL extraction, and failure handling.
+// ABOUTME: Verifies access token auth, status creation, URL extraction, image upload, and failure handling.
 
 'use strict';
 
@@ -113,6 +113,49 @@ describe('postToMastodon', () => {
       expect(mockStatusCreate).toHaveBeenCalledWith(
         expect.not.objectContaining({ mediaIds: expect.anything() })
       );
+    });
+  });
+
+  describe('image path (imageBuffer provided)', () => {
+    const FAKE_IMAGE_BUFFER = Buffer.from('fake-jpeg-data');
+
+    beforeEach(() => {
+      // For image tests, v2.media.create returns synchronously with a url set
+      mockMediaCreate.mockResolvedValue({ id: MOCK_MEDIA_ID, url: 'https://mastodon.social/media/fake.jpg' });
+    });
+
+    test('calls v2.media.create with image/jpeg blob and altText', async () => {
+      await postToMastodon(makePost({ altText: 'Podcast thumbnail' }), { imageBuffer: FAKE_IMAGE_BUFFER });
+      expect(mockMediaCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Podcast thumbnail' })
+      );
+      const [{ file }] = mockMediaCreate.mock.calls[0];
+      expect(file.type).toBe('image/jpeg');
+    });
+
+    test('adds attachment id to mediaIds without polling', async () => {
+      await postToMastodon(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
+      expect(mockStatusCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ mediaIds: [MOCK_MEDIA_ID] })
+      );
+      expect(mockSelectFn).not.toHaveBeenCalled();
+    });
+
+    test('returns postUrl from status', async () => {
+      const result = await postToMastodon(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
+      expect(result.postUrl).toBe(MOCK_STATUS_URL);
+    });
+
+    test('video takes priority over image when both buffers provided', async () => {
+      const fakeVideoBuffer = Buffer.from('fake-video');
+      mockMediaCreate.mockResolvedValue({ id: MOCK_MEDIA_ID, url: null }); // video returns async
+      jest.useFakeTimers();
+      const promise = postToMastodon(makePost({ postType: 'short' }), { videoBuffer: fakeVideoBuffer, imageBuffer: FAKE_IMAGE_BUFFER });
+      await jest.runAllTimersAsync();
+      await promise;
+      expect(mockMediaCreate).toHaveBeenCalledTimes(1);
+      const [{ file }] = mockMediaCreate.mock.calls[0];
+      expect(file.type).toBe('video/mp4');
     });
   });
 
