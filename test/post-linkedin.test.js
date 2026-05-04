@@ -176,12 +176,12 @@ describe('postToLinkedIn', () => {
       expect(body.content).toBeUndefined();
     });
 
-    test('escapes reserved little-text characters in commentary', async () => {
+    test('escapes all 13 reserved little-text characters in commentary', async () => {
       mockSuccess();
-      const post = makePost({ postText: 'Cluster (service maps, application traffic) → https://youtu.be/abc #Kubernetes' });
+      const post = makePost({ postText: '()[]{}@#*_~<>\\' });
       await postToLinkedIn(post);
       const body = JSON.parse(global.fetch.mock.calls[0][1].body);
-      expect(body.commentary).toBe('Cluster \\(service maps, application traffic\\) → https://youtu.be/abc \\#Kubernetes');
+      expect(body.commentary).toBe('\\(\\)\\[\\]\\{\\}\\@\\#\\*\\_\\~\\<\\>\\\\');
     });
   });
 
