@@ -8,6 +8,15 @@ const LINKEDIN_API_BASE = 'https://api.linkedin.com';
 const LINKEDIN_VERSION = '202603';
 const WARNING_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+// LinkedIn's `little` text format reserves 13 characters that must be backslash-escaped.
+// Unescaped reserved chars silently drop all following text — API still returns 201.
+// See .claude/rules/linkedin-api-gotchas.md for full details.
+const LINKEDIN_RESERVED_CHARS = /[()[\]{}\@#*_~<>\\]/g;
+
+function escapeLinkedInCommentary(text) {
+  return text.replace(LINKEDIN_RESERVED_CHARS, '\\$&');
+}
+
 /**
  * Build a LinkedIn web URL from a post URN returned in the x-restli-id header.
  *
@@ -223,7 +232,7 @@ async function postToLinkedIn(post, { videoBuffer, imageBuffer } = {}) {
 
   const body = {
     author: personUrn,
-    commentary: post.postText,
+    commentary: escapeLinkedInCommentary(post.postText),
     visibility: 'PUBLIC',
     distribution: {
       feedDistribution: 'MAIN_FEED',

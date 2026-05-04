@@ -175,6 +175,14 @@ describe('postToLinkedIn', () => {
       const body = JSON.parse(global.fetch.mock.calls[0][1].body);
       expect(body.content).toBeUndefined();
     });
+
+    test('escapes all 13 reserved little-text characters in commentary', async () => {
+      mockSuccess();
+      const post = makePost({ postText: '()[]{}@#*_~<>\\' });
+      await postToLinkedIn(post);
+      const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+      expect(body.commentary).toBe('\\(\\)\\[\\]\\{\\}\\@\\#\\*\\_\\~\\<\\>\\\\');
+    });
   });
 
   describe('image path (imageBuffer provided)', () => {
