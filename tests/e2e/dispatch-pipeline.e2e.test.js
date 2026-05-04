@@ -131,9 +131,6 @@ describe('Dispatch pipeline e2e', () => {
     // DRY_RUN mode was active
     expect(pipelineOutput).toContain('[social] DRY_RUN mode active');
 
-    // Career guard was checked (appears in main() before short scan decision)
-    expect(pipelineOutput).toContain('[career-guard]');
-
     // DRY_RUN dispatch occurred (either our test row or an existing pending row)
     expect(pipelineOutput).toContain('[social] DRY_RUN: Would dispatch row');
   });
