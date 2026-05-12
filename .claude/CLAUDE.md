@@ -22,11 +22,13 @@ Whitney publishes three distinct types of posts. This system manages the first t
 | **Social posts** | `post-social-content.js` (this repo) | LinkedIn, Bluesky, Mastodon, micro.blog directly | Scheduled via Social Posts Queue tab |
 | **Personal posts** | Whitney manually, via Micro.blog UI | Micro.blog → syndicates to Bluesky, Mastodon, LinkedIn | Ad hoc |
 
-**Daily limit**: one managed post per day collectively (career OR social, not both). Personal posts are exempt — they can appear on the same day as a managed post.
+**Daily limit**: one managed post per day collectively — career, social, or micro.blog-only, never more than one. Personal posts are exempt — they can appear on the same day as a managed post.
 
-**Priority**: date parity. Odd days of the month give career priority; even days give social priority. If the priority type has no pending content, the other type posts instead.
+**Priority**: date parity with three-tier fallback. Odd days = career priority; even days = social priority.
 
-Implementation: on even days when social has a pending post, the workflow skips the career sync step entirely. The social step receives `CAREER_PRIORITY=0` (set in `daily-sync.yml`) and skips its career-posted-today guard. On odd days, `CAREER_PRIORITY=1` and the guard fires normally.
+- **Tier 1 (priority type)**: Career on odd days, social on even days. If the priority type posts, the day is done.
+- **Tier 2 (fallback type)**: If the priority type has nothing to post, the other type posts instead.
+- **Tier 3 (micro.blog-only)**: If both career and social have nothing to post for this run, the oldest pending micro.blog-only row dispatches. Micro.blog posts cross-post to LinkedIn, Bluesky, and Mastodon via micro.blog's feed-based syndication — only post here when both other tiers are empty.
 
 **Social queue dispatch**: On each run, finds the oldest pending row by row order (not by date). If that row has a Group ID in Column N, posts all pending rows sharing that Group ID in the same run — one post per platform, same day. Rows with no Group ID post individually. After posting, today's date is written to Column G.
 
