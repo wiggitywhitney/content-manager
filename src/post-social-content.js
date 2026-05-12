@@ -140,12 +140,8 @@ async function dispatchPost(post, today) {
  * 1. Career-priority check: when CAREER_PRIORITY env var is not '0', skip if career posted today.
  * 2. Non-micro.blog group: dispatch the oldest pending group of LinkedIn/Bluesky/Mastodon rows.
  *    If the group has a Group ID (col N), all rows sharing that ID post together in one run.
- * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND the career post
- *    backlog is cleared (no unpublished rows in the live spreadsheet). Then post one micro.blog row.
- *
- * Micro.blog rows from the social queue are held back because posting to micro.blog triggers
- * its cross-posting to LinkedIn/Bluesky/Mastodon, which would duplicate posts already sent
- * directly. Deferring until all other queues are clear prevents that duplication.
+ * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND career has not
+ *    posted today. Then post one micro.blog row.
  *
  * Exported for testability.
  *
