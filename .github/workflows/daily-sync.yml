@@ -90,6 +90,7 @@ jobs:
         run: npm ci --omit=dev
 
       - name: Set up yt-dlp
+        continue-on-error: true
         uses: AnimMouse/setup-yt-dlp@v3
 
       - name: Scan for new content
