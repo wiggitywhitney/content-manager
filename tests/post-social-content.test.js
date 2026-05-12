@@ -8,7 +8,6 @@ jest.mock('../src/social-posts-queue', () => ({
 }));
 jest.mock('../src/career-post-guard', () => ({
   checkCareerPostedToday: jest.fn(),
-  checkAllCareerPostsPublished: jest.fn(),
 }));
 jest.mock('../src/post-bluesky', () => ({
   postToBluesky: jest.fn(),
@@ -34,7 +33,7 @@ jest.mock('../src/fetch-thumbnail', () => ({
   fetchThumbnail: jest.fn(),
 }));
 
-const { dispatchPost } = require('../src/post-social-content');
+const { dispatchPost, processPostsForDate } = require('../src/post-social-content');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
@@ -42,6 +41,8 @@ const { postToMicroblog } = require('../src/post-microblog');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { downloadShortVideo } = require('../src/video-download');
 const { fetchThumbnail } = require('../src/fetch-thumbnail');
+const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('../src/social-posts-queue');
+const { checkCareerPostedToday } = require('../src/career-post-guard');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -322,5 +323,75 @@ describe('dispatchPost', () => {
         expect.objectContaining({ status: 'posted' })
       );
     });
+  });
+});
+
+const FAKE_GROUP_POST = { rowIndex: 2, title: 'Test Episode', postType: 'episode', platforms: ['bluesky'], groupId: 'ep-1', postText: 'test', youtubeUrl: '', altText: '', scheduledDate: '', status: 'pending', linkedinPostUrl: '', bskyPostUrl: '', mastodonPostUrl: '', microblogPostUrl: '' };
+const FAKE_MICROBLOG_POST = { rowIndex: 5, title: 'MB Test', postType: 'episode', platforms: ['micro.blog'], groupId: null, postText: 'test', youtubeUrl: '', altText: '', scheduledDate: '', status: 'pending', linkedinPostUrl: '', bskyPostUrl: '', mastodonPostUrl: '', microblogPostUrl: '' };
+
+describe('processPostsForDate — three-tier dispatch', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.DRY_RUN = 'true';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    checkCareerPostedToday.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    delete process.env.DRY_RUN;
+    delete process.env.CAREER_PRIORITY;
+  });
+
+  test('(a) social day with pending social post: dispatches social, does not reach micro.blog tier', async () => {
+    process.env.CAREER_PRIORITY = '0';
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-05-12');
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('(b) social day, social empty, career posted today: micro.blog deferred', async () => {
+    process.env.CAREER_PRIORITY = '0';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    checkCareerPostedToday.mockResolvedValue(true);
+
+    await processPostsForDate('2026-05-12');
+
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('(c) social day, social empty, career not posted today: micro.blog tier reached', async () => {
+    process.env.CAREER_PRIORITY = '0';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    checkCareerPostedToday.mockResolvedValue(false);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+
+    await processPostsForDate('2026-05-12');
+
+    expect(fetchOldestPendingMicroblogPost).toHaveBeenCalled();
+  });
+
+  test('(d) career day, career posted: social and micro.blog both skipped', async () => {
+    process.env.CAREER_PRIORITY = '1';
+    checkCareerPostedToday.mockResolvedValue(true);
+
+    await processPostsForDate('2026-05-13');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('(e) career day, career not posted, social empty: micro.blog tier reached', async () => {
+    process.env.CAREER_PRIORITY = '1';
+    checkCareerPostedToday.mockResolvedValue(false);
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+
+    await processPostsForDate('2026-05-13');
+
+    expect(fetchOldestPendingMicroblogPost).toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('./social-posts-queue');
-const { checkCareerPostedToday, checkAllCareerPostsPublished } = require('./career-post-guard');
+const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
@@ -140,12 +140,8 @@ async function dispatchPost(post, today) {
  * 1. Career-priority check: when CAREER_PRIORITY env var is not '0', skip if career posted today.
  * 2. Non-micro.blog group: dispatch the oldest pending group of LinkedIn/Bluesky/Mastodon rows.
  *    If the group has a Group ID (col N), all rows sharing that ID post together in one run.
- * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND the career post
- *    backlog is cleared (no unpublished rows in the live spreadsheet). Then post one micro.blog row.
- *
- * Micro.blog rows from the social queue are held back because posting to micro.blog triggers
- * its cross-posting to LinkedIn/Bluesky/Mastodon, which would duplicate posts already sent
- * directly. Deferring until all other queues are clear prevents that duplication.
+ * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND career has not
+ *    posted today. Then post one micro.blog row.
  *
  * Exported for testability.
  *
@@ -172,14 +168,13 @@ async function processPostsForDate(today) {
     return;
   }
 
-  // Step 2: non-micro.blog queue is empty — check micro.blog eligibility
-  const careerBacklogClear = await checkAllCareerPostsPublished();
-  if (!careerBacklogClear) {
-    console.log('[social] No non-micro.blog posts pending; micro.blog deferred until career backlog clears'); // eslint-disable-line no-console
+  // Step 2: social queue empty — defer micro.blog if career already posted today
+  if (await checkCareerPostedToday()) {
+    console.log('[social] No social posts pending and career posted today — micro.blog deferred'); // eslint-disable-line no-console
     return;
   }
 
-  // Step 3: all clear — dispatch oldest pending micro.blog post
+  // Step 3: both queues empty — dispatch oldest pending micro.blog post
   const microblogPost = await fetchOldestPendingMicroblogPost();
   if (!microblogPost) {
     console.log('[social] No pending posts in queue'); // eslint-disable-line no-console

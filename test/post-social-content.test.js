@@ -24,7 +24,7 @@ jest.mock('../src/fetch-thumbnail', () => ({
 }));
 
 const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('../src/social-posts-queue');
-const { checkCareerPostedToday, checkAllCareerPostsPublished } = require('../src/career-post-guard');
+const { checkCareerPostedToday } = require('../src/career-post-guard');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
@@ -64,7 +64,6 @@ describe('processPostsForDate', () => {
     fetchOldestPendingGroup.mockResolvedValue([]);
     fetchOldestPendingMicroblogPost.mockResolvedValue(null);
     checkCareerPostedToday.mockResolvedValue(false);
-    checkAllCareerPostsPublished.mockResolvedValue(false);
     postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/handle/post/abc' });
     postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@whitney/109375123456789012' });
     postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:123/' });
@@ -114,13 +113,14 @@ describe('processPostsForDate', () => {
 
   // ── Non-micro.blog group dispatch ─────────────────────────────────────────
 
-  test('returns early without dispatching when queue is empty and career backlog is not clear', async () => {
+  test('defers micro.blog when social queue is empty and career already posted today (social-priority day)', async () => {
+    process.env.CAREER_PRIORITY = '0';
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(false);
+    checkCareerPostedToday.mockResolvedValue(true);
 
-    await processPostsForDate(TODAY);
+    await processPostsForDate(EVEN_DAY);
 
-    expect(postToBluesky).not.toHaveBeenCalled();
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
     expect(postToMicroblog).not.toHaveBeenCalled();
   });
 
@@ -368,19 +368,19 @@ describe('processPostsForDate', () => {
 
   // ── Micro.blog deferral ────────────────────────────────────────────────────
 
-  test('defers micro.blog when non-micro.blog queue is empty but career backlog is not clear', async () => {
+  test('defers micro.blog when social queue is empty and career already posted today', async () => {
+    process.env.CAREER_PRIORITY = '0';
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(false);
+    checkCareerPostedToday.mockResolvedValue(true);
 
-    await processPostsForDate(TODAY);
+    await processPostsForDate(EVEN_DAY);
 
     expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
     expect(postToMicroblog).not.toHaveBeenCalled();
   });
 
-  test('dispatches micro.blog when non-micro.blog queue is empty and career backlog is clear', async () => {
+  test('dispatches micro.blog when social queue is empty and career has not posted today', async () => {
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(true);
     const post = makePost({ rowIndex: 20, platforms: ['micro.blog'] });
     fetchOldestPendingMicroblogPost.mockResolvedValue(post);
 
@@ -391,7 +391,6 @@ describe('processPostsForDate', () => {
 
   test('posts to micro.blog and writes result when eligible', async () => {
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(true);
     const post = makePost({ rowIndex: 12, platforms: ['micro.blog'] });
     fetchOldestPendingMicroblogPost.mockResolvedValue(post);
     postToMicroblog.mockResolvedValue({ postUrl: 'https://whitneylee.com/2026/04/my-episode' });
@@ -409,7 +408,6 @@ describe('processPostsForDate', () => {
     // fetchOldestPendingMicroblogPost excludes shorts at the data layer; this tests
     // dispatchPost's own guard in case a short reaches it through other means.
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(true);
     const post = makePost({ rowIndex: 15, postType: 'short', platforms: ['micro.blog'] });
     fetchOldestPendingMicroblogPost.mockResolvedValue(post);
 
@@ -421,7 +419,6 @@ describe('processPostsForDate', () => {
 
   test('writes failed status and logs on micro.blog post failure without crashing', async () => {
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(true);
     const post = makePost({ rowIndex: 13, platforms: ['micro.blog'] });
     fetchOldestPendingMicroblogPost.mockResolvedValue(post);
     postToMicroblog.mockRejectedValue(new Error('Micropub API error'));
@@ -431,9 +428,8 @@ describe('processPostsForDate', () => {
     expect(updatePostResult).toHaveBeenCalledWith(13, { status: 'failed' });
   });
 
-  test('does nothing when micro.blog queue is also empty after career backlog clears', async () => {
+  test('does nothing when micro.blog queue is also empty and career has not posted today', async () => {
     fetchOldestPendingGroup.mockResolvedValue([]);
-    checkAllCareerPostsPublished.mockResolvedValue(true);
     fetchOldestPendingMicroblogPost.mockResolvedValue(null);
 
     await processPostsForDate(TODAY);
