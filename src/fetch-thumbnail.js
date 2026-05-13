@@ -34,20 +34,21 @@ function extractVideoId(youtubeUrl) {
 }
 
 /**
- * Fetch a YouTube thumbnail image as a Buffer.
- * Tries maxresdefault.jpg first; falls back to hqdefault.jpg on 404.
- * Throws a descriptive error if both URLs fail or return non-ok status.
+ * Fetch a thumbnail image as a Buffer.
+ * For YouTube URLs: tries maxresdefault.jpg first, falls back to hqdefault.jpg on 404,
+ * throws on other failures.
+ * For SDI episode URLs: parses the SDI RSS feed to find the episode artwork,
+ * returns null (with console.warn) on RSS fetch failure or missing episode.
  *
- * @param {string} youtubeUrl - YouTube video URL (youtu.be or youtube.com/watch)
- * @returns {Promise<Buffer>} Image bytes as a Buffer
+ * @param {string} url - YouTube video URL or SDI episode URL
+ * @returns {Promise<Buffer|null>} Image bytes as a Buffer, or null if SDI lookup fails
  */
 async function fetchThumbnail(url) {
   if (isSdiUrl(url)) {
     return fetchSdiThumbnail(url);
   }
 
-  const youtubeUrl = url;
-  const videoId = extractVideoId(youtubeUrl);
+  const videoId = extractVideoId(url);
   const maxresUrl = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
   const hqUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
@@ -78,7 +79,8 @@ const SDI_FEED_URL = 'https://feeds.fireside.fm/softwaredefinedinterviews/rss';
  */
 function isSdiUrl(url) {
   try {
-    return new URL(url).hostname.includes('softwaredefinedinterviews.com');
+    const h = new URL(url).hostname;
+    return h === 'softwaredefinedinterviews.com' || h.endsWith('.softwaredefinedinterviews.com');
   } catch {
     return false;
   }
