@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Added
+- (2026-05-13) Verified that micro.blog career post category pages (e.g., `/podcast/`) render images acceptably — confirmed by attaching the episode 122 SDI artwork to the existing Hardened Runtimes post via the Micropub API and checking the whitneylee.com category listing. Also confirmed the exact API flow for backfilling photos onto existing posts: upload image buffer to the Micropub media endpoint, then send a Micropub update with `add: { photo: [hosted-url] }`.
 - (2026-05-13) `fetchThumbnail()` now supports Software Defined Interviews episode URLs in addition to YouTube URLs. When given an SDI episode URL, it fetches the SDI RSS feed, locates the episode by URL, extracts the `<itunes:image>` artwork URL, and returns the image as a Buffer. Returns null with a warning on RSS fetch failure or missing episode, so SDI posts degrade gracefully to text-only rather than failing entirely.
 - (2026-05-13) Consolidated two test directories (`test/` and `tests/`) into a single canonical `tests/` directory. Both directories were running in Jest simultaneously, fragmenting test ownership for several modules. Unique test coverage from `test/` (comprehensive `processPostsForDate` dispatch tests, `getYouTubeViewCount` tests, view-count scan coverage) was merged into the corresponding `tests/` files before `test/` was deleted.
 
