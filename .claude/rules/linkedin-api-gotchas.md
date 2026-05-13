@@ -85,3 +85,34 @@ If the callback handler is slow or reuses the code, you get a cryptic redirect U
 ## Person IDs are application-scoped
 
 Do not share person IDs across LinkedIn apps — they are unique per app context.
+
+## `commentary` field silently truncates on unescaped reserved characters — no error returned
+
+The `commentary` field uses LinkedIn's `little` text format. **13 characters are reserved** and must be backslash-escaped in the field value:
+
+```text
+( )  [ ]  { }  @  #  *  _  ~  <  >  \
+```
+
+When any of these characters appear **unescaped**, LinkedIn's parser silently drops all text from that character onwards. The API still returns 201, `x-restli-id` is populated, and a GET of the post returns the full original text — but the rendered post displays only the truncated portion with no "see more" link. This affects ALL post types (text-only, image, video), not just media posts.
+
+Social post text commonly contains parentheses (e.g., `(from the SDI podcast)`, `(link in bio)`). If the first `(` appears after the first sentence, only that sentence renders.
+
+**Fix:** escape all reserved characters before assigning to `commentary`:
+
+```javascript
+function escapeLinkedInCommentary(text) {
+  return text.replace(/[()[\]{}\@#*_~<>\\]/g, '\\$&');
+}
+// Usage: commentary: escapeLinkedInCommentary(post.postText)
+```
+
+**Caveat:** Do NOT escape if `post.postText` uses intentional `little` format syntax (e.g., `@[Name](URN)` for mentions). Plain prose text from Google Sheets should always be escaped.
+
+**Backslash special case:** A literal `\` in the source text needs four backslashes in the final JSON body (`\\\\`) — the `replace` above handles this correctly since `\` is included in the character class.
+
+**Source:** ["When a left or right parenthesis appears anywhere in the commentary, all text from that parenthesis onwards gets silently dropped from the post (no error returned)."](https://learn.microsoft.com/en-us/answers/questions/5741122/issues-when-mentioning-urns-with-special-character) — Microsoft Learn Q&A, confirmed by LinkedIn Support.
+
+## `content.media` does NOT cause text truncation — it is not image-specific
+
+The `content.media` format for single-image posts does not impose any lower character limit on `commentary` vs text-only posts. The official schema defines the same `little` text `commentary` field for all post types with no type-specific limit. Apparent truncation on image posts is the reserved-character escaping issue above — coincidental because image post captions commonly contain parentheses.
