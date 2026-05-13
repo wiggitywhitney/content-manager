@@ -17,7 +17,7 @@ jest.mock('../src/video-download', () => ({
 
 const { google } = require('googleapis');
 const { downloadShortVideo } = require('../src/video-download');
-const { postToMicroblog, extractYouTubeVideoId } = require('../src/post-microblog');
+const { postToMicroblog, extractYouTubeVideoId, getYouTubeViewCount, scanAndPostShorts } = require('../src/post-microblog');
 
 const FAKE_THUMBNAIL_BUFFER = Buffer.from('fake-thumbnail');
 const FAKE_VIDEO_BUFFER = Buffer.from('fake-video');
@@ -49,8 +49,47 @@ describe('extractYouTubeVideoId', () => {
     expect(extractYouTubeVideoId('https://www.youtube.com/shorts/SHORT1')).toBe('SHORT1');
   });
 
+  test('extracts ID ignoring query parameters', () => {
+    expect(extractYouTubeVideoId('https://youtu.be/abc123?t=30')).toBe('abc123');
+  });
+
   test('returns null for unrecognized URL', () => {
     expect(extractYouTubeVideoId('https://example.com/video')).toBeNull();
+  });
+});
+
+describe('getYouTubeViewCount', () => {
+  let mockVideosList;
+
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+    mockVideosList = jest.fn().mockResolvedValue({ data: { items: [{ statistics: { viewCount: '5000' } }] } });
+    google.youtube.mockReturnValue({ videos: { list: mockVideosList } });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('returns view count as a number', async () => {
+    const count = await getYouTubeViewCount('abc123');
+    expect(count).toBe(5000);
+  });
+
+  test('calls YouTube API with correct video ID', async () => {
+    await getYouTubeViewCount('myVideoId');
+    expect(mockVideosList).toHaveBeenCalledWith({ part: ['statistics'], id: ['myVideoId'] });
+  });
+
+  test('throws if video not found', async () => {
+    google.youtube.mockReturnValue({ videos: { list: jest.fn().mockResolvedValue({ data: { items: [] } }) } });
+    await expect(getYouTubeViewCount('missing')).rejects.toThrow('not found');
+  });
+
+  test('throws if GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    await expect(getYouTubeViewCount('abc123')).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
   });
 });
 
@@ -156,9 +195,17 @@ describe('postToMicroblog', () => {
         .rejects.toThrow('MICROBLOG_APP_TOKEN environment variable is required');
     });
 
-    test('throws if YouTube URL is unrecognized', async () => {
+    test('throws if YouTube URL is not recognizable', async () => {
       await expect(postToMicroblog(makePost({ postType: 'talk', youtubeUrl: 'https://example.com/video' }), { bypassViewCount: true }))
         .rejects.toThrow('Could not extract video ID from');
     });
+  });
+});
+
+describe('scanAndPostShorts', () => {
+  // scanAndPostShorts integration is tested via the dispatch pipeline e2e test,
+  // which mocks the entire post-microblog module. This covers the module export only.
+  test('scanAndPostShorts is exported as a function', () => {
+    expect(typeof scanAndPostShorts).toBe('function');
   });
 });
