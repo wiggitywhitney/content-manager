@@ -1886,5 +1886,6 @@ module.exports = {
   parseDateToISO,
   normalizeTimestamp,
   formatPostContent,
-  needsImage
+  needsImage,
+  uploadImageToMediaEndpoint
 };
