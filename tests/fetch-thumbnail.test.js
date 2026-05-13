@@ -100,3 +100,75 @@ describe('fetchThumbnail', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
+
+const FAKE_RSS = `<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <item>
+      <title>Episode 123: Some Title</title>
+      <link>https://www.softwaredefinedinterviews.com/123</link>
+      <itunes:image href="https://cdn.fireside.fm/artwork/episode123.jpg"/>
+    </item>
+    <item>
+      <title>Episode 99: Another Episode</title>
+      <link>https://www.softwaredefinedinterviews.com/99</link>
+      <itunes:image href="https://cdn.fireside.fm/artwork/episode99.jpg"/>
+    </item>
+  </channel>
+</rss>`;
+
+describe('fetchThumbnail — SDI episodes', () => {
+  let consoleSpy;
+
+  beforeEach(() => {
+    global.fetch = jest.fn();
+    consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+    consoleSpy.mockRestore();
+  });
+
+  test('fetches RSS feed and returns image buffer for matching SDI episode', async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(FAKE_RSS) })         // RSS feed
+      .mockResolvedValueOnce({ ok: true, arrayBuffer: () => Promise.resolve(FAKE_IMAGE_BYTES.buffer) }); // image
+
+    const result = await fetchThumbnail('https://www.softwaredefinedinterviews.com/123');
+
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://feeds.fireside.fm/softwaredefinedinterviews/rss');
+    expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://cdn.fireside.fm/artwork/episode123.jpg');
+  });
+
+  test('matches episode by URL with or without trailing slash', async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(FAKE_RSS) })
+      .mockResolvedValueOnce({ ok: true, arrayBuffer: () => Promise.resolve(FAKE_IMAGE_BYTES.buffer) });
+
+    const result = await fetchThumbnail('https://www.softwaredefinedinterviews.com/123/');
+
+    expect(Buffer.isBuffer(result)).toBe(true);
+  });
+
+  test('returns null and logs warning when episode is not found in RSS feed', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: true, text: () => Promise.resolve(FAKE_RSS) });
+
+    const result = await fetchThumbnail('https://www.softwaredefinedinterviews.com/999');
+
+    expect(result).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('not found'));
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns null and logs warning when RSS feed fetch fails', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 503 });
+
+    const result = await fetchThumbnail('https://www.softwaredefinedinterviews.com/123');
+
+    expect(result).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('503'));
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
