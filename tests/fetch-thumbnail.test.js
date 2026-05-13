@@ -162,7 +162,7 @@ describe('fetchThumbnail — SDI episodes', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test('returns null and logs warning when RSS feed fetch fails', async () => {
+  test('returns null and logs warning when RSS feed fetch fails with non-ok status', async () => {
     global.fetch.mockResolvedValueOnce({ ok: false, status: 503 });
 
     const result = await fetchThumbnail('https://www.softwaredefinedinterviews.com/123');
@@ -170,5 +170,14 @@ describe('fetchThumbnail — SDI episodes', () => {
     expect(result).toBeNull();
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('503'));
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns null and logs warning when fetch() rejects (network error)', async () => {
+    global.fetch.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+
+    const result = await fetchThumbnail('https://www.softwaredefinedinterviews.com/123');
+
+    expect(result).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('ECONNREFUSED'));
   });
 });

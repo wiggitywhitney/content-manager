@@ -94,43 +94,48 @@ function isSdiUrl(url) {
  * @returns {Promise<Buffer|null>}
  */
 async function fetchSdiThumbnail(episodeUrl) {
-  const feedRes = await fetch(SDI_FEED_URL);
-  if (!feedRes.ok) {
-    console.warn(`[fetch-thumbnail] SDI RSS feed fetch failed (${feedRes.status}) — skipping thumbnail`); // eslint-disable-line no-console
-    return null;
-  }
-
-  const rssText = await feedRes.text();
-
-  // Normalize the episode URL for comparison (strip trailing slash)
-  const normalizedTarget = episodeUrl.replace(/\/$/, '');
-
-  // Split RSS into items and find the matching one
-  const items = rssText.split('<item>').slice(1);
-  let imageUrl = null;
-  for (const item of items) {
-    const linkMatch = item.match(/<link>([^<]+)<\/link>/);
-    if (!linkMatch) continue;
-    const itemUrl = linkMatch[1].trim().replace(/\/$/, '');
-    if (itemUrl === normalizedTarget) {
-      const imgMatch = item.match(/<itunes:image\s[^>]*href="([^"]+)"/);
-      if (imgMatch) imageUrl = imgMatch[1];
-      break;
+  try {
+    const feedRes = await fetch(SDI_FEED_URL);
+    if (!feedRes.ok) {
+      console.warn(`[fetch-thumbnail] SDI RSS feed fetch failed (${feedRes.status}) — skipping thumbnail`); // eslint-disable-line no-console
+      return null;
     }
-  }
 
-  if (!imageUrl) {
-    console.warn(`[fetch-thumbnail] SDI episode not found in RSS feed: ${episodeUrl}`); // eslint-disable-line no-console
+    const rssText = await feedRes.text();
+
+    // Normalize the episode URL for comparison (strip trailing slash)
+    const normalizedTarget = episodeUrl.replace(/\/$/, '');
+
+    // Split RSS into items and find the matching one
+    const items = rssText.split('<item>').slice(1);
+    let imageUrl = null;
+    for (const item of items) {
+      const linkMatch = item.match(/<link>([^<]+)<\/link>/);
+      if (!linkMatch) continue;
+      const itemUrl = linkMatch[1].trim().replace(/\/$/, '');
+      if (itemUrl === normalizedTarget) {
+        const imgMatch = item.match(/<itunes:image\s[^>]*href="([^"]+)"/);
+        if (imgMatch) imageUrl = imgMatch[1];
+        break;
+      }
+    }
+
+    if (!imageUrl) {
+      console.warn(`[fetch-thumbnail] SDI episode not found in RSS feed: ${episodeUrl}`); // eslint-disable-line no-console
+      return null;
+    }
+
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      console.warn(`[fetch-thumbnail] SDI episode image fetch failed (${imgRes.status}): ${imageUrl}`); // eslint-disable-line no-console
+      return null;
+    }
+
+    return Buffer.from(await imgRes.arrayBuffer());
+  } catch (err) {
+    console.warn(`[fetch-thumbnail] SDI thumbnail lookup failed: ${err.message} — skipping thumbnail`); // eslint-disable-line no-console
     return null;
   }
-
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) {
-    console.warn(`[fetch-thumbnail] SDI episode image fetch failed (${imgRes.status}): ${imageUrl}`); // eslint-disable-line no-console
-    return null;
-  }
-
-  return Buffer.from(await imgRes.arrayBuffer());
 }
 
 module.exports = { fetchThumbnail, extractVideoId, isSdiUrl, fetchSdiThumbnail };
