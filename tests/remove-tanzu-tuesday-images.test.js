@@ -4,6 +4,17 @@
 const { removePhotoFromPost, isTanzuTuesdayPost } = require('../src/remove-tanzu-tuesday-images');
 
 describe('removePhotoFromPost', () => {
+  // micro.blog stores photos as <img> tags in content, not as a 'photo' property.
+  // delete: ["photo"] returns 500 because the property doesn't exist in micro.blog's store.
+  // The real approach: fetch source content, strip <img> tags, replace content via Micropub.
+  const makeSourceResponse = (content) => ({
+    ok: true,
+    json: async () => ({
+      type: 'h-entry',
+      properties: { content: [content] },
+    }),
+  });
+
   beforeEach(() => {
     global.fetch = jest.fn();
   });
@@ -12,52 +23,85 @@ describe('removePhotoFromPost', () => {
     jest.restoreAllMocks();
   });
 
-  test('sends correct Micropub delete JSON body', async () => {
-    global.fetch.mockResolvedValue({ status: 200 });
+  test('fetches source then strips img tag and replaces content', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse('Post text\n\n<img src="https://cdn.micro.blog/thumb.jpg">'))
+      .mockResolvedValueOnce({ status: 200 });
 
     await removePhotoFromPost('https://whitneylee.com/2025/01/01/post.html', 'mytoken');
 
-    const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toBe('https://micro.blog/micropub');
-    expect(options.method).toBe('POST');
-    expect(options.headers['Content-Type']).toBe('application/json');
-    expect(options.headers.Authorization).toBe('Bearer mytoken');
+    // First call: GET source
+    const [sourceUrl, sourceOpts] = global.fetch.mock.calls[0];
+    expect(sourceUrl).toContain('q=source');
+    expect(sourceUrl).toContain(encodeURIComponent('https://whitneylee.com/2025/01/01/post.html'));
+    expect(sourceOpts.headers.Authorization).toBe('Bearer mytoken');
 
-    const body = JSON.parse(options.body);
+    // Second call: POST replace
+    const [updateUrl, updateOpts] = global.fetch.mock.calls[1];
+    expect(updateUrl).toBe('https://micro.blog/micropub');
+    expect(updateOpts.method).toBe('POST');
+    expect(updateOpts.headers['Content-Type']).toBe('application/json');
+    expect(updateOpts.headers.Authorization).toBe('Bearer mytoken');
+
+    const body = JSON.parse(updateOpts.body);
     expect(body.action).toBe('update');
     expect(body.url).toBe('https://whitneylee.com/2025/01/01/post.html');
-    // Micropub spec: delete as array of property names removes all values of those properties
-    expect(body.delete).toEqual(['photo']);
+    expect(body.replace.content).toEqual(['Post text']);
   });
 
-  test('resolves successfully on 200 response', async () => {
-    global.fetch.mockResolvedValue({ status: 200 });
+  test('strips img tag and trims trailing whitespace/newlines', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse('My Talk\n\n<img src="https://cdn.micro.blog/thumb.jpg">'))
+      .mockResolvedValueOnce({ status: 200 });
+
+    await removePhotoFromPost('https://whitneylee.com/post.html', 'tok');
+
+    const body = JSON.parse(global.fetch.mock.calls[1][1].body);
+    expect(body.replace.content[0]).toBe('My Talk');
+  });
+
+  test('strips multiple img tags if present', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse('Text <img src="a.jpg"> more <img src="b.jpg">'))
+      .mockResolvedValueOnce({ status: 200 });
+
+    await removePhotoFromPost('https://whitneylee.com/post.html', 'tok');
+
+    const body = JSON.parse(global.fetch.mock.calls[1][1].body);
+    expect(body.replace.content[0]).toBe('Text  more');
+  });
+
+  test('resolves successfully on 202 update response', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse('Text\n\n<img src="a.jpg">'))
+      .mockResolvedValueOnce({ status: 202 });
+
     await expect(removePhotoFromPost('https://whitneylee.com/post.html', 'tok')).resolves.toBeUndefined();
   });
 
-  test('resolves successfully on 202 response', async () => {
-    global.fetch.mockResolvedValue({ status: 202 });
-    await expect(removePhotoFromPost('https://whitneylee.com/post.html', 'tok')).resolves.toBeUndefined();
-  });
-
-  test('throws on non-200/202 response', async () => {
-    global.fetch.mockResolvedValue({
-      status: 400,
-      text: async () => 'Bad request',
+  test('throws when source fetch returns non-ok status', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => 'Unauthorized',
     });
+
     await expect(
       removePhotoFromPost('https://whitneylee.com/post.html', 'tok')
-    ).rejects.toThrow('Micropub delete failed (400)');
+    ).rejects.toThrow('Failed to query post source (401)');
   });
 
-  test('throws with status code in error message', async () => {
-    global.fetch.mockResolvedValue({
-      status: 500,
-      text: async () => 'Internal server error',
-    });
+  test('throws when update POST returns non-200/202 status', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse('Text\n\n<img src="a.jpg">'))
+      .mockResolvedValueOnce({
+        status: 400,
+        text: async () => 'Bad request',
+      });
+
     await expect(
       removePhotoFromPost('https://whitneylee.com/post.html', 'tok')
-    ).rejects.toThrow('Micropub delete failed (500)');
+    ).rejects.toThrow('Micropub update failed (400)');
   });
 });
 

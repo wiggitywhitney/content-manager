@@ -24,15 +24,31 @@ function isTanzuTuesdayPost(row) {
 }
 
 /**
- * Remove the photo property from an existing micro.blog post via Micropub update.
- * Uses the Micropub spec's array-form delete to remove all values of the photo property.
+ * Remove the photo from an existing micro.blog post by fetching the current content,
+ * stripping <img> tags, and replacing the content via Micropub update.
+ *
+ * micro.blog stores photos as <img> tags embedded in properties.content[0] rather
+ * than as a separate 'photo' property, so delete: ["photo"] returns 500. Instead,
+ * we read the current content, strip <img> tags, and write it back via replace.
  *
  * @param {string} postUrl - Full micro.blog post URL
  * @param {string} token - micro.blog app token
  * @returns {Promise<void>}
  */
 async function removePhotoFromPost(postUrl, token) {
-  const res = await fetch(MICROPUB_ENDPOINT, {
+  const sourceUrl = `${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(postUrl)}`;
+  const sourceRes = await fetch(sourceUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!sourceRes.ok) {
+    const body = await sourceRes.text();
+    throw new Error(`Failed to query post source (${sourceRes.status}): ${body}`);
+  }
+  const data = await sourceRes.json();
+  const content = data.properties?.content?.[0] ?? '';
+  const strippedContent = content.replace(/<img[^>]*>/g, '').trimEnd();
+
+  const updateRes = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -41,13 +57,13 @@ async function removePhotoFromPost(postUrl, token) {
     body: JSON.stringify({
       action: 'update',
       url: postUrl,
-      delete: ['photo'],
+      replace: { content: [strippedContent] },
     }),
   });
 
-  if (res.status !== 200 && res.status !== 202) {
-    const body = await res.text();
-    throw new Error(`Micropub delete failed (${res.status}): ${body}`);
+  if (updateRes.status !== 200 && updateRes.status !== 202) {
+    const body = await updateRes.text();
+    throw new Error(`Micropub update failed (${updateRes.status}): ${body}`);
   }
 }
 
