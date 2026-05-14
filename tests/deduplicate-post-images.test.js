@@ -85,7 +85,8 @@ describe('deduplicatePostImages', () => {
 
     const result = await deduplicatePostImages('https://whitneylee.com/2025/01/01/post.html', 'mytoken');
 
-    expect(result).toBe(true);
+    expect(result.outcome).toBe('deduped');
+    expect(result.imgCount).toBe(2);
 
     // First call: GET source
     const [sourceUrl, sourceOpts] = global.fetch.mock.calls[0];
@@ -107,39 +108,41 @@ describe('deduplicatePostImages', () => {
     expect(body.replace.content[0]).not.toContain('second.jpg');
   });
 
-  test('returns false and makes no update call when content has only one img tag', async () => {
+  test('returns skippedSingleImage and makes no update call when content has only one img tag', async () => {
     global.fetch.mockResolvedValueOnce(makeSourceResponse('Text\n\n<img src="only.jpg">'));
 
     const result = await deduplicatePostImages('https://whitneylee.com/post.html', 'tok');
 
-    expect(result).toBe(false);
+    expect(result.outcome).toBe('skippedSingleImage');
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test('returns false and makes no update call when content has no img tags', async () => {
+  test('returns skippedNoImage and makes no update call when content has no img tags', async () => {
     global.fetch.mockResolvedValueOnce(makeSourceResponse('Just text, no images'));
 
     const result = await deduplicatePostImages('https://whitneylee.com/post.html', 'tok');
 
-    expect(result).toBe(false);
+    expect(result.outcome).toBe('skippedNoImage');
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test('returns false and makes no update call when content is null', async () => {
+  test('returns skippedStaleUrl and makes no update call when content is null', async () => {
     global.fetch.mockResolvedValueOnce(makeSourceResponse(null));
 
     const result = await deduplicatePostImages('https://whitneylee.com/post.html', 'tok');
 
-    expect(result).toBe(false);
+    expect(result.outcome).toBe('skippedStaleUrl');
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test('resolves successfully on 202 update response', async () => {
+  test('resolves with deduped outcome on 202 update response', async () => {
     global.fetch
       .mockResolvedValueOnce(makeSourceResponse('<img src="a.jpg"><img src="b.jpg">'))
       .mockResolvedValueOnce({ status: 202 });
 
-    await expect(deduplicatePostImages('https://whitneylee.com/post.html', 'tok')).resolves.toBe(true);
+    const result = await deduplicatePostImages('https://whitneylee.com/post.html', 'tok');
+    expect(result.outcome).toBe('deduped');
+    expect(result.imgCount).toBe(2);
   });
 
   test('throws when source fetch returns non-ok status', async () => {

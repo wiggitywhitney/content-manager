@@ -43,7 +43,12 @@ function deduplicateContent(content) {
  *
  * @param {string} postUrl - Full micro.blog post URL
  * @param {string} token - micro.blog app token
- * @returns {Promise<boolean>} true if the post was updated, false if no update was needed
+ * @returns {Promise<{outcome: string, imgCount?: number}>} Result object:
+ *   - outcome 'deduped' (with imgCount) — post was updated
+ *   - outcome 'skippedNoImage' — post has no img tags
+ *   - outcome 'skippedSingleImage' — post has exactly one img tag
+ *   - outcome 'skippedStaleUrl' — source content is null/empty
+ *   Throws on source fetch errors or Micropub update errors.
  */
 async function deduplicatePostImages(postUrl, token) {
   const sourceUrl = `${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(postUrl)}`;
@@ -57,8 +62,19 @@ async function deduplicatePostImages(postUrl, token) {
   const data = await sourceRes.json();
   const content = data.properties?.content?.[0] ?? '';
 
-  if (!hasMultipleImages(content)) {
-    return false;
+  if (!content) {
+    return { outcome: 'skippedStaleUrl' };
+  }
+
+  const imgMatches = content.match(/<img[^>]*>/g);
+  const imgCount = imgMatches ? imgMatches.length : 0;
+
+  if (imgCount === 0) {
+    return { outcome: 'skippedNoImage' };
+  }
+
+  if (imgCount === 1) {
+    return { outcome: 'skippedSingleImage' };
   }
 
   const deduped = deduplicateContent(content);
@@ -81,7 +97,7 @@ async function deduplicatePostImages(postUrl, token) {
     throw new Error(`Micropub update failed (${updateRes.status}): ${body}`);
   }
 
-  return true;
+  return { outcome: 'deduped', imgCount };
 }
 
 /**
@@ -156,73 +172,34 @@ async function deduplicatePostImagesBatch() {
       continue;
     }
 
-    let sourceData;
     try {
-      const sourceUrl = `${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(row.microblogUrl)}`;
-      const sourceRes = await fetch(sourceUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!sourceRes.ok) {
-        const body = await sourceRes.text();
-        throw new Error(`Source query returned ${sourceRes.status}: ${body}`);
+      const result = await deduplicatePostImages(row.microblogUrl, token);
+      switch (result.outcome) {
+        case 'deduped':
+          console.log(`  ✅ Deduplicated (kept 1 of ${result.imgCount} images)`);
+          stats.deduped++;
+          break;
+        case 'skippedNoImage':
+          console.log(`  ⏭️  No images, skipping`);
+          stats.skippedNoImage++;
+          break;
+        case 'skippedSingleImage':
+          console.log(`  ⏭️  Single image, already clean`);
+          stats.skippedSingleImage++;
+          break;
+        case 'skippedStaleUrl':
+          console.warn(`  ⚠️  Source content is null/empty (possibly rescheduled post with stale URL) — skipping`);
+          stats.skippedStaleUrl++;
+          break;
       }
-      sourceData = await sourceRes.json();
     } catch (err) {
-      console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`);
-      stats.skippedCheckFailed++;
-      continue;
-    }
-
-    const content = sourceData.properties?.content?.[0] ?? '';
-
-    if (!content) {
-      console.warn(`  ⚠️  Source content is null/empty (possibly rescheduled post with stale URL) — skipping`);
-      stats.skippedStaleUrl++;
-      continue;
-    }
-
-    const imgMatches = content.match(/<img[^>]*>/g);
-    const imgCount = imgMatches ? imgMatches.length : 0;
-
-    if (imgCount === 0) {
-      console.log(`  ⏭️  No images, skipping`);
-      stats.skippedNoImage++;
-      continue;
-    }
-
-    if (imgCount === 1) {
-      console.log(`  ⏭️  Single image, already clean`);
-      stats.skippedSingleImage++;
-      continue;
-    }
-
-    console.log(`  Found ${imgCount} images — deduplicating`);
-
-    try {
-      const deduped = deduplicateContent(content);
-      const updateRes = await fetch(MICROPUB_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'update',
-          url: row.microblogUrl,
-          replace: { content: [deduped] },
-        }),
-      });
-
-      if (updateRes.status !== 200 && updateRes.status !== 202) {
-        const body = await updateRes.text();
-        throw new Error(`Micropub update failed (${updateRes.status}): ${body}`);
+      if (err.message.startsWith('Failed to query post source')) {
+        console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`);
+        stats.skippedCheckFailed++;
+      } else {
+        console.error(`  ❌ Failed to deduplicate: ${err.message}`);
+        stats.failed++;
       }
-
-      console.log(`  ✅ Deduplicated (kept 1 of ${imgCount} images)`);
-      stats.deduped++;
-    } catch (err) {
-      console.error(`  ❌ Failed to deduplicate: ${err.message}`);
-      stats.failed++;
     }
   }
 
