@@ -27,7 +27,10 @@ async function postHasPhoto(postUrl, token) {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) return false;
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to query post source (${res.status}): ${body}`);
+  }
   const data = await res.json();
   const photos = data.properties?.photo;
   return Array.isArray(photos) && photos.length > 0;
@@ -134,6 +137,7 @@ async function backfillCareerImages() {
   const stats = {
     total: candidates.length,
     updated: 0,
+    dryRun: 0,
     skippedAlreadyHasPhoto: 0,
     skippedFetchFailed: 0,
     skippedUploadFailed: 0,
@@ -149,7 +153,7 @@ async function backfillCareerImages() {
 
     if (DRY_RUN) {
       console.log(`  [DRY-RUN] Would fetch thumbnail and attach photo`);
-      stats.updated++;
+      stats.dryRun++;
       continue;
     }
 
@@ -209,7 +213,11 @@ async function backfillCareerImages() {
   console.log('BACKFILL SUMMARY');
   console.log('='.repeat(60));
   console.log(`  Total candidates:        ${stats.total}`);
-  console.log(`  ✅ Updated:              ${stats.updated}`);
+  if (DRY_RUN) {
+    console.log(`  🔍 Dry-run (would update): ${stats.dryRun}`);
+  } else {
+    console.log(`  ✅ Updated:              ${stats.updated}`);
+  }
   console.log(`  ⏭️  Already had photo:   ${stats.skippedAlreadyHasPhoto}`);
   console.log(`  ⚠️  Fetch failed:        ${stats.skippedFetchFailed}`);
   console.log(`  ⚠️  Upload failed:       ${stats.skippedUploadFailed}`);

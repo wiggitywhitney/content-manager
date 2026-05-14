@@ -42,11 +42,16 @@ describe('postHasPhoto', () => {
     expect(result).toBe(false);
   });
 
-  test('returns false when fetch returns non-ok status', async () => {
-    global.fetch.mockResolvedValue({ ok: false, status: 404 });
+  test('throws when fetch returns non-ok status', async () => {
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => 'Unauthorized',
+    });
 
-    const result = await postHasPhoto('https://whitneylee.com/2025/01/01/post.html', 'tok');
-    expect(result).toBe(false);
+    await expect(
+      postHasPhoto('https://whitneylee.com/2025/01/01/post.html', 'tok')
+    ).rejects.toThrow('Failed to query post source (401)');
   });
 
   test('calls Micropub source endpoint with correct URL and auth header', async () => {
