@@ -34,13 +34,14 @@ function categoryForRow(row) {
 }
 
 /**
- * Query the Micropub source endpoint for a post and return whether it has a category.
+ * Fetch and return parsed Micropub source data for a post URL.
+ * Shared by postHasCategory and the main restore loop.
  *
  * @param {string} postUrl - Full micro.blog post URL
  * @param {string} token - micro.blog app token
- * @returns {Promise<boolean>}
+ * @returns {Promise<Object>} Parsed JSON response from the Micropub source endpoint
  */
-async function postHasCategory(postUrl, token) {
+async function _queryPostSource(postUrl, token) {
   const url = `${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(postUrl)}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
@@ -49,7 +50,18 @@ async function postHasCategory(postUrl, token) {
     const body = await res.text();
     throw new Error(`Failed to query post source (${res.status}): ${body}`);
   }
-  const data = await res.json();
+  return res.json();
+}
+
+/**
+ * Query the Micropub source endpoint for a post and return whether it has a category.
+ *
+ * @param {string} postUrl - Full micro.blog post URL
+ * @param {string} token - micro.blog app token
+ * @returns {Promise<boolean>}
+ */
+async function postHasCategory(postUrl, token) {
+  const data = await _queryPostSource(postUrl, token);
   const categories = data.properties?.category ?? [];
   return categories.length > 0;
 }
@@ -157,17 +169,10 @@ async function restorePostCategories() {
       continue;
     }
 
-    // Check if the post's source content is accessible (guard for stale URLs)
+    // Query post source (used for both stale-URL guard and category check)
     let sourceData;
     try {
-      const sourceRes = await fetch(`${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(row.microblogUrl)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!sourceRes.ok) {
-        const body = await sourceRes.text();
-        throw new Error(`Source query failed (${sourceRes.status}): ${body}`);
-      }
-      sourceData = await sourceRes.json();
+      sourceData = await _queryPostSource(row.microblogUrl, token);
     } catch (err) {
       console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`);
       stats.skippedCheckFailed++;
