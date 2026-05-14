@@ -1,7 +1,7 @@
-// ABOUTME: Unit tests for backfill-career-images.js — covers postHasPhoto, addPhotoToPost, and skip logic.
+// ABOUTME: Unit tests for backfill-career-images.js — covers postHasPhoto, addPhotoToPost, parseTabRows, skip logic, and dry-run mode.
 'use strict';
 
-const { postHasPhoto, addPhotoToPost } = require('../src/backfill-career-images');
+const { postHasPhoto, addPhotoToPost, parseTabRows } = require('../src/backfill-career-images');
 
 describe('postHasPhoto', () => {
   beforeEach(() => {
@@ -115,5 +115,90 @@ describe('addPhotoToPost', () => {
     await expect(
       addPhotoToPost('https://whitneylee.com/post.html', 'https://cdn.micro.blog/thumb.jpg', 'tok')
     ).rejects.toThrow('Micropub update failed (400)');
+  });
+});
+
+describe('parseTabRows', () => {
+  const makeRaw = (name, type, show, date, link, microblogUrl) =>
+    [name, type, show, date, '', '', link, microblogUrl];
+
+  test('skips the header row (index 0)', () => {
+    const rows = [
+      makeRaw('Name', 'Type', 'Show', 'Date', 'Link', 'Micro.blog URL'),
+      makeRaw('My Talk', 'Video', 'Thunder', '1/1/2026', 'https://youtu.be/abc', 'https://whitneylee.com/post.html'),
+    ];
+    const result = parseTabRows(rows, 'Sheet1');
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('My Talk');
+  });
+
+  test('attaches tabName to each parsed row', () => {
+    const rows = [
+      makeRaw('Name', 'Type', 'Show', 'Date', 'Link', 'URL'),
+      makeRaw('SDI 122', 'Podcast', 'SDI', '1/1/2026', 'https://softwaredefinedinterviews.com/122', 'https://whitneylee.com/post.html'),
+    ];
+    const result = parseTabRows(rows, '2024 & earlier');
+    expect(result[0].tabName).toBe('2024 & earlier');
+    expect(result[0].tabRowIndex).toBe(2);
+  });
+
+  test('filters out rows without name or type', () => {
+    const rows = [
+      makeRaw('Name', 'Type', 'Show', 'Date', 'Link', 'URL'),
+      makeRaw('', '', '', '', '', ''), // empty row
+      makeRaw('My Talk', 'Video', '', '1/1/2026', 'https://youtu.be/abc', 'https://whitneylee.com/post.html'),
+    ];
+    const result = parseTabRows(rows, 'Sheet1');
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('My Talk');
+  });
+});
+
+describe('backfillCareerImages dry-run mode', () => {
+  let originalArgv;
+
+  beforeEach(() => {
+    originalArgv = [...process.argv];
+    process.argv.push('--dry-run');
+    jest.resetModules();
+    // Mock googleapis so the spreadsheet read returns a minimal valid response
+    jest.doMock('googleapis', () => ({
+      google: {
+        auth: {
+          GoogleAuth: jest.fn().mockImplementation(() => ({})),
+        },
+        sheets: jest.fn().mockReturnValue({
+          spreadsheets: {
+            values: {
+              get: jest.fn().mockResolvedValue({
+                data: {
+                  values: [
+                    ['Name', 'Type', 'Show', 'Date', 'Location', 'Confirmed', 'Link', 'Micro.blog URL'],
+                    ['My Talk', 'Video', '🌩️ Thunder', '1/15/2026', '', '', 'https://youtu.be/abc123', 'https://whitneylee.com/2026/01/15/my-talk.html'],
+                  ],
+                },
+              }),
+            },
+          },
+        }),
+      },
+    }));
+  });
+
+  afterEach(() => {
+    process.argv = originalArgv;
+    jest.resetModules();
+  });
+
+  test('makes no Micropub POST calls in dry-run mode', async () => {
+    process.env.MICROBLOG_APP_TOKEN = 'test-token';
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account', project_id: 'test', private_key: 'k', client_email: 'e@e.com' });
+    global.fetch = jest.fn();
+
+    const { backfillCareerImages } = require('../src/backfill-career-images');
+    await backfillCareerImages();
+
+    const postCalls = global.fetch.mock.calls.filter(([, opts]) => opts?.method === 'POST');
+    expect(postCalls).toHaveLength(0);
   });
 });

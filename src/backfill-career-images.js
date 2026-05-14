@@ -232,4 +232,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { backfillCareerImages, postHasPhoto, addPhotoToPost };
+module.exports = { backfillCareerImages, postHasPhoto, addPhotoToPost, parseTabRows };
