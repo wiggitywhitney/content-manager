@@ -99,6 +99,18 @@ describe('postHasPhoto', () => {
 });
 
 describe('addPhotoToPost', () => {
+  // addPhotoToPost uses content-replace (not add:{ photo }) to preserve post categories.
+  // It first GETs the source content, appends the img tag, then sends replace:{ content }.
+  const POST_URL = 'https://whitneylee.com/2025/01/01/post.html';
+  const PHOTO_URL = 'https://cdn.micro.blog/uploads/thumb.jpg';
+  const TOKEN = 'mytoken';
+  const EXISTING_CONTENT = 'My Talk post text with a [link](https://youtu.be/abc123)';
+
+  const makeSourceResponse = (content) => ({
+    ok: true,
+    json: async () => ({ type: 'h-entry', properties: { content: [content] } }),
+  });
+
   beforeEach(() => {
     global.fetch = jest.fn();
   });
@@ -107,41 +119,64 @@ describe('addPhotoToPost', () => {
     jest.restoreAllMocks();
   });
 
-  test('sends correct Micropub update JSON body', async () => {
-    global.fetch.mockResolvedValue({ status: 200 });
+  test('fetches source content before sending update', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT))
+      .mockResolvedValueOnce({ status: 200 });
 
-    await addPhotoToPost(
-      'https://whitneylee.com/2025/01/01/post.html',
-      'https://cdn.micro.blog/uploads/thumb.jpg',
-      'mytoken'
-    );
+    await addPhotoToPost(POST_URL, PHOTO_URL, TOKEN);
 
-    const [url, options] = global.fetch.mock.calls[0];
-    expect(url).toBe('https://micro.blog/micropub');
-    expect(options.method).toBe('POST');
-    expect(options.headers['Content-Type']).toBe('application/json');
-    expect(options.headers.Authorization).toBe('Bearer mytoken');
+    const [sourceUrl, sourceOpts] = global.fetch.mock.calls[0];
+    expect(sourceUrl).toContain('q=source');
+    expect(sourceUrl).toContain(encodeURIComponent(POST_URL));
+    expect(sourceOpts.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
 
-    const body = JSON.parse(options.body);
+  test('sends content-replace with img tag appended to existing content', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT))
+      .mockResolvedValueOnce({ status: 200 });
+
+    await addPhotoToPost(POST_URL, PHOTO_URL, TOKEN);
+
+    const [updateUrl, updateOpts] = global.fetch.mock.calls[1];
+    expect(updateUrl).toBe('https://micro.blog/micropub');
+    expect(updateOpts.method).toBe('POST');
+    expect(updateOpts.headers['Content-Type']).toBe('application/json');
+    expect(updateOpts.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+
+    const body = JSON.parse(updateOpts.body);
     expect(body.action).toBe('update');
-    expect(body.url).toBe('https://whitneylee.com/2025/01/01/post.html');
-    expect(body.add.photo).toEqual(['https://cdn.micro.blog/uploads/thumb.jpg']);
+    expect(body.url).toBe(POST_URL);
+    expect(body.replace.content[0]).toBe(`${EXISTING_CONTENT}\n\n<img src="${PHOTO_URL}">`);
+    expect(body.add).toBeUndefined();
+  });
+
+  test('skips update and logs warning when source content is null/empty', async () => {
+    global.fetch.mockResolvedValueOnce(makeSourceResponse(''));
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(addPhotoToPost(POST_URL, PHOTO_URL, TOKEN)).resolves.toBeUndefined();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(POST_URL));
+
+    warnSpy.mockRestore();
   });
 
   test('resolves successfully on 202 response', async () => {
-    global.fetch.mockResolvedValue({ status: 202 });
-    await expect(addPhotoToPost('https://whitneylee.com/post.html', 'https://cdn.micro.blog/thumb.jpg', 'tok')).resolves.toBeUndefined();
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT))
+      .mockResolvedValueOnce({ status: 202 });
+
+    await expect(addPhotoToPost(POST_URL, PHOTO_URL, TOKEN)).resolves.toBeUndefined();
   });
 
-  test('throws on non-200/202 response', async () => {
-    global.fetch.mockResolvedValue({
-      status: 400,
-      text: async () => 'Bad request',
-    });
+  test('throws on non-200/202 update response', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT))
+      .mockResolvedValueOnce({ status: 400, text: async () => 'Bad request' });
 
-    await expect(
-      addPhotoToPost('https://whitneylee.com/post.html', 'https://cdn.micro.blog/thumb.jpg', 'tok')
-    ).rejects.toThrow('Micropub update failed (400)');
+    await expect(addPhotoToPost(POST_URL, PHOTO_URL, TOKEN)).rejects.toThrow('Micropub update failed (400)');
   });
 });
 

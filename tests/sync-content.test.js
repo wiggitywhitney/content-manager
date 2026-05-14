@@ -129,6 +129,14 @@ describe('needsImage', () => {
   test('returns false for Tanzu Tuesday even with a show name containing extra text', () => {
     expect(needsImage({ type: 'Video', show: 'Tanzu Tuesday - Episode 42', link: 'https://youtu.be/abc' })).toBe(false);
   });
+
+  test('returns true for Presentation type (singular) with a link', () => {
+    expect(needsImage({ type: 'Presentation', link: 'https://youtu.be/abc123' })).toBe(true);
+  });
+
+  test('returns false for Presentation type (singular) without a link', () => {
+    expect(needsImage({ type: 'Presentation', link: '' })).toBe(false);
+  });
 });
 
 describe('runAboutPageUpdate', () => {

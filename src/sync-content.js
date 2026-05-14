@@ -313,6 +313,7 @@ function log(message, level = 'INFO', data = null) {
 /**
  * Determine whether a row should have a thumbnail image attached.
  * Returns true for Video, Podcast, and Presentations with a link (YouTube URL).
+ * Accepts both "Presentations" (plural) and "Presentation" (singular spreadsheet typo).
  * Tanzu Tuesday videos are excluded — their thumbnails are unwanted in the photos tab.
  *
  * @param {Object} row - Parsed spreadsheet row
@@ -322,7 +323,7 @@ function needsImage(row) {
   const { type, link, show } = row;
   if (show && show.includes('Tanzu Tuesday')) return false;
   if (type === 'Video' || type === 'Podcast') return true;
-  if (type === 'Presentations' && link) return true;
+  if ((type === 'Presentations' || type === 'Presentation') && link) return true;
   return false;
 }
 

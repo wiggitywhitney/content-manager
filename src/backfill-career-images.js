@@ -39,7 +39,11 @@ async function postHasPhoto(postUrl, token) {
 }
 
 /**
- * Add a photo to an existing micro.blog post via the Micropub update action.
+ * Add a photo to an existing micro.blog post using content-replace.
+ *
+ * Uses content-replace (not add:{ photo }) because the Micropub add action for
+ * photo strips the post's categories on micro.blog — a confirmed platform bug.
+ * Safe approach: GET existing content, append <img> tag, send replace:{ content }.
  *
  * @param {string} postUrl - Full micro.blog post URL
  * @param {string} photoUrl - Hosted image URL from the Micropub media endpoint
@@ -47,6 +51,23 @@ async function postHasPhoto(postUrl, token) {
  * @returns {Promise<void>}
  */
 async function addPhotoToPost(postUrl, photoUrl, token) {
+  const sourceRes = await fetch(`${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(postUrl)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!sourceRes.ok) {
+    const body = await sourceRes.text();
+    throw new Error(`Failed to fetch post source (${sourceRes.status}): ${body}`);
+  }
+  const sourceData = await sourceRes.json();
+  const existingContent = sourceData.properties?.content?.[0] ?? '';
+
+  if (!existingContent) {
+    console.warn(`[addPhotoToPost] Skipping ${postUrl} — source content is null/empty (possibly rescheduled post with stale URL)`);
+    return;
+  }
+
+  const newContent = `${existingContent}\n\n<img src="${photoUrl}">`;
+
   const res = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -56,7 +77,7 @@ async function addPhotoToPost(postUrl, photoUrl, token) {
     body: JSON.stringify({
       action: 'update',
       url: postUrl,
-      add: { photo: [photoUrl] },
+      replace: { content: [newContent] },
     }),
   });
 
