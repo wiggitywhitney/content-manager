@@ -44,8 +44,8 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
 
 - [ ] M9: Fix scripts for forward correctness (Decision 12, 15, 16) — before running any further backfill operations, fix the scripts so they are safe and complete:
   - Fix `needsImage` in `src/sync-content.js` to return `true` for both `"Presentation"` (singular, spreadsheet typo) and `"Presentations"` (plural); update its tests
-  - Fix `addPhotoToPost` in `src/backfill-career-images.js` to use content-replace instead of `add: { photo }`: GET source content via `?q=source`, append `<img src="url">` to content, send `replace: { content: [newContent] }` — NEVER use `add: { photo }` again (it strips categories, Decision 11)
-  - Update `~/.claude/rules/microblog-api-gotchas.md` to document that `add: { photo }` strips post categories on micro.blog
+  - Fix `addPhotoToPost` in `src/backfill-career-images.js` to use content-replace instead of `add: { photo }`: GET source content via `?q=source`; if content is null/empty (can happen for rescheduled posts whose URL is stale), log a warning and skip; otherwise append `'\n\n<img src="' + hostedUrl + '">'` to content and send `{ action: "update", url: postUrl, replace: { content: [newContent] } }` — NEVER use `add: { photo }` again (it strips categories, Decision 11)
+  - Update `~/.claude/rules/microblog-api-gotchas.md` to document: (1) `add: { photo }` strips post categories; (2) `?q=source` returns null/empty content for rescheduled posts whose URL is stale — always guard against this
   - Add test coverage for singular `needsImage` and the content-replace approach in backfill
   - Success: `needsImage` handles both type spellings; backfill `addPhotoToPost` uses content-replace; tests pass; gotcha documented
 
@@ -53,22 +53,24 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - Read the production spreadsheet; for each row with a microblogUrl (column H), query `GET https://micro.blog/micropub?q=source&url=<microblogUrl>` and check if `properties.category` is empty or missing
   - Use the same `categoryMap` as `createMicroblogPost` in `sync-content.js` to translate spreadsheet type to micro.blog category: `{ Video: 'Video', Podcast: 'Podcast', Presentations: 'Presentations', Presentation: 'Presentations', Guest: 'Guest', Blog: 'Blog' }` — note that `"Presentation"` (singular typo) maps to `"Presentations"` (plural)
   - Rows with types not in this map (Teaching Assistant, Credential, Coding Project, Pizza, empty) have no micro.blog category and should be skipped
+  - If the `?q=source` query returns null/empty content (happens for rescheduled posts whose column H URL is stale), log a warning and skip that row — do not attempt to restore a URL that micro.blog can't find
   - If category is empty and a valid mapping exists, restore via `POST /micropub` with `{ action: "update", url: microblogUrl, replace: { category: [mappedCategory] } }`
   - Include `--dry-run` flag and progress indicators
   - Run with cross-posting disabled
+  - After running, micro.blog may need a manual site rebuild before the category pages update. If `/video/` and `/podcast/` are still empty after the script completes, trigger a rebuild at `https://micro.blog/account/logs` → Rebuild Site before assuming the script failed.
   - Success: `whitneylee.com/video/` and `whitneylee.com/podcast/` show their posts again; category confirmed non-empty on a sample of restored posts via Micropub source query
 
 - [ ] M11: Remove duplicate images from posts that got two `<img>` tags (Decision 12 scope) — implement `src/deduplicate-post-images.js`:
   - Fetch all posts from micro.blog using the existing `queryMicroblogPosts()` approach in `src/sync-content.js` (paged `GET https://micro.blog/micropub?q=source` without a `url` param returns all posts); or iterate the production spreadsheet column H URLs and query each individually
   - For each post whose `properties.content[0]` contains two or more `<img` tags: strip all but the first `<img>` tag using a regex replace, then send `POST /micropub` with `{ action: "update", url: postUrl, replace: { content: [deduped] } }`
-  - Dedup regex: keep the content up to and including the first `<img ...>` tag, strip all subsequent `<img ...>` tags — pattern: `content.replace(/(<img[^>]*>)([\s\S]*?)(<img[^>]*>)+/g, '$1')`
+  - Dedup approach: keep only the first `<img>` tag, strip all others — use a counter: `let count = 0; const deduped = content.replace(/<img[^>]*>/g, m => count++ === 0 ? m : '')`
   - Include `--dry-run` flag and progress indicators
   - Run with cross-posting disabled
   - Success: no post has more than one `<img` tag in its content; verify by re-querying a sample of previously-duplicated posts
 
 - [ ] M12: Add images to social posts missing them (Decision 13, 14) — implement `src/backfill-social-post-images.js`:
   - Social posts are uncategorized posts created by the dual-post strategy (category is `[]`, URL not in column H); they need images but the archive-based backfill never touched them
-  - **Matching strategy**: Build a lookup map from the production spreadsheet: for each row where `needsImage(row)` is true, extract the YouTube/SDI link from `row.link` (column G). Then query all micro.blog posts; for each post with `category: []` and no `<img>` tag in content, search the post's `properties.content[0]` for an `href` matching a `row.link` value in the map. `formatPostContent` always embeds the link as `href="<row.link>"` in the post body, making this a reliable match. If a match is found, use that row's `row.link` to fetch the thumbnail.
+  - **Matching strategy**: Build a lookup map keyed by link URL from the production spreadsheet: for each row where `needsImage(row)` is true, map `row.link → row`. Then query all micro.blog posts; for each post with `category: []` and no `<img>` tag in content, check `properties.content[0]` for each key in the map using `content.includes(row.link)`. `formatPostContent` embeds the link as Markdown `[title](url)` — NOT as `href="..."` — so `content.includes(row.link)` is the correct check, not an href search. If a match is found, use that row's `row.link` to fetch the thumbnail. If `content` is null/empty, skip the post with a warning.
   - **Image addition**: upload buffer to `/micropub/media`, get hosted URL, then content-replace: `{ action: "update", url: postUrl, replace: { content: [existingContent + '\n\n<img src="' + hostedUrl + '">'] } }` — do NOT use `add: { photo }` (Decision 12)
   - Include `--dry-run` flag and progress indicators
   - Run with cross-posting disabled
@@ -79,6 +81,7 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - Verify `whitneylee.com/video/`, `whitneylee.com/podcast/`, `whitneylee.com/presentations/` show posts correctly
   - Verify main feed shows images on career posts that should have them
   - Verify no posts have duplicate images
+  - **Verify new post creation safety**: the M2 code in `createMicroblogPost` sends both `category` and `photo[]` in the same form-encoded POST for new posts. This was assumed safe (Decision 12) because category is explicitly set, but it has not been verified in production since M2 is still on the feature branch. After this branch is merged and the next daily sync runs, confirm that the first new career post created with a photo still appears on its category page (not stripped to Photos-only).
   - Tell the Claude Code session "Cross-posting is re-enabled" to mark this milestone complete
 
 ## Removal Execution Steps (Manual — M8)
