@@ -156,9 +156,15 @@ describe('parseTabRows', () => {
 
 describe('backfillCareerImages dry-run mode', () => {
   let originalArgv;
+  let originalFetch;
+  let originalToken;
+  let originalServiceAccount;
 
   beforeEach(() => {
     originalArgv = [...process.argv];
+    originalFetch = global.fetch;
+    originalToken = process.env.MICROBLOG_APP_TOKEN;
+    originalServiceAccount = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     process.argv.push('--dry-run');
     jest.resetModules();
     // Mock googleapis so the spreadsheet read returns a minimal valid response
@@ -187,6 +193,17 @@ describe('backfillCareerImages dry-run mode', () => {
 
   afterEach(() => {
     process.argv = originalArgv;
+    global.fetch = originalFetch;
+    if (originalToken === undefined) {
+      delete process.env.MICROBLOG_APP_TOKEN;
+    } else {
+      process.env.MICROBLOG_APP_TOKEN = originalToken;
+    }
+    if (originalServiceAccount === undefined) {
+      delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    } else {
+      process.env.GOOGLE_SERVICE_ACCOUNT_JSON = originalServiceAccount;
+    }
     jest.resetModules();
   });
 
