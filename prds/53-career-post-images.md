@@ -68,7 +68,7 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - Run with cross-posting disabled
   - Success: no post has more than one `<img` tag in its content; verify by re-querying a sample of previously-duplicated posts
 
-- [ ] M12: Add images to social posts missing them (Decision 13, 14) — implement `src/backfill-social-post-images.js`:
+- [x] M12: Add images to social posts missing them (Decision 13, 14) — implement `src/backfill-social-post-images.js`:
   - Social posts are uncategorized posts created by the dual-post strategy (category is `[]`, URL not in column H); they need images but the archive-based backfill never touched them
   - **Matching strategy**: Build a lookup map keyed by link URL from the production spreadsheet: for each row where `needsImage(row)` is true, map `row.link → row`. Then query all micro.blog posts; for each post with `category: []` and no `<img>` tag in content, check `properties.content[0]` for each key in the map using `content.includes(row.link)`. `formatPostContent` embeds the link as Markdown `[title](url)` — NOT as `href="..."` — so `content.includes(row.link)` is the correct check, not an href search. If a match is found, use that row's `row.link` to fetch the thumbnail. If `content` is null/empty, skip the post with a warning.
   - **Image addition**: upload buffer to `/micropub/media`, get hosted URL, then content-replace: `{ action: "update", url: postUrl, replace: { content: [existingContent + '\n\n<img src="' + hostedUrl + '">'] } }` — do NOT use `add: { photo }` (Decision 12)
