@@ -60,7 +60,7 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - After running, micro.blog may need a manual site rebuild before the category pages update. If `/video/` and `/podcast/` are still empty after the script completes, trigger a rebuild at `https://micro.blog/account/logs` → Rebuild Site before assuming the script failed.
   - Success: `whitneylee.com/video/` and `whitneylee.com/podcast/` show their posts again; category confirmed non-empty on a sample of restored posts via Micropub source query
 
-- [ ] M11: Remove duplicate images from posts that got two `<img>` tags (Decision 12 scope) — implement `src/deduplicate-post-images.js`:
+- [x] M11: Remove duplicate images from posts that got two `<img>` tags (Decision 12 scope) — implement `src/deduplicate-post-images.js`:
   - Fetch all posts from micro.blog using the existing `queryMicroblogPosts()` approach in `src/sync-content.js` (paged `GET https://micro.blog/micropub?q=source` without a `url` param returns all posts); or iterate the production spreadsheet column H URLs and query each individually
   - For each post whose `properties.content[0]` contains two or more `<img` tags: strip all but the first `<img>` tag using a regex replace, then send `POST /micropub` with `{ action: "update", url: postUrl, replace: { content: [deduped] } }`
   - Dedup approach: keep only the first `<img>` tag, strip all others — use a counter: `let count = 0; const deduped = content.replace(/<img[^>]*>/g, m => count++ === 0 ? m : '')`
