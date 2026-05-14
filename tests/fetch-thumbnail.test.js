@@ -35,7 +35,15 @@ describe('extractVideoId', () => {
     expect(extractVideoId('https://youtu.be/abc123/extra')).toBe('abc123');
   });
 
-  test('throws when youtube.com has no v param', () => {
+  test('extracts ID from youtube.com/live URL', () => {
+    expect(extractVideoId('https://www.youtube.com/live/Q4SE6yiujpk')).toBe('Q4SE6yiujpk');
+  });
+
+  test('extracts ID from youtube.com/live URL with timestamp param', () => {
+    expect(extractVideoId('https://www.youtube.com/live/iwKzn3hMoi0?t=481s')).toBe('iwKzn3hMoi0');
+  });
+
+  test('throws when youtube.com has no v param and is not a live URL', () => {
     expect(() => extractVideoId('https://www.youtube.com/watch')).toThrow('No video ID in YouTube URL');
   });
 
