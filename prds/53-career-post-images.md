@@ -49,7 +49,7 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - Add test coverage for singular `needsImage` and the content-replace approach in backfill
   - Success: `needsImage` handles both type spellings; backfill `addPhotoToPost` uses content-replace; tests pass; gotcha documented
 
-- [ ] M10: Restore categories on archive posts stripped by `add: { photo }` (Decision 11) — implement `src/restore-post-categories.js`:
+- [x] M10: Restore categories on archive posts stripped by `add: { photo }` (Decision 11) — implement `src/restore-post-categories.js`:
   - Read the production spreadsheet; for each row with a microblogUrl (column H), query `GET https://micro.blog/micropub?q=source&url=<microblogUrl>` and check if `properties.category` is empty or missing
   - Use the same `categoryMap` as `createMicroblogPost` in `sync-content.js` to translate spreadsheet type to micro.blog category: `{ Video: 'Video', Podcast: 'Podcast', Presentations: 'Presentations', Presentation: 'Presentations', Guest: 'Guest', Blog: 'Blog' }` — note that `"Presentation"` (singular typo) maps to `"Presentations"` (plural)
   - Rows with types not in this map (Teaching Assistant, Credential, Coding Project, Pizza, empty) have no micro.blog category and should be skipped
