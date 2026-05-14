@@ -1,8 +1,8 @@
 // ABOUTME: Unit tests for deduplicate-post-images.js — covers deduplicateContent, hasMultipleImages,
-// ABOUTME: deduplicatePostImages (fetch/replace flow), and dry-run mode.
+// ABOUTME: deduplicatePostImages (fetch/replace flow, dryRun param), SourceQueryError, and batch dry-run mode.
 'use strict';
 
-const { deduplicateContent, hasMultipleImages, deduplicatePostImages } = require('../src/deduplicate-post-images');
+const { SourceQueryError, deduplicateContent, hasMultipleImages, deduplicatePostImages } = require('../src/deduplicate-post-images');
 
 describe('hasMultipleImages', () => {
   test('returns false for content with no img tags', () => {
@@ -145,7 +145,19 @@ describe('deduplicatePostImages', () => {
     expect(result.imgCount).toBe(2);
   });
 
-  test('throws when source fetch returns non-ok status', async () => {
+  test('throws SourceQueryError when source fetch returns non-ok status', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: async () => 'Unauthorized',
+    });
+
+    await expect(
+      deduplicatePostImages('https://whitneylee.com/post.html', 'tok')
+    ).rejects.toThrow(SourceQueryError);
+  });
+
+  test('SourceQueryError message contains status and body', async () => {
     global.fetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -168,6 +180,16 @@ describe('deduplicatePostImages', () => {
     await expect(
       deduplicatePostImages('https://whitneylee.com/post.html', 'tok')
     ).rejects.toThrow('Micropub update failed (500)');
+  });
+
+  test('returns deduped outcome without making update call when dryRun is true', async () => {
+    global.fetch.mockResolvedValueOnce(makeSourceResponse('<img src="a.jpg"><img src="b.jpg">'));
+
+    const result = await deduplicatePostImages('https://whitneylee.com/post.html', 'tok', true);
+
+    expect(result.outcome).toBe('deduped');
+    expect(result.imgCount).toBe(2);
+    expect(global.fetch).toHaveBeenCalledTimes(1); // source GET only, no update POST
   });
 });
 

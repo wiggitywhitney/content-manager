@@ -13,6 +13,13 @@ const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
+class SourceQueryError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'SourceQueryError';
+  }
+}
+
 /**
  * Returns true if the content string contains two or more <img> tags.
  *
@@ -43,21 +50,22 @@ function deduplicateContent(content) {
  *
  * @param {string} postUrl - Full micro.blog post URL
  * @param {string} token - micro.blog app token
+ * @param {boolean} [dryRun=false] - When true, skip the Micropub update call
  * @returns {Promise<{outcome: string, imgCount?: number}>} Result object:
- *   - outcome 'deduped' (with imgCount) — post was updated
+ *   - outcome 'deduped' (with imgCount) — post was updated (or would be in dry-run)
  *   - outcome 'skippedNoImage' — post has no img tags
  *   - outcome 'skippedSingleImage' — post has exactly one img tag
  *   - outcome 'skippedStaleUrl' — source content is null/empty
- *   Throws on source fetch errors or Micropub update errors.
+ *   Throws SourceQueryError on source fetch errors; throws on Micropub update errors.
  */
-async function deduplicatePostImages(postUrl, token) {
+async function deduplicatePostImages(postUrl, token, dryRun = false) {
   const sourceUrl = `${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(postUrl)}`;
   const sourceRes = await fetch(sourceUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!sourceRes.ok) {
     const body = await sourceRes.text();
-    throw new Error(`Failed to query post source (${sourceRes.status}): ${body}`);
+    throw new SourceQueryError(`Failed to query post source (${sourceRes.status}): ${body}`);
   }
   const data = await sourceRes.json();
   const content = data.properties?.content?.[0] ?? '';
@@ -78,6 +86,10 @@ async function deduplicatePostImages(postUrl, token) {
   }
 
   const deduped = deduplicateContent(content);
+
+  if (dryRun) {
+    return { outcome: 'deduped', imgCount };
+  }
 
   const updateRes = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
@@ -173,7 +185,7 @@ async function deduplicatePostImagesBatch() {
     }
 
     try {
-      const result = await deduplicatePostImages(row.microblogUrl, token);
+      const result = await deduplicatePostImages(row.microblogUrl, token, DRY_RUN);
       switch (result.outcome) {
         case 'deduped':
           console.log(`  ✅ Deduplicated (kept 1 of ${result.imgCount} images)`);
@@ -193,7 +205,7 @@ async function deduplicatePostImagesBatch() {
           break;
       }
     } catch (err) {
-      if (err.message.startsWith('Failed to query post source')) {
+      if (err instanceof SourceQueryError) {
         console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`);
         stats.skippedCheckFailed++;
       } else {
@@ -227,4 +239,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { deduplicateContent, hasMultipleImages, deduplicatePostImages, deduplicatePostImagesBatch };
+module.exports = { SourceQueryError, deduplicateContent, hasMultipleImages, deduplicatePostImages, deduplicatePostImagesBatch };

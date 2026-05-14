@@ -48,9 +48,10 @@ async function postHasPhoto(postUrl, token) {
  * @param {string} postUrl - Full micro.blog post URL
  * @param {string} photoUrl - Hosted image URL from the Micropub media endpoint
  * @param {string} token - micro.blog app token
+ * @param {boolean} [dryRun=false] - When true, skip the Micropub update call
  * @returns {Promise<void>}
  */
-async function addPhotoToPost(postUrl, photoUrl, token) {
+async function addPhotoToPost(postUrl, photoUrl, token, dryRun = false) {
   const sourceRes = await fetch(`${MICROPUB_ENDPOINT}?q=source&url=${encodeURIComponent(postUrl)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -67,6 +68,8 @@ async function addPhotoToPost(postUrl, photoUrl, token) {
   }
 
   const newContent = `${existingContent}\n\n<img src="${photoUrl}">`;
+
+  if (dryRun) return;
 
   const res = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
@@ -223,7 +226,7 @@ async function backfillCareerImages() {
 
     // Attach photo to the post
     try {
-      await addPhotoToPost(row.microblogUrl, photoUrl, token);
+      await addPhotoToPost(row.microblogUrl, photoUrl, token, DRY_RUN);
       console.log(`  ✅ Photo attached`);
       stats.updated++;
     } catch (err) {

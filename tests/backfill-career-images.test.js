@@ -178,6 +178,13 @@ describe('addPhotoToPost', () => {
 
     await expect(addPhotoToPost(POST_URL, PHOTO_URL, TOKEN)).rejects.toThrow('Micropub update failed (400)');
   });
+
+  test('returns without making update call when dryRun is true', async () => {
+    global.fetch.mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT));
+
+    await expect(addPhotoToPost(POST_URL, PHOTO_URL, TOKEN, true)).resolves.toBeUndefined();
+    expect(global.fetch).toHaveBeenCalledTimes(1); // source GET only, no update POST
+  });
 });
 
 describe('parseTabRows', () => {

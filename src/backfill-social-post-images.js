@@ -172,7 +172,7 @@ async function backfillSocialPostImages() {
 
     // Attach photo via content-replace (never use add: { photo } — it strips categories)
     try {
-      await addPhotoToPost(postUrl, photoUrl, token);
+      await addPhotoToPost(postUrl, photoUrl, token, DRY_RUN);
       console.log(`  ✅ Photo attached`);
       stats.updated++;
     } catch (err) {
