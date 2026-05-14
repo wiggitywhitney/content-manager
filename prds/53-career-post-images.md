@@ -42,6 +42,18 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
 - [x] M7: Exclude Tanzu Tuesday from image source logic — update `needsImage` in `src/sync-content.js` to return `false` when `row.show` contains "Tanzu Tuesday" (Decision 10); update tests to cover this case; update `ABOUTME` comment on the function. This prevents new Tanzu Tuesday posts from receiving images going forward.
 - [ ] M8: Delete photos from existing Tanzu Tuesday posts — first research whether micro.blog's Micropub endpoint supports the `delete` property action (`POST /micropub` with `{ action: "update", url, delete: ["photo"] }` or `{ action: "update", url, delete: { photo: [...] } }`); test manually on one Tanzu Tuesday post; if supported, implement `src/remove-tanzu-tuesday-images.js` that reads the live production spreadsheet, filters for show = "Tanzu Tuesday" with a micro.blog URL and a photo, and removes the photo via Micropub. Use the existing `postHasPhoto` function from `src/backfill-career-images.js` to detect whether each post has a photo; it checks `properties.content[0]` for `<img>` tags (see Decision log, 2026-05-14). Run with cross-posting disabled (Decision 9). Include `--dry-run` flag. **Success criteria includes re-enabling cross-posting: do NOT mark this milestone complete until Whitney verbally confirms in the session that cross-posting to LinkedIn, Bluesky, and Mastodon is back on in the micro.blog UI.**
 
+## Removal Execution Steps (Manual — M8)
+
+These steps must be performed in order. **Run dry-run first to verify scope.**
+
+1. **Disable micro.blog cross-posting**: In the micro.blog UI, go to Account → Edit Apps and disable cross-posting to LinkedIn, Bluesky, and Mastodon.
+2. **Preview what will be removed**: `vals exec -f .vals.yaml -- node src/remove-tanzu-tuesday-images.js --dry-run`
+3. **Run the removal script**: `vals exec -f .vals.yaml -- node src/remove-tanzu-tuesday-images.js`
+4. **Re-enable micro.blog cross-posting**: Return to micro.blog cross-posting settings and re-enable all platforms.
+5. **Tell the Claude Code session**: "Cross-posting is re-enabled." — this verbal confirmation is required to mark M8 complete.
+
+**Implementation note**: The script uses `{ action: "update", url, delete: ["photo"] }` — the Micropub spec array-form delete, which removes all values of the named property. This is the same Micropub update endpoint already verified in M5 (`add: { photo: [...] }`) so the auth and endpoint are known-good; only the operation changes from `add` to `delete`.
+
 ## Backfill Execution Steps (Manual)
 
 These steps must be performed in order. Do not run the backfill script without completing step 1 first.
