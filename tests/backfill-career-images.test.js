@@ -4,6 +4,8 @@
 const { postHasPhoto, addPhotoToPost, parseTabRows } = require('../src/backfill-career-images');
 
 describe('postHasPhoto', () => {
+  // micro.blog's Micropub source response embeds photos as <img> tags in content[0],
+  // not as a separate 'photo' property. These tests reflect the actual API response shape.
   beforeEach(() => {
     global.fetch = jest.fn();
   });
@@ -12,30 +14,55 @@ describe('postHasPhoto', () => {
     jest.restoreAllMocks();
   });
 
-  test('returns true when Micropub source response has non-empty photo array', async () => {
+  test('returns true when content contains an img tag (actual micro.blog response shape)', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ properties: { photo: ['https://cdn.micro.blog/uploads/thumb.jpg'] } }),
+      json: async () => ({
+        type: 'h-entry',
+        properties: {
+          content: ['My Talk post text\n\n<img src="https://whitneylee.com/uploads/2026/thumb.jpg">'],
+          published: ['2025-01-22T12:00:00+00:00'],
+        },
+      }),
     });
 
     const result = await postHasPhoto('https://whitneylee.com/2025/01/01/post.html', 'tok');
     expect(result).toBe(true);
   });
 
-  test('returns false when Micropub source response has empty photo array', async () => {
+  test('returns false when content has no img tag', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ properties: { photo: [] } }),
+      json: async () => ({
+        type: 'h-entry',
+        properties: {
+          content: ['Just text, no image here'],
+          published: ['2025-01-22T12:00:00+00:00'],
+        },
+      }),
     });
 
     const result = await postHasPhoto('https://whitneylee.com/2025/01/01/post.html', 'tok');
     expect(result).toBe(false);
   });
 
-  test('returns false when Micropub source response has no photo property', async () => {
+  test('returns false when content is empty', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ properties: { content: ['some text'] } }),
+      json: async () => ({
+        type: 'h-entry',
+        properties: { content: [''] },
+      }),
+    });
+
+    const result = await postHasPhoto('https://whitneylee.com/2025/01/01/post.html', 'tok');
+    expect(result).toBe(false);
+  });
+
+  test('returns false when properties has no content field', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ type: 'h-entry', properties: {} }),
     });
 
     const result = await postHasPhoto('https://whitneylee.com/2025/01/01/post.html', 'tok');
@@ -57,7 +84,7 @@ describe('postHasPhoto', () => {
   test('calls Micropub source endpoint with correct URL and auth header', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ properties: {} }),
+      json: async () => ({ type: 'h-entry', properties: { content: ['text'] } }),
     });
 
     const postUrl = 'https://whitneylee.com/2025/06/01/my-talk.html';

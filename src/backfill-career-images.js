@@ -32,8 +32,10 @@ async function postHasPhoto(postUrl, token) {
     throw new Error(`Failed to query post source (${res.status}): ${body}`);
   }
   const data = await res.json();
-  const photos = data.properties?.photo;
-  return Array.isArray(photos) && photos.length > 0;
+  // micro.blog does not return a 'photo' property in the Micropub source response.
+  // Photos are embedded as <img> tags in the content field.
+  const content = data.properties?.content?.[0] ?? '';
+  return content.includes('<img');
 }
 
 /**
