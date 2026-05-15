@@ -1890,5 +1890,7 @@ module.exports = {
   normalizeTimestamp,
   formatPostContent,
   needsImage,
-  uploadImageToMediaEndpoint
+  uploadImageToMediaEndpoint,
+  createMicroblogPost,
+  writeUrlToSpreadsheet,
 };
