@@ -6,6 +6,9 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 
 ## [Unreleased]
 
+### Fixed
+- (2026-05-15) Corrected an incorrect decision reference in the career post images PRD — M9's title cited Decision 16 (which was added later for the historical sync work) alongside the two decisions that actually drove M9's scope.
+
 ### Added
 - (2026-05-15) Added `src/sync-historical-posts.js` to create archive-only micro.blog posts for career content that was in the spreadsheet but never synced (305 rows: 212 Video, 53 Presentations, 40 Podcast). The standard daily sync creates two posts per row — an archive post with category and a social post without — but for historical content the social post is skipped to avoid flooding the main feed with 100+ stale entries. The script reads both spreadsheet tabs, skips rows that already have a micro.blog URL, attaches thumbnail images where available, and writes the new URL back to column H. Includes `--dry-run` mode and progress indicators. Run with cross-posting disabled.
 - (2026-05-15) Restored categories on 43 additional micro.blog archive posts that `restore-post-categories.js` could not find because their URLs were never written to production spreadsheet column H. The standard restoration script identifies posts by column H URL; posts created from the staged spreadsheet (or created before column H tracking was reliable) were invisible to it. Fixed by querying all 217 micro.blog posts and matching each uncategorized post to a spreadsheet row via content link-matching, then restoring the category on the earliest-published post for each link (the archive post). After restoration, a site rebuild at micro.blog was required before category pages updated. `/video/` (29 posts), `/podcast/` (12 posts), and `/presentations/` (31 posts) now show current content.
