@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Fixed
+- (2026-05-15) Extended image support to Guest posts: `needsImage` will now return true for Guest rows that have a YouTube or SDI link, matching the same behavior as Presentations-with-link. Blog posts remain image-free. Backfill needed against existing Guest archive and social posts.
 - (2026-05-15) Corrected an incorrect decision reference in the career post images PRD — M9's title cited Decision 16 (which was added later for the historical sync work) alongside the two decisions that actually drove M9's scope.
 
 ### Added

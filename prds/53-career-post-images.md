@@ -27,7 +27,9 @@ Career posts synced to micro.blog via `sync-content.js` are text-only. The categ
 | Podcast (SDI) | SDI RSS feed via `fetchThumbnail(row.link)` (requires #52) | Always has image |
 | Presentation with YouTube URL in column G | YouTube thumbnail via `fetchThumbnail(row.link)` | Image when URL present |
 | Presentation without URL | — | No image |
-| Guest, Blog | — | No image |
+| **Guest with link** | YouTube thumbnail or SDI artwork via `fetchThumbnail(row.link)` | **Image when link available (Decision 17)** |
+| Guest without link | — | No image |
+| Blog | — | No image |
 
 Image fetch failures are non-fatal: log a warning and proceed without image.
 
@@ -88,7 +90,16 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - **Audit scope first**: before implementing, run the audit query (link-based, both spreadsheet tabs) to determine exact count of unsynced rows across all types (Video, Podcast, Presentations, Guest, Blog) and confirm the approach covers all of them
   - Success: `whitneylee.com/video/` shows the Enlightning, You Choose!, Cloud Native Live, and IBM Cloud catalog; `whitneylee.com/podcast/` and `/presentations/` show historical content that was missing
 
-- [ ] M13: Re-enable cross-posting and verify end-to-end — after M9–M12 and M14 are complete (Updated per Decision 16: M14 must run with cross-posting disabled, so it must complete before M13 re-enables it):
+- [ ] M15: Add image support to Guest posts and backfill existing ones (Decision 17) — `needsImage` currently returns false for Guest; extend it to match Guest posts with links:
+  - **TDD**: update `needsImage` tests in `tests/sync-content.test.js` FIRST — change the existing "Guest → no image" test to two failing cases: "Guest with link → true" and "Guest without link → false". Confirm they fail, then implement.
+  - Update `needsImage` in `src/sync-content.js`: add `if (type === 'Guest' && link) return true;` after the Presentations check (same pattern). Tanzu Tuesday exclusion applies only to type=Video, so it does not apply here.
+  - Update the ABOUTME comment on `needsImage` to mention Guest
+  - Run `backfill-career-images.js` to attach images to existing Guest archive posts (52 rows have microblog URLs in column H; those with YouTube/SDI links will get images, others will skip gracefully via `fetchThumbnail` returning null)
+  - Run `backfill-social-post-images.js` to add images to Guest social posts (uncategorized posts whose content includes a Guest row's link — `buildLinkMap` will now include Guest rows since `needsImage` returns true for them)
+  - Run both backfills with cross-posting disabled
+  - Success: Guest posts with YouTube links (e.g., YouTube livestream guest appearances) show thumbnails; verify via Micropub source on a sample post
+
+- [ ] M13: Re-enable cross-posting and verify end-to-end — after M9–M12, M14, and M15 are complete (Updated per Decision 17: M15 backfill must run with cross-posting disabled before M13 re-enables it):
   - Re-enable cross-posting to LinkedIn, Bluesky, and Mastodon in the micro.blog UI
   - Verify `whitneylee.com/video/`, `whitneylee.com/podcast/`, `whitneylee.com/presentations/` show posts correctly
   - Verify main feed shows images on career posts that should have them
@@ -135,4 +146,5 @@ These steps must be performed in order. Do not run the backfill script without c
 | 2026-05-14 | Never use `add: { photo }` to add images to existing posts — always use content-replace (M9) | The safe approach for adding a photo to an existing post: GET source content via `?q=source`, append `<img src="url">` to `properties.content[0]`, send `{ action: "update", replace: { content: [newContent] } }`. This preserves category and all other properties. `createMicroblogPost` in `sync-content.js` is safe for new post creation (it explicitly sets both `category` and `photo[]` in the same form-encoded POST, so category is never dropped) — no change needed there. Only UPDATE operations on existing posts are affected. |
 | 2026-05-14 | Dual-post strategy creates social posts not tracked in column H; they never got images (M12) | For past-dated rows, `sync-content.js` creates two posts: (1) archive post with backdate + category → URL written to column H; (2) social post with today's date + NO category → URL not tracked anywhere. The M5 backfill only ran against column H URLs (archive posts). Social posts — visible as the April 20–24 presentations and other entries in the main feed — were never backfilled and have no images. |
 | 2026-05-14 | `"Presentation"` (singular) spreadsheet typo causes `needsImage` to skip that row (M9) | One row ("How Wendy's got to 99.95% availability") uses `"Presentation"` (singular) while all others use `"Presentations"` (plural). `needsImage` checks for `"Presentations"` only, so this row was silently excluded from the backfill. Fix: update `needsImage` to accept both spellings. |
+| 2026-05-15 | Guest posts with a link should get images — partially reverses Decision 3 (M15) | Many Guest appearances are YouTube videos or livestreams with available thumbnails. `fetchThumbnail(row.link)` already handles YouTube and SDI gracefully; non-YouTube/SDI links return null and the post proceeds image-free. Blog posts remain image-free (no reliable image source). |
 | 2026-05-15 | Sync all historical unsynced career content to micro.blog as archive-only posts (M14) | During M13 verification, discovered that ~195 Video rows (entire Enlightning 2022–2024 catalog, You Choose! series, Cloud Native Live, IBM Cloud videos, and others) exist in the spreadsheet but were never synced to micro.blog — they have no column H URL. Whitney wants all spreadsheet content on whitneylee.com category pages. Archive-only (no social post) is required for historical content: the dual-post strategy would flood the main feed with 100+ stale entries dated "today" and cross-post them to LinkedIn/Bluesky/Mastodon. |
