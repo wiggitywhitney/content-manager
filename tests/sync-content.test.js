@@ -106,8 +106,12 @@ describe('needsImage', () => {
     expect(needsImage({ type: 'Presentations', link: '' })).toBe(false);
   });
 
-  test('returns false for Guest type', () => {
-    expect(needsImage({ type: 'Guest', link: 'https://example.com' })).toBe(false);
+  test('returns true for Guest type with link', () => {
+    expect(needsImage({ type: 'Guest', link: 'https://youtu.be/abc123' })).toBe(true);
+  });
+
+  test('returns false for Guest type without link', () => {
+    expect(needsImage({ type: 'Guest', link: '' })).toBe(false);
   });
 
   test('returns false for Blog type', () => {

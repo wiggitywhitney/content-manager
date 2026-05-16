@@ -39,9 +39,18 @@ describe('buildLinkMap', () => {
     expect(map.size).toBe(1);
   });
 
-  test('excludes Guest rows', () => {
+  test('includes Guest rows with links', () => {
     const rows = [
-      { name: 'Guest Spot', type: 'Guest', link: 'https://some.com/ep', show: '' },
+      { name: 'Guest Spot', type: 'Guest', link: 'https://youtu.be/guestep', show: '' },
+    ];
+    const map = buildLinkMap(rows);
+    expect(map.size).toBe(1);
+    expect(map.has('https://youtu.be/guestep')).toBe(true);
+  });
+
+  test('excludes Guest rows without links', () => {
+    const rows = [
+      { name: 'Guest No Link', type: 'Guest', link: '', show: '' },
     ];
     const map = buildLinkMap(rows);
     expect(map.size).toBe(0);
@@ -93,10 +102,10 @@ describe('buildLinkMap', () => {
       { name: 'Tanzu', type: 'Video', link: 'https://youtu.be/tanzu', show: 'Tanzu Tuesday' },
     ];
     const map = buildLinkMap(rows);
-    expect(map.size).toBe(2);
+    expect(map.size).toBe(3);
     expect(map.has('https://youtu.be/a')).toBe(true);
     expect(map.has('https://sdi.com/2')).toBe(true);
-    expect(map.has('https://other.com')).toBe(false);
+    expect(map.has('https://other.com')).toBe(true);
     expect(map.has('https://youtu.be/tanzu')).toBe(false);
   });
 });
