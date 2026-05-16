@@ -99,7 +99,7 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - Run both backfills with cross-posting disabled
   - Success: Guest posts with YouTube links (e.g., YouTube livestream guest appearances) show thumbnails; verify via Micropub source on a sample post
 
-- [ ] M13: Re-enable cross-posting and verify end-to-end — after M9–M12, M14, and M15 are complete (Updated per Decision 17: M15 backfill must run with cross-posting disabled before M13 re-enables it):
+- [x] M13: Re-enable cross-posting and verify end-to-end — after M9–M12, M14, and M15 are complete (Updated per Decision 17: M15 backfill must run with cross-posting disabled before M13 re-enables it):
   - **Context for cold start**: Cross-posting is currently DISABLED in micro.blog (turned off during M15 backfill runs on 2026-05-16). The category pages are confirmed populated as of 2026-05-16: `/video/` has 31+ posts with pagination (Enlightning, You Choose!, Cloud Native Live etc.); `/podcast/` has 31+ posts (SDI episodes); `/presentations/` has 30+ posts; `/guest/` has 30+ posts. A `replace: { content }` category-stripping bug was discovered and fixed during M15 — all backfill scripts now preserve category in their replace payloads (`~/.claude/rules/microblog-api-gotchas.md` documents this).
   - Re-enable cross-posting to LinkedIn, Bluesky, and Mastodon in the micro.blog UI (Whitney does this manually)
   - Verify `whitneylee.com/video/`, `whitneylee.com/podcast/`, `whitneylee.com/presentations/` show posts correctly — use WebFetch to check each page reports 20+ posts and pagination
