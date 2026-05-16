@@ -7,6 +7,8 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Fixed
+- (2026-05-16) Fixed a silent data loss bug in all Micropub content-replace scripts: `replace: { content }` strips a post's `category` property on micro.blog, the same way `add: { photo }` does. All scripts that modify post content (`backfill-career-images.js`, `deduplicate-post-images.js`, `remove-tanzu-tuesday-images.js`) now read the existing category and include it explicitly in the replace payload so it is never cleared. The gotchas rule file was updated to document this as a general `replace`/`add` pattern. Category restoration was re-run to fix 38 posts that lost their categories during the M15 backfill run.
+- (2026-05-16) Re-ran the historical post sync after discovering the previous run's posts had not persisted to micro.blog. All 305 posts (Enlightning 2022–2024, You Choose! series, Cloud Native Live, IBM Cloud, SDI podcast episodes, and presentations) were created successfully with backdated dates, correct categories, and thumbnail images. The `/video/`, `/podcast/`, `/presentations/`, and `/guest/` category pages are now paginated and fully populated.
 - (2026-05-15) Extended image support to Guest posts: `needsImage` will now return true for Guest rows that have a YouTube or SDI link, matching the same behavior as Presentations-with-link. Blog posts remain image-free. Backfill needed against existing Guest archive and social posts.
 - (2026-05-15) Corrected an incorrect decision reference in the career post images PRD — M9's title cited Decision 16 (which was added later for the historical sync work) alongside the two decisions that actually drove M9's scope.
 

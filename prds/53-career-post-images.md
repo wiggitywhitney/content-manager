@@ -90,7 +90,7 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - **Audit scope first**: before implementing, run the audit query (link-based, both spreadsheet tabs) to determine exact count of unsynced rows across all types (Video, Podcast, Presentations, Guest, Blog) and confirm the approach covers all of them
   - Success: `whitneylee.com/video/` shows the Enlightning, You Choose!, Cloud Native Live, and IBM Cloud catalog; `whitneylee.com/podcast/` and `/presentations/` show historical content that was missing
 
-- [ ] M15: Add image support to Guest posts and backfill existing ones (Decision 17) — `needsImage` currently returns false for Guest; extend it to match Guest posts with links:
+- [x] M15: Add image support to Guest posts and backfill existing ones (Decision 17) — `needsImage` currently returns false for Guest; extend it to match Guest posts with links:
   - **TDD**: update `needsImage` tests in `tests/sync-content.test.js` FIRST — change the existing "Guest → no image" test to two failing cases: "Guest with link → true" and "Guest without link → false". Confirm they fail, then implement.
   - Update `needsImage` in `src/sync-content.js`: add `if (type === 'Guest' && link) return true;` after the Presentations check (same pattern). Tanzu Tuesday exclusion applies only to type=Video, so it does not apply here.
   - Update the ABOUTME comment on `needsImage` to mention Guest
@@ -100,11 +100,12 @@ Image fetch failures are non-fatal: log a warning and proceed without image.
   - Success: Guest posts with YouTube links (e.g., YouTube livestream guest appearances) show thumbnails; verify via Micropub source on a sample post
 
 - [ ] M13: Re-enable cross-posting and verify end-to-end — after M9–M12, M14, and M15 are complete (Updated per Decision 17: M15 backfill must run with cross-posting disabled before M13 re-enables it):
-  - Re-enable cross-posting to LinkedIn, Bluesky, and Mastodon in the micro.blog UI
-  - Verify `whitneylee.com/video/`, `whitneylee.com/podcast/`, `whitneylee.com/presentations/` show posts correctly
-  - Verify main feed shows images on career posts that should have them
-  - Verify no posts have duplicate images
-  - **Verify new post creation safety**: the M2 code in `createMicroblogPost` sends both `category` and `photo[]` in the same form-encoded POST for new posts. This was assumed safe (Decision 12) because category is explicitly set, but it has not been verified in production since M2 is still on the feature branch. After this branch is merged and the next daily sync runs, confirm that the first new career post created with a photo still appears on its category page (not stripped to Photos-only).
+  - **Context for cold start**: Cross-posting is currently DISABLED in micro.blog (turned off during M15 backfill runs on 2026-05-16). The category pages are confirmed populated as of 2026-05-16: `/video/` has 31+ posts with pagination (Enlightning, You Choose!, Cloud Native Live etc.); `/podcast/` has 31+ posts (SDI episodes); `/presentations/` has 30+ posts; `/guest/` has 30+ posts. A `replace: { content }` category-stripping bug was discovered and fixed during M15 — all backfill scripts now preserve category in their replace payloads (`~/.claude/rules/microblog-api-gotchas.md` documents this).
+  - Re-enable cross-posting to LinkedIn, Bluesky, and Mastodon in the micro.blog UI (Whitney does this manually)
+  - Verify `whitneylee.com/video/`, `whitneylee.com/podcast/`, `whitneylee.com/presentations/` show posts correctly — use WebFetch to check each page reports 20+ posts and pagination
+  - Verify main feed shows images on career posts: query `GET https://micro.blog/micropub?q=source&limit=20` and check that recent Video/Podcast/Presentations/Guest posts have `<img` in their content
+  - Verify no posts have duplicate images: query a sample of archive posts and check content contains only one `<img` tag
+  - **Verify new post creation safety**: the M2 code in `createMicroblogPost` sends both `category` and `photo[]` in the same form-encoded POST for new posts. This was assumed safe (Decision 12) because category is explicitly set. The `replace: { content }` bug discovered in M15 does NOT affect new post creation — only UPDATE operations. But verify in production: after this branch is merged and the next daily sync runs, confirm the first new career post with a photo still appears on its category page.
   - Tell the Claude Code session "Cross-posting is re-enabled" to mark this milestone complete
 
 ## Removal Execution Steps (Manual — M8)
