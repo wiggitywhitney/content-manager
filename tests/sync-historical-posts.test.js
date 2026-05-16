@@ -157,5 +157,12 @@ describe('syncHistoricalPosts batch dry-run', () => {
 
     const { createMicroblogPost } = require('../src/sync-content');
     expect(createMicroblogPost).not.toHaveBeenCalled();
+
+    const { fetchThumbnail } = require('../src/fetch-thumbnail');
+    expect(fetchThumbnail).not.toHaveBeenCalled();
+
+    const { google } = require('googleapis');
+    const mockSheets = google.sheets();
+    expect(mockSheets.spreadsheets.values.get).toHaveBeenCalled();
   });
 });
