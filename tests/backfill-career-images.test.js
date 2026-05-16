@@ -106,9 +106,9 @@ describe('addPhotoToPost', () => {
   const TOKEN = 'mytoken';
   const EXISTING_CONTENT = 'My Talk post text with a [link](https://youtu.be/abc123)';
 
-  const makeSourceResponse = (content) => ({
+  const makeSourceResponse = (content, category = []) => ({
     ok: true,
-    json: async () => ({ type: 'h-entry', properties: { content: [content] } }),
+    json: async () => ({ type: 'h-entry', properties: { content: [content], category } }),
   });
 
   beforeEach(() => {
@@ -150,6 +150,30 @@ describe('addPhotoToPost', () => {
     expect(body.url).toBe(POST_URL);
     expect(body.replace.content[0]).toBe(`${EXISTING_CONTENT}\n\n<img src="${PHOTO_URL}">`);
     expect(body.add).toBeUndefined();
+    expect(body.replace.category).toBeUndefined(); // no category in source — none in payload
+  });
+
+  test('includes existing category in replace payload to prevent micro.blog from stripping it', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT, ['Video']))
+      .mockResolvedValueOnce({ status: 200 });
+
+    await addPhotoToPost(POST_URL, PHOTO_URL, TOKEN);
+
+    const body = JSON.parse(global.fetch.mock.calls[1][1].body);
+    expect(body.replace.content[0]).toBe(`${EXISTING_CONTENT}\n\n<img src="${PHOTO_URL}">`);
+    expect(body.replace.category).toEqual(['Video']);
+  });
+
+  test('omits category from replace payload when source post has no category', async () => {
+    global.fetch
+      .mockResolvedValueOnce(makeSourceResponse(EXISTING_CONTENT, []))
+      .mockResolvedValueOnce({ status: 200 });
+
+    await addPhotoToPost(POST_URL, PHOTO_URL, TOKEN);
+
+    const body = JSON.parse(global.fetch.mock.calls[1][1].body);
+    expect(body.replace.category).toBeUndefined();
   });
 
   test('skips update and logs warning when source content is null/empty', async () => {

@@ -69,6 +69,7 @@ async function deduplicatePostImages(postUrl, token, dryRun = false) {
   }
   const data = await sourceRes.json();
   const content = data.properties?.content?.[0] ?? '';
+  const existingCategory = data.properties?.category ?? [];
 
   if (!content) {
     return { outcome: 'skippedStaleUrl' };
@@ -91,6 +92,13 @@ async function deduplicatePostImages(postUrl, token, dryRun = false) {
     return { outcome: 'deduped', imgCount };
   }
 
+  // Always include the existing category in the replace payload.
+  // micro.blog's replace: { content } silently clears category — same bug as add: { photo }.
+  const replacePayload = { content: [deduped] };
+  if (existingCategory.length > 0) {
+    replacePayload.category = existingCategory;
+  }
+
   const updateRes = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -100,7 +108,7 @@ async function deduplicatePostImages(postUrl, token, dryRun = false) {
     body: JSON.stringify({
       action: 'update',
       url: postUrl,
-      replace: { content: [deduped] },
+      replace: replacePayload,
     }),
   });
 

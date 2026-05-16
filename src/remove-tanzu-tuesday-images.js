@@ -46,7 +46,15 @@ async function removePhotoFromPost(postUrl, token) {
   }
   const data = await sourceRes.json();
   const content = data.properties?.content?.[0] ?? '';
+  const existingCategory = data.properties?.category ?? [];
   const strippedContent = content.replace(/<img[^>]*>/g, '').trimEnd();
+
+  // Always include the existing category in the replace payload.
+  // micro.blog's replace: { content } silently clears category — same bug as add: { photo }.
+  const replacePayload = { content: [strippedContent] };
+  if (existingCategory.length > 0) {
+    replacePayload.category = existingCategory;
+  }
 
   const updateRes = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
@@ -57,7 +65,7 @@ async function removePhotoFromPost(postUrl, token) {
     body: JSON.stringify({
       action: 'update',
       url: postUrl,
-      replace: { content: [strippedContent] },
+      replace: replacePayload,
     }),
   });
 

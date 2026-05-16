@@ -61,6 +61,7 @@ async function addPhotoToPost(postUrl, photoUrl, token, dryRun = false) {
   }
   const sourceData = await sourceRes.json();
   const existingContent = sourceData.properties?.content?.[0] ?? '';
+  const existingCategory = sourceData.properties?.category ?? [];
 
   if (!existingContent) {
     console.warn(`[addPhotoToPost] Skipping ${postUrl} — source content is null/empty (possibly rescheduled post with stale URL)`);
@@ -71,6 +72,13 @@ async function addPhotoToPost(postUrl, photoUrl, token, dryRun = false) {
 
   if (dryRun) return;
 
+  // Always include the existing category in the replace payload.
+  // micro.blog's replace: { content } silently clears category — same bug as add: { photo }.
+  const replacePayload = { content: [newContent] };
+  if (existingCategory.length > 0) {
+    replacePayload.category = existingCategory;
+  }
+
   const res = await fetch(MICROPUB_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -80,7 +88,7 @@ async function addPhotoToPost(postUrl, photoUrl, token, dryRun = false) {
     body: JSON.stringify({
       action: 'update',
       url: postUrl,
-      replace: { content: [newContent] },
+      replace: replacePayload,
     }),
   });
 
