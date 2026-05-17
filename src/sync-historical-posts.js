@@ -75,7 +75,7 @@ async function syncHistoricalPosts() {
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
-  if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+  if (!token && !DRY_RUN) throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
 
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable not set');
