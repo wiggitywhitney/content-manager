@@ -1,10 +1,10 @@
 # PRD: Add Images to Career Posts and Backfill Existing Micro.blog Posts
 
 **Issue**: [#53](https://github.com/wiggitywhitney/content-manager/issues/53)
-**Status**: In Progress
+**Status**: Complete — 2026-05-17
 **Priority**: Medium
 **Created**: 2026-05-05
-**Last Updated**: 2026-05-14
+**Last Updated**: 2026-05-17
 
 **Prerequisites**: Issue #52 (SDI image support in `fetchThumbnail`) must be merged before implementation begins.
 
