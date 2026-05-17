@@ -4,6 +4,9 @@ const { google } = require('googleapis');
 const https = require('https');
 const { CATEGORY_PAGES } = require('./config/category-pages');
 const { updateAboutPage } = require('./update-about-page');
+const { fetchThumbnail } = require('./fetch-thumbnail');
+
+const MICROPUB_MEDIA_ENDPOINT = 'https://micro.blog/micropub/media';
 
 // Rate limiting for Google Sheets writes (60 writes/min quota)
 // 1500ms = 40 writes/min = 67% of limit with 33% buffer
@@ -308,6 +311,52 @@ function log(message, level = 'INFO', data = null) {
 }
 
 /**
+ * Determine whether a row should have a thumbnail image attached.
+ * Returns true for Video, Podcast, Presentations with a link, and Guest posts with a link.
+ * Accepts both "Presentations" (plural) and "Presentation" (singular spreadsheet typo).
+ * Tanzu Tuesday videos are excluded — their thumbnails are unwanted in the photos tab.
+ *
+ * @param {Object} row - Parsed spreadsheet row
+ * @returns {boolean}
+ */
+function needsImage(row) {
+  const { type, link, show } = row;
+  if (show && show.includes('Tanzu Tuesday')) return false;
+  if (type === 'Video' || type === 'Podcast') return true;
+  if ((type === 'Presentations' || type === 'Presentation') && link) return true;
+  if (type === 'Guest' && link) return true;
+  return false;
+}
+
+/**
+ * Upload an image buffer to the micro.blog Micropub media endpoint.
+ * Returns the hosted URL of the uploaded image.
+ *
+ * @param {Buffer} buffer - Image data
+ * @param {string} token - micro.blog app token
+ * @returns {Promise<string>} Hosted image URL
+ */
+async function uploadImageToMediaEndpoint(buffer, token) {
+  const formData = new FormData();
+  formData.append('file', new Blob([buffer], { type: 'image/jpeg' }), 'thumbnail.jpg');
+
+  const res = await fetch(MICROPUB_MEDIA_ENDPOINT, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (res.status !== 201 && res.status !== 202) {
+    const body = await res.text();
+    throw new Error(`Media upload failed (${res.status}): ${body}`);
+  }
+
+  const data = await res.json();
+  if (!data.url) throw new Error('Media upload response has no url field');
+  return data.url;
+}
+
+/**
  * Writes Micro.blog URL to Column H and (when posting a new URL) a timestamp to Column I.
  * Column I ("Micro.blog Posted At") is used by the social posting guard to detect whether
  * career content ran today. It is only written when a real URL is provided; clearing a URL
@@ -537,9 +586,10 @@ function formatPostContent(content) {
  * @param {Object} content - Content object with name, type, date, link, etc.
  * @param {string} postContent - Formatted post content
  * @param {string} publishedDate - ISO 8601 published date
+ * @param {string|null} [photoUrl] - Hosted image URL to attach as photo[], or null for no image
  * @returns {Promise<string>} - Post URL from Location header
  */
-async function createMicroblogPost(content, postContent, publishedDate) {
+async function createMicroblogPost(content, postContent, publishedDate, photoUrl = null) {
   // Map content type to Micro.blog category
   const categoryMap = {
     'Podcast': 'Podcast',
@@ -556,6 +606,7 @@ async function createMicroblogPost(content, postContent, publishedDate) {
     log(`  Category: ${category ?? '(none)'}`, 'INFO');
     log(`  Published: ${publishedDate}`, 'INFO');
     log(`  Content: ${postContent.substring(0, 100)}...`, 'INFO');
+    if (photoUrl) log(`  Photo: ${photoUrl}`, 'INFO');
     return `https://whitneylee.com/dry-run/${Date.now()}`;
   }
 
@@ -572,6 +623,9 @@ async function createMicroblogPost(content, postContent, publishedDate) {
     params.append('category', category);
   }
   params.append('published', publishedDate);
+  if (photoUrl) {
+    params.append('photo[]', photoUrl);
+  }
 
   // Make POST request to Micropub endpoint
   const response = await fetch('https://micro.blog/micropub', {
@@ -1206,13 +1260,34 @@ async function syncContent() {
         const isPastDate = intendedDateOnly < todayDateOnly;
         const postContent = formatPostContent(row);
 
+        // Fetch and upload thumbnail if applicable (non-fatal on failure)
+        let photoUrl = null;
+        if (needsImage(row)) {
+          if (DRY_RUN) {
+            log(`[DRY-RUN] Would fetch thumbnail for ${row.link}`, 'INFO');
+          } else {
+            try {
+              const token = process.env.MICROBLOG_APP_TOKEN;
+              if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
+              log(`Row ${row.rowIndex}: Fetching thumbnail for ${row.link}...`, 'INFO');
+              const imageBuffer = await fetchThumbnail(row.link);
+              if (imageBuffer) {
+                photoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
+                log(`Row ${row.rowIndex}: Thumbnail uploaded: ${photoUrl}`, 'DEBUG');
+              }
+            } catch (err) {
+              log(`Row ${row.rowIndex}: Thumbnail fetch/upload failed (non-fatal): ${err.message}`, 'WARN');
+            }
+          }
+        }
+
         if (isPastDate) {
           log(`Row ${row.rowIndex}: Past date detected (${intendedDateOnly}) - creating dual posts (archive + social)`, 'INFO');
 
           // POST 1: Archive post with correct backdate and category
           log(`  Creating archive post with date ${intendedDateOnly}...`, 'DEBUG');
           const archiveUrl = await withRetry(
-            () => createMicroblogPost(row, postContent, intendedDate),
+            () => createMicroblogPost(row, postContent, intendedDate, photoUrl),
             `Create archive post for row ${row.rowIndex}`
           );
           log(`  ✅ Archive post created: ${archiveUrl}`, 'INFO');
@@ -1223,7 +1298,7 @@ async function syncContent() {
           // Create a modified row object without category for social post
           const socialRow = { ...row, type: '' }; // Empty type = no category
           const socialUrl = await withRetry(
-            () => createMicroblogPost(socialRow, postContent, todayISO),
+            () => createMicroblogPost(socialRow, postContent, todayISO, photoUrl),
             `Create social post for row ${row.rowIndex}`
           );
           log(`  ✅ Social post created: ${socialUrl} (uncategorized, ephemeral)`, 'INFO');
@@ -1247,7 +1322,7 @@ async function syncContent() {
           log(`Row ${row.rowIndex}: Current/future date (${intendedDateOnly}) - creating single post`, 'DEBUG');
 
           const postUrl = await withRetry(
-            () => createMicroblogPost(row, postContent, intendedDate),
+            () => createMicroblogPost(row, postContent, intendedDate, photoUrl),
             `Create post for row ${row.rowIndex}`
           );
           log(`✅ Post created: ${postUrl}`, 'INFO');
@@ -1336,9 +1411,23 @@ async function syncContent() {
 
         const postContent = formatPostContent(row);
 
+        // Fetch thumbnail for regenerated post (non-fatal on failure)
+        let regenPhotoUrl = null;
+        if (needsImage(row)) {
+          try {
+            const token = process.env.MICROBLOG_APP_TOKEN;
+            if (token) {
+              const imageBuffer = await fetchThumbnail(row.link);
+              if (imageBuffer) regenPhotoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
+            }
+          } catch (err) {
+            log(`  ⚠️  Thumbnail fetch failed during regeneration (non-fatal): ${err.message}`, 'WARN');
+          }
+        }
+
         // Create new post
         const newUrl = await withRetry(
-          () => createMicroblogPost(row, postContent, publishedDate),
+          () => createMicroblogPost(row, postContent, publishedDate, regenPhotoUrl),
           `Recreate post for row ${row.rowIndex}`
         );
 
@@ -1814,5 +1903,9 @@ module.exports = {
   detectChanges,
   parseDateToISO,
   normalizeTimestamp,
-  formatPostContent
+  formatPostContent,
+  needsImage,
+  uploadImageToMediaEndpoint,
+  createMicroblogPost,
+  writeUrlToSpreadsheet,
 };

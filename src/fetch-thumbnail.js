@@ -5,7 +5,7 @@
 
 /**
  * Extract YouTube video ID from a URL.
- * Handles: youtu.be/{ID} (pathname) and youtube.com/watch?v={ID} (query param).
+ * Handles: youtu.be/{ID}, youtube.com/watch?v={ID}, youtube.com/live/{ID}.
  *
  * @param {string} youtubeUrl
  * @returns {string} Video ID
@@ -25,9 +25,15 @@ function extractVideoId(youtubeUrl) {
   }
 
   if (url.hostname === 'www.youtube.com' || url.hostname === 'youtube.com') {
+    // Standard watch URL: ?v=ID
     const id = url.searchParams.get('v');
-    if (!id) throw new Error(`No video ID in YouTube URL: ${youtubeUrl}`);
-    return id;
+    if (id) return id;
+
+    // Live URL: /live/ID
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    if (pathParts[0] === 'live' && pathParts[1]) return pathParts[1];
+
+    throw new Error(`No video ID in YouTube URL: ${youtubeUrl}`);
   }
 
   throw new Error(`Unrecognized YouTube URL format: ${youtubeUrl}`);

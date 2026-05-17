@@ -1,7 +1,7 @@
-// ABOUTME: Unit tests for sync-content.js — covers parseRow highlight column parsing and runAboutPageUpdate integration.
+// ABOUTME: Unit tests for sync-content.js — covers parseRow highlight column parsing, needsImage logic, and runAboutPageUpdate integration.
 'use strict';
 
-const { parseRow, runAboutPageUpdate } = require('../src/sync-content');
+const { parseRow, runAboutPageUpdate, needsImage } = require('../src/sync-content');
 
 // Minimal valid row fixture (columns A-I, no highlight columns)
 function makeRow({ name = 'Test Talk', type = 'Podcast', show = 'SDI', date = '1/1/2026',
@@ -86,6 +86,60 @@ describe('parseRow', () => {
       const result = parseRow(['Name', 'Type', 'Show', 'Date', 'Location', 'Confirmed', 'Link', 'Micro.blog URL', 'Posted At', 'Highlight', 'Priority'], 0, true);
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('needsImage', () => {
+  test('returns true for Video type', () => {
+    expect(needsImage({ type: 'Video', link: 'https://youtu.be/abc123' })).toBe(true);
+  });
+
+  test('returns true for Podcast type', () => {
+    expect(needsImage({ type: 'Podcast', link: 'https://softwaredefinedinterviews.com/122' })).toBe(true);
+  });
+
+  test('returns true for Presentations type with a link', () => {
+    expect(needsImage({ type: 'Presentations', link: 'https://youtu.be/abc123' })).toBe(true);
+  });
+
+  test('returns false for Presentations type without a link', () => {
+    expect(needsImage({ type: 'Presentations', link: '' })).toBe(false);
+  });
+
+  test('returns true for Guest type with link', () => {
+    expect(needsImage({ type: 'Guest', link: 'https://youtu.be/abc123' })).toBe(true);
+  });
+
+  test('returns false for Guest type without link', () => {
+    expect(needsImage({ type: 'Guest', link: '' })).toBe(false);
+  });
+
+  test('returns false for Blog type', () => {
+    expect(needsImage({ type: 'Blog', link: 'https://example.com' })).toBe(false);
+  });
+
+  test('returns true for Podcast type with a link', () => {
+    expect(needsImage({ type: 'Podcast', link: 'https://softwaredefinedinterviews.com/122' })).toBe(true);
+  });
+
+  test('returns true for Video type regardless of link value', () => {
+    expect(needsImage({ type: 'Video', link: 'https://youtu.be/abc' })).toBe(true);
+  });
+
+  test('returns false for Tanzu Tuesday videos', () => {
+    expect(needsImage({ type: 'Video', show: 'Tanzu Tuesday', link: 'https://youtu.be/abc' })).toBe(false);
+  });
+
+  test('returns false for Tanzu Tuesday even with a show name containing extra text', () => {
+    expect(needsImage({ type: 'Video', show: 'Tanzu Tuesday - Episode 42', link: 'https://youtu.be/abc' })).toBe(false);
+  });
+
+  test('returns true for Presentation type (singular) with a link', () => {
+    expect(needsImage({ type: 'Presentation', link: 'https://youtu.be/abc123' })).toBe(true);
+  });
+
+  test('returns false for Presentation type (singular) without a link', () => {
+    expect(needsImage({ type: 'Presentation', link: '' })).toBe(false);
   });
 });
 
