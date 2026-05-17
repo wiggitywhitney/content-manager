@@ -71,9 +71,9 @@ function findMatchingRow(content, linkMap) {
  */
 async function backfillSocialPostImages() {
   if (DRY_RUN) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 DRY-RUN MODE — No actual API calls will be made');
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+    console.log('🔍 DRY-RUN MODE — No actual API calls will be made'); // eslint-disable-line no-console
+    console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
@@ -89,7 +89,7 @@ async function backfillSocialPostImages() {
   });
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`);
+  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`); // eslint-disable-line no-console
 
   const [sheet1Res, historicalRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:K` }),
@@ -102,11 +102,11 @@ async function backfillSocialPostImages() {
   ];
 
   const linkMap = buildLinkMap(allRows);
-  console.log(`Built link map with ${linkMap.size} image-eligible rows`);
+  console.log(`Built link map with ${linkMap.size} image-eligible rows`); // eslint-disable-line no-console
 
-  console.log('Fetching all micro.blog posts...');
+  console.log('Fetching all micro.blog posts...'); // eslint-disable-line no-console
   const allPosts = await queryMicroblogPosts();
-  console.log(`Fetched ${allPosts.size} posts from micro.blog\n`);
+  console.log(`Fetched ${allPosts.size} posts from micro.blog\n`); // eslint-disable-line no-console
 
   // Find social posts: no category, no existing image, content matches a spreadsheet link
   const candidates = [];
@@ -119,7 +119,7 @@ async function backfillSocialPostImages() {
     if (row) candidates.push({ postUrl, row });
   }
 
-  console.log(`Found ${candidates.length} social posts to backfill\n`);
+  console.log(`Found ${candidates.length} social posts to backfill\n`); // eslint-disable-line no-console
 
   const stats = {
     total: candidates.length,
@@ -133,12 +133,12 @@ async function backfillSocialPostImages() {
   for (let i = 0; i < candidates.length; i++) {
     const { postUrl, row } = candidates[i];
     const progress = `[${i + 1}/${candidates.length}]`;
-    console.log(`${progress} ${row.name} (${row.type})`);
-    console.log(`  Post: ${postUrl}`);
-    console.log(`  Link: ${row.link}`);
+    console.log(`${progress} ${row.name} (${row.type})`); // eslint-disable-line no-console
+    console.log(`  Post: ${postUrl}`); // eslint-disable-line no-console
+    console.log(`  Link: ${row.link}`); // eslint-disable-line no-console
 
     if (DRY_RUN) {
-      console.log(`  [DRY-RUN] Would fetch thumbnail and attach photo`);
+      console.log(`  [DRY-RUN] Would fetch thumbnail and attach photo`); // eslint-disable-line no-console
       stats.dryRun++;
       continue;
     }
@@ -163,7 +163,7 @@ async function backfillSocialPostImages() {
     let photoUrl;
     try {
       photoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
-      console.log(`  ✓ Thumbnail uploaded: ${photoUrl}`);
+      console.log(`  ✓ Thumbnail uploaded: ${photoUrl}`); // eslint-disable-line no-console
     } catch (err) {
       console.warn(`  ⚠️  Media upload failed: ${err.message} — skipping`);
       stats.skippedUploadFailed++;
@@ -173,7 +173,7 @@ async function backfillSocialPostImages() {
     // Attach photo via content-replace (never use add: { photo } — it strips categories)
     try {
       await addPhotoToPost(postUrl, photoUrl, token, DRY_RUN);
-      console.log(`  ✅ Photo attached`);
+      console.log(`  ✅ Photo attached`); // eslint-disable-line no-console
       stats.updated++;
     } catch (err) {
       console.error(`  ❌ Micropub update failed: ${err.message}`);
@@ -181,19 +181,19 @@ async function backfillSocialPostImages() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('SOCIAL POST IMAGE BACKFILL SUMMARY');
-  console.log('='.repeat(60));
-  console.log(`  Total social posts to backfill:  ${stats.total}`);
+  console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+  console.log('SOCIAL POST IMAGE BACKFILL SUMMARY'); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log(`  Total social posts to backfill:  ${stats.total}`); // eslint-disable-line no-console
   if (DRY_RUN) {
-    console.log(`  🔍 Dry-run (would update):       ${stats.dryRun}`);
+    console.log(`  🔍 Dry-run (would update):       ${stats.dryRun}`); // eslint-disable-line no-console
   } else {
-    console.log(`  ✅ Updated:                      ${stats.updated}`);
+    console.log(`  ✅ Updated:                      ${stats.updated}`); // eslint-disable-line no-console
   }
-  console.log(`  ⚠️  Fetch failed:                ${stats.skippedFetchFailed}`);
-  console.log(`  ⚠️  Upload failed:               ${stats.skippedUploadFailed}`);
-  console.log(`  ❌ Update failed:                ${stats.failed}`);
-  console.log('='.repeat(60) + '\n');
+  console.log(`  ⚠️  Fetch failed:                ${stats.skippedFetchFailed}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Upload failed:               ${stats.skippedUploadFailed}`); // eslint-disable-line no-console
+  console.log(`  ❌ Update failed:                ${stats.failed}`); // eslint-disable-line no-console
+  console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
 }
 
 if (require.main === module) {

@@ -109,9 +109,9 @@ async function restorePostCategory(postUrl, category, token) {
  */
 async function restorePostCategories() {
   if (DRY_RUN) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 DRY-RUN MODE — No actual API calls will be made');
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+    console.log('🔍 DRY-RUN MODE — No actual API calls will be made'); // eslint-disable-line no-console
+    console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
@@ -127,7 +127,7 @@ async function restorePostCategories() {
   });
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`);
+  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`); // eslint-disable-line no-console
 
   const [sheet1Res, historicalRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:K` }),
@@ -139,11 +139,11 @@ async function restorePostCategories() {
     ...parseTabRows(historicalRes.data.values || [], HISTORICAL_TAB_NAME),
   ];
 
-  console.log(`Found ${allRows.length} valid rows total`);
+  console.log(`Found ${allRows.length} valid rows total`); // eslint-disable-line no-console
 
   // Only rows that have a micro.blog URL and a valid category mapping
   const candidates = allRows.filter(row => row.microblogUrl && categoryForRow(row) !== null);
-  console.log(`Found ${candidates.length} rows with micro.blog URL and a category mapping\n`);
+  console.log(`Found ${candidates.length} rows with micro.blog URL and a category mapping\n`); // eslint-disable-line no-console
 
   const stats = {
     total: candidates.length,
@@ -159,12 +159,12 @@ async function restorePostCategories() {
     const row = candidates[i];
     const category = categoryForRow(row);
     const progress = `[${i + 1}/${candidates.length}]`;
-    console.log(`${progress} ${row.name} (${row.type})`);
-    console.log(`  URL: ${row.microblogUrl}`);
-    console.log(`  Expected category: ${category}`);
+    console.log(`${progress} ${row.name} (${row.type})`); // eslint-disable-line no-console
+    console.log(`  URL: ${row.microblogUrl}`); // eslint-disable-line no-console
+    console.log(`  Expected category: ${category}`); // eslint-disable-line no-console
 
     if (DRY_RUN) {
-      console.log(`  [DRY-RUN] Would check category and restore if missing`);
+      console.log(`  [DRY-RUN] Would check category and restore if missing`); // eslint-disable-line no-console
       stats.dryRun++;
       continue;
     }
@@ -190,7 +190,7 @@ async function restorePostCategories() {
     // Check if category is already populated
     const categories = sourceData.properties?.category ?? [];
     if (categories.length > 0) {
-      console.log(`  ⏭️  Already has category [${categories.join(', ')}], skipping`);
+      console.log(`  ⏭️  Already has category [${categories.join(', ')}], skipping`); // eslint-disable-line no-console
       stats.skippedAlreadyHasCategory++;
       continue;
     }
@@ -198,7 +198,7 @@ async function restorePostCategories() {
     // Restore the category
     try {
       await restorePostCategory(row.microblogUrl, category, token);
-      console.log(`  ✅ Category restored: ${category}`);
+      console.log(`  ✅ Category restored: ${category}`); // eslint-disable-line no-console
       stats.restored++;
     } catch (err) {
       console.error(`  ❌ Micropub update failed: ${err.message}`);
@@ -206,24 +206,24 @@ async function restorePostCategories() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('RESTORE SUMMARY');
-  console.log('='.repeat(60));
-  console.log(`  Total candidates:              ${stats.total}`);
+  console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+  console.log('RESTORE SUMMARY'); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log(`  Total candidates:              ${stats.total}`); // eslint-disable-line no-console
   if (DRY_RUN) {
-    console.log(`  🔍 Dry-run (would process):    ${stats.dryRun}`);
+    console.log(`  🔍 Dry-run (would process):    ${stats.dryRun}`); // eslint-disable-line no-console
   } else {
-    console.log(`  ✅ Categories restored:        ${stats.restored}`);
+    console.log(`  ✅ Categories restored:        ${stats.restored}`); // eslint-disable-line no-console
   }
-  console.log(`  ⏭️  Already had category:      ${stats.skippedAlreadyHasCategory}`);
-  console.log(`  ⚠️  Stale URL (skipped):       ${stats.skippedStaleUrl}`);
-  console.log(`  ⚠️  Check failed (skipped):    ${stats.skippedCheckFailed}`);
-  console.log(`  ❌ Restore failed:             ${stats.failed}`);
-  console.log('='.repeat(60) + '\n');
+  console.log(`  ⏭️  Already had category:      ${stats.skippedAlreadyHasCategory}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Stale URL (skipped):       ${stats.skippedStaleUrl}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Check failed (skipped):    ${stats.skippedCheckFailed}`); // eslint-disable-line no-console
+  console.log(`  ❌ Restore failed:             ${stats.failed}`); // eslint-disable-line no-console
+  console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
 
   if (stats.restored > 0 || DRY_RUN) {
-    console.log('NOTE: After running, trigger a site rebuild at https://micro.blog/account/logs → Rebuild Site');
-    console.log('      if category pages (/video/, /podcast/, etc.) are not yet updated.\n');
+    console.log('NOTE: After running, trigger a site rebuild at https://micro.blog/account/logs → Rebuild Site'); // eslint-disable-line no-console
+    console.log('      if category pages (/video/, /podcast/, etc.) are not yet updated.\n'); // eslint-disable-line no-console
   }
 }
 

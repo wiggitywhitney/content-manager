@@ -133,9 +133,9 @@ function parseTabRows(rawRows, tabName) {
  */
 async function backfillCareerImages() {
   if (DRY_RUN) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 DRY-RUN MODE — No actual API calls will be made');
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+    console.log('🔍 DRY-RUN MODE — No actual API calls will be made'); // eslint-disable-line no-console
+    console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
@@ -151,7 +151,7 @@ async function backfillCareerImages() {
   });
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`);
+  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`); // eslint-disable-line no-console
 
   const [sheet1Res, historicalRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:K` }),
@@ -163,10 +163,10 @@ async function backfillCareerImages() {
     ...parseTabRows(historicalRes.data.values || [], HISTORICAL_TAB_NAME),
   ];
 
-  console.log(`Found ${allRows.length} valid rows total`);
+  console.log(`Found ${allRows.length} valid rows total`); // eslint-disable-line no-console
 
   const candidates = allRows.filter(row => row.microblogUrl && needsImage(row));
-  console.log(`Found ${candidates.length} rows with micro.blog URL and image source\n`);
+  console.log(`Found ${candidates.length} rows with micro.blog URL and image source\n`); // eslint-disable-line no-console
 
   const stats = {
     total: candidates.length,
@@ -181,12 +181,12 @@ async function backfillCareerImages() {
   for (let i = 0; i < candidates.length; i++) {
     const row = candidates[i];
     const progress = `[${i + 1}/${candidates.length}]`;
-    console.log(`${progress} ${row.name} (${row.type})`);
-    console.log(`  URL: ${row.microblogUrl}`);
-    console.log(`  Link: ${row.link}`);
+    console.log(`${progress} ${row.name} (${row.type})`); // eslint-disable-line no-console
+    console.log(`  URL: ${row.microblogUrl}`); // eslint-disable-line no-console
+    console.log(`  Link: ${row.link}`); // eslint-disable-line no-console
 
     if (DRY_RUN) {
-      console.log(`  [DRY-RUN] Would fetch thumbnail and attach photo`);
+      console.log(`  [DRY-RUN] Would fetch thumbnail and attach photo`); // eslint-disable-line no-console
       stats.dryRun++;
       continue;
     }
@@ -200,7 +200,7 @@ async function backfillCareerImages() {
     }
 
     if (alreadyHasPhoto) {
-      console.log(`  ⏭️  Already has photo, skipping`);
+      console.log(`  ⏭️  Already has photo, skipping`); // eslint-disable-line no-console
       stats.skippedAlreadyHasPhoto++;
       continue;
     }
@@ -225,7 +225,7 @@ async function backfillCareerImages() {
     let photoUrl;
     try {
       photoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
-      console.log(`  ✓ Thumbnail uploaded: ${photoUrl}`);
+      console.log(`  ✓ Thumbnail uploaded: ${photoUrl}`); // eslint-disable-line no-console
     } catch (err) {
       console.warn(`  ⚠️  Media upload failed: ${err.message} — skipping`);
       stats.skippedUploadFailed++;
@@ -235,7 +235,7 @@ async function backfillCareerImages() {
     // Attach photo to the post
     try {
       await addPhotoToPost(row.microblogUrl, photoUrl, token, DRY_RUN);
-      console.log(`  ✅ Photo attached`);
+      console.log(`  ✅ Photo attached`); // eslint-disable-line no-console
       stats.updated++;
     } catch (err) {
       console.error(`  ❌ Micropub update failed: ${err.message}`);
@@ -243,20 +243,20 @@ async function backfillCareerImages() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('BACKFILL SUMMARY');
-  console.log('='.repeat(60));
-  console.log(`  Total candidates:        ${stats.total}`);
+  console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+  console.log('BACKFILL SUMMARY'); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log(`  Total candidates:        ${stats.total}`); // eslint-disable-line no-console
   if (DRY_RUN) {
-    console.log(`  🔍 Dry-run (would update): ${stats.dryRun}`);
+    console.log(`  🔍 Dry-run (would update): ${stats.dryRun}`); // eslint-disable-line no-console
   } else {
-    console.log(`  ✅ Updated:              ${stats.updated}`);
+    console.log(`  ✅ Updated:              ${stats.updated}`); // eslint-disable-line no-console
   }
-  console.log(`  ⏭️  Already had photo:   ${stats.skippedAlreadyHasPhoto}`);
-  console.log(`  ⚠️  Fetch failed:        ${stats.skippedFetchFailed}`);
-  console.log(`  ⚠️  Upload failed:       ${stats.skippedUploadFailed}`);
-  console.log(`  ❌ Update failed:        ${stats.failed}`);
-  console.log('='.repeat(60) + '\n');
+  console.log(`  ⏭️  Already had photo:   ${stats.skippedAlreadyHasPhoto}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Fetch failed:        ${stats.skippedFetchFailed}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Upload failed:       ${stats.skippedUploadFailed}`); // eslint-disable-line no-console
+  console.log(`  ❌ Update failed:        ${stats.failed}`); // eslint-disable-line no-console
+  console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
 }
 
 if (require.main === module) {

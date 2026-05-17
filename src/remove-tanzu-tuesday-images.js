@@ -87,9 +87,9 @@ async function removePhotoFromPost(postUrl, token) {
  */
 async function removeTanzuTuesdayImages() {
   if (DRY_RUN) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 DRY-RUN MODE — No actual API calls will be made');
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+    console.log('🔍 DRY-RUN MODE — No actual API calls will be made'); // eslint-disable-line no-console
+    console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
@@ -105,7 +105,7 @@ async function removeTanzuTuesdayImages() {
   });
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`);
+  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`); // eslint-disable-line no-console
 
   const [sheet1Res, historicalRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:K` }),
@@ -117,10 +117,10 @@ async function removeTanzuTuesdayImages() {
     ...parseTabRows(historicalRes.data.values || [], HISTORICAL_TAB_NAME),
   ];
 
-  console.log(`Found ${allRows.length} valid rows total`);
+  console.log(`Found ${allRows.length} valid rows total`); // eslint-disable-line no-console
 
   const candidates = allRows.filter(row => isTanzuTuesdayPost(row) && row.microblogUrl);
-  console.log(`Found ${candidates.length} Tanzu Tuesday rows with micro.blog URL\n`);
+  console.log(`Found ${candidates.length} Tanzu Tuesday rows with micro.blog URL\n`); // eslint-disable-line no-console
 
   const stats = {
     total: candidates.length,
@@ -134,11 +134,11 @@ async function removeTanzuTuesdayImages() {
   for (let i = 0; i < candidates.length; i++) {
     const row = candidates[i];
     const progress = `[${i + 1}/${candidates.length}]`;
-    console.log(`${progress} ${row.name} (${row.show})`);
-    console.log(`  URL: ${row.microblogUrl}`);
+    console.log(`${progress} ${row.name} (${row.show})`); // eslint-disable-line no-console
+    console.log(`  URL: ${row.microblogUrl}`); // eslint-disable-line no-console
 
     if (DRY_RUN) {
-      console.log(`  [DRY-RUN] Would check for photo and remove if present`);
+      console.log(`  [DRY-RUN] Would check for photo and remove if present`); // eslint-disable-line no-console
       stats.dryRun++;
       continue;
     }
@@ -153,14 +153,14 @@ async function removeTanzuTuesdayImages() {
     }
 
     if (!hasPhoto) {
-      console.log(`  ⏭️  No photo, skipping`);
+      console.log(`  ⏭️  No photo, skipping`); // eslint-disable-line no-console
       stats.skippedNoPhoto++;
       continue;
     }
 
     try {
       await removePhotoFromPost(row.microblogUrl, token);
-      console.log(`  ✅ Photo removed`);
+      console.log(`  ✅ Photo removed`); // eslint-disable-line no-console
       stats.removed++;
     } catch (err) {
       console.error(`  ❌ Micropub delete failed: ${err.message}`);
@@ -168,19 +168,19 @@ async function removeTanzuTuesdayImages() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('REMOVAL SUMMARY');
-  console.log('='.repeat(60));
-  console.log(`  Total Tanzu Tuesday posts: ${stats.total}`);
+  console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+  console.log('REMOVAL SUMMARY'); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log(`  Total Tanzu Tuesday posts: ${stats.total}`); // eslint-disable-line no-console
   if (DRY_RUN) {
-    console.log(`  🔍 Dry-run (would process): ${stats.dryRun}`);
+    console.log(`  🔍 Dry-run (would process): ${stats.dryRun}`); // eslint-disable-line no-console
   } else {
-    console.log(`  ✅ Photos removed:          ${stats.removed}`);
+    console.log(`  ✅ Photos removed:          ${stats.removed}`); // eslint-disable-line no-console
   }
-  console.log(`  ⏭️  No photo (skipped):     ${stats.skippedNoPhoto}`);
-  console.log(`  ⚠️  Check failed (skipped):  ${stats.skippedCheckFailed}`);
-  console.log(`  ❌ Remove failed:            ${stats.failed}`);
-  console.log('='.repeat(60) + '\n');
+  console.log(`  ⏭️  No photo (skipped):     ${stats.skippedNoPhoto}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Check failed (skipped):  ${stats.skippedCheckFailed}`); // eslint-disable-line no-console
+  console.log(`  ❌ Remove failed:            ${stats.failed}`); // eslint-disable-line no-console
+  console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
 }
 
 if (require.main === module) {

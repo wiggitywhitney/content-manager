@@ -134,9 +134,9 @@ async function deduplicatePostImages(postUrl, token, dryRun = false) {
  */
 async function deduplicatePostImagesBatch() {
   if (DRY_RUN) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 DRY-RUN MODE — No actual API calls will be made');
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+    console.log('🔍 DRY-RUN MODE — No actual API calls will be made'); // eslint-disable-line no-console
+    console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
@@ -152,7 +152,7 @@ async function deduplicatePostImagesBatch() {
   });
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`);
+  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`); // eslint-disable-line no-console
 
   const [sheet1Res, historicalRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:K` }),
@@ -164,10 +164,10 @@ async function deduplicatePostImagesBatch() {
     ...parseTabRows(historicalRes.data.values || [], HISTORICAL_TAB_NAME),
   ];
 
-  console.log(`Found ${allRows.length} valid rows total`);
+  console.log(`Found ${allRows.length} valid rows total`); // eslint-disable-line no-console
 
   const candidates = allRows.filter(row => row.microblogUrl);
-  console.log(`Found ${candidates.length} rows with micro.blog URL\n`);
+  console.log(`Found ${candidates.length} rows with micro.blog URL\n`); // eslint-disable-line no-console
 
   const stats = {
     total: candidates.length,
@@ -183,11 +183,11 @@ async function deduplicatePostImagesBatch() {
   for (let i = 0; i < candidates.length; i++) {
     const row = candidates[i];
     const progress = `[${i + 1}/${candidates.length}]`;
-    console.log(`${progress} ${row.name} (${row.type})`);
-    console.log(`  URL: ${row.microblogUrl}`);
+    console.log(`${progress} ${row.name} (${row.type})`); // eslint-disable-line no-console
+    console.log(`  URL: ${row.microblogUrl}`); // eslint-disable-line no-console
 
     if (DRY_RUN) {
-      console.log(`  [DRY-RUN] Would check for duplicate images and deduplicate if needed`);
+      console.log(`  [DRY-RUN] Would check for duplicate images and deduplicate if needed`); // eslint-disable-line no-console
       stats.dryRun++;
       continue;
     }
@@ -196,15 +196,15 @@ async function deduplicatePostImagesBatch() {
       const result = await deduplicatePostImages(row.microblogUrl, token, DRY_RUN);
       switch (result.outcome) {
         case 'deduped':
-          console.log(`  ✅ Deduplicated (kept 1 of ${result.imgCount} images)`);
+          console.log(`  ✅ Deduplicated (kept 1 of ${result.imgCount} images)`); // eslint-disable-line no-console
           stats.deduped++;
           break;
         case 'skippedNoImage':
-          console.log(`  ⏭️  No images, skipping`);
+          console.log(`  ⏭️  No images, skipping`); // eslint-disable-line no-console
           stats.skippedNoImage++;
           break;
         case 'skippedSingleImage':
-          console.log(`  ⏭️  Single image, already clean`);
+          console.log(`  ⏭️  Single image, already clean`); // eslint-disable-line no-console
           stats.skippedSingleImage++;
           break;
         case 'skippedStaleUrl':
@@ -223,21 +223,21 @@ async function deduplicatePostImagesBatch() {
     }
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('DEDUPLICATION SUMMARY');
-  console.log('='.repeat(60));
-  console.log(`  Total rows with micro.blog URL:     ${stats.total}`);
+  console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+  console.log('DEDUPLICATION SUMMARY'); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log(`  Total rows with micro.blog URL:     ${stats.total}`); // eslint-disable-line no-console
   if (DRY_RUN) {
-    console.log(`  🔍 Dry-run (would process):         ${stats.dryRun}`);
+    console.log(`  🔍 Dry-run (would process):         ${stats.dryRun}`); // eslint-disable-line no-console
   } else {
-    console.log(`  ✅ Posts deduplicated:              ${stats.deduped}`);
+    console.log(`  ✅ Posts deduplicated:              ${stats.deduped}`); // eslint-disable-line no-console
   }
-  console.log(`  ⏭️  No images (skipped):            ${stats.skippedNoImage}`);
-  console.log(`  ⏭️  Single image, clean (skipped):  ${stats.skippedSingleImage}`);
-  console.log(`  ⚠️  Stale URL (skipped):            ${stats.skippedStaleUrl}`);
-  console.log(`  ⚠️  Check failed (skipped):         ${stats.skippedCheckFailed}`);
-  console.log(`  ❌ Dedup failed:                    ${stats.failed}`);
-  console.log('='.repeat(60) + '\n');
+  console.log(`  ⏭️  No images (skipped):            ${stats.skippedNoImage}`); // eslint-disable-line no-console
+  console.log(`  ⏭️  Single image, clean (skipped):  ${stats.skippedSingleImage}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Stale URL (skipped):            ${stats.skippedStaleUrl}`); // eslint-disable-line no-console
+  console.log(`  ⚠️  Check failed (skipped):         ${stats.skippedCheckFailed}`); // eslint-disable-line no-console
+  console.log(`  ❌ Dedup failed:                    ${stats.failed}`); // eslint-disable-line no-console
+  console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
 }
 
 if (require.main === module) {

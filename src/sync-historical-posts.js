@@ -69,9 +69,9 @@ function parseRowDate(dateStr) {
  */
 async function syncHistoricalPosts() {
   if (DRY_RUN) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 DRY-RUN MODE — No actual API calls will be made');
-    console.log('='.repeat(60) + '\n');
+    console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+    console.log('🔍 DRY-RUN MODE — No actual API calls will be made'); // eslint-disable-line no-console
+    console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
   }
 
   const token = process.env.MICROBLOG_APP_TOKEN;
@@ -87,7 +87,7 @@ async function syncHistoricalPosts() {
   });
   const sheets = google.sheets({ version: 'v4', auth });
 
-  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`);
+  console.log(`Reading spreadsheet ${SPREADSHEET_ID}...`); // eslint-disable-line no-console
 
   const [sheet1Res, historicalRes] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${SHEET_NAME}!A:K` }),
@@ -100,7 +100,7 @@ async function syncHistoricalPosts() {
   ];
 
   const candidates = findUnsynced(allRows);
-  console.log(`Found ${candidates.length} unsynced rows (of ${allRows.length} total)\n`);
+  console.log(`Found ${candidates.length} unsynced rows (of ${allRows.length} total)\n`); // eslint-disable-line no-console
 
   const stats = {
     total: candidates.length,
@@ -115,11 +115,11 @@ async function syncHistoricalPosts() {
   for (let i = 0; i < candidates.length; i++) {
     const row = candidates[i];
     const progress = `[${i + 1}/${candidates.length}]`;
-    console.log(`${progress} ${row.name} (${row.type}) — ${row.show || '—'}`);
-    console.log(`  Date: ${row.date}  Link: ${row.link || '(none)'}`);
+    console.log(`${progress} ${row.name} (${row.type}) — ${row.show || '—'}`); // eslint-disable-line no-console
+    console.log(`  Date: ${row.date}  Link: ${row.link || '(none)'}`); // eslint-disable-line no-console
 
     if (DRY_RUN) {
-      console.log(`  [DRY-RUN] Would create archive post`);
+      console.log(`  [DRY-RUN] Would create archive post`); // eslint-disable-line no-console
       stats.dryRun++;
       continue;
     }
@@ -138,7 +138,7 @@ async function syncHistoricalPosts() {
         const buffer = await fetchThumbnail(row.link);
         if (buffer) {
           photoUrl = await uploadImageToMediaEndpoint(buffer, token);
-          console.log(`  ✓ Thumbnail: ${photoUrl}`);
+          console.log(`  ✓ Thumbnail: ${photoUrl}`); // eslint-disable-line no-console
         } else {
           console.warn(`  ⚠️  Thumbnail not available — proceeding without image`);
         }
@@ -152,7 +152,7 @@ async function syncHistoricalPosts() {
     try {
       const postContent = formatPostContent(row);
       postUrl = await createMicroblogPost(row, postContent, publishedDate, photoUrl);
-      console.log(`  ✅ Created: ${postUrl}`);
+      console.log(`  ✅ Created: ${postUrl}`); // eslint-disable-line no-console
     } catch (err) {
       console.error(`  ❌ Post creation failed: ${err.message}`);
       stats.failed++;
@@ -173,22 +173,22 @@ async function syncHistoricalPosts() {
     await new Promise(r => setTimeout(r, SHEETS_WRITE_DELAY_MS));
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log('HISTORICAL SYNC SUMMARY');
-  console.log('='.repeat(60));
-  console.log(`  Total unsynced candidates:   ${stats.total}`);
+  console.log('\n' + '='.repeat(60)); // eslint-disable-line no-console
+  console.log('HISTORICAL SYNC SUMMARY'); // eslint-disable-line no-console
+  console.log('='.repeat(60)); // eslint-disable-line no-console
+  console.log(`  Total unsynced candidates:   ${stats.total}`); // eslint-disable-line no-console
   if (DRY_RUN) {
-    console.log(`  🔍 Dry-run (would create):   ${stats.dryRun}`);
+    console.log(`  🔍 Dry-run (would create):   ${stats.dryRun}`); // eslint-disable-line no-console
   } else {
-    console.log(`  ✅ Posts created:            ${stats.created}`);
+    console.log(`  ✅ Posts created:            ${stats.created}`); // eslint-disable-line no-console
   }
-  console.log(`  ⚠️  No date (skipped):       ${stats.skippedNoDate}`);
-  console.log(`  ❌ Creation failed:          ${stats.failed}`);
-  console.log('='.repeat(60) + '\n');
+  console.log(`  ⚠️  No date (skipped):       ${stats.skippedNoDate}`); // eslint-disable-line no-console
+  console.log(`  ❌ Creation failed:          ${stats.failed}`); // eslint-disable-line no-console
+  console.log('='.repeat(60) + '\n'); // eslint-disable-line no-console
 
   if (!DRY_RUN && stats.created > 0) {
-    console.log('NOTE: Trigger a site rebuild at https://micro.blog/account/logs → Rebuild Site');
-    console.log('      to update the category pages with newly created posts.\n');
+    console.log('NOTE: Trigger a site rebuild at https://micro.blog/account/logs → Rebuild Site'); // eslint-disable-line no-console
+    console.log('      to update the category pages with newly created posts.\n'); // eslint-disable-line no-console
   }
 }
 
