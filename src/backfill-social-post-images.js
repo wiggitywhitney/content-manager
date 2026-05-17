@@ -45,7 +45,7 @@ function buildLinkMap(rows) {
 function findMatchingRow(content, linkMap) {
   if (!content) return null;
   for (const [link, row] of linkMap) {
-    if (content.includes(link)) return row;
+    if (content.includes('(' + link + ')')) return row;
   }
   return null;
 }
@@ -148,13 +148,13 @@ async function backfillSocialPostImages() {
     try {
       imageBuffer = await fetchThumbnail(row.link);
     } catch (err) {
-      console.warn(`  ⚠️  Thumbnail fetch failed: ${err.message} — skipping`);
+      console.warn(`  ⚠️  Thumbnail fetch failed: ${err.message} — skipping`); // eslint-disable-line no-console
       stats.skippedFetchFailed++;
       continue;
     }
 
     if (!imageBuffer) {
-      console.warn(`  ⚠️  Thumbnail not available (null) — skipping`);
+      console.warn(`  ⚠️  Thumbnail not available (null) — skipping`); // eslint-disable-line no-console
       stats.skippedFetchFailed++;
       continue;
     }
@@ -165,7 +165,7 @@ async function backfillSocialPostImages() {
       photoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
       console.log(`  ✓ Thumbnail uploaded: ${photoUrl}`); // eslint-disable-line no-console
     } catch (err) {
-      console.warn(`  ⚠️  Media upload failed: ${err.message} — skipping`);
+      console.warn(`  ⚠️  Media upload failed: ${err.message} — skipping`); // eslint-disable-line no-console
       stats.skippedUploadFailed++;
       continue;
     }
@@ -176,7 +176,7 @@ async function backfillSocialPostImages() {
       console.log(`  ✅ Photo attached`); // eslint-disable-line no-console
       stats.updated++;
     } catch (err) {
-      console.error(`  ❌ Micropub update failed: ${err.message}`);
+      console.error(`  ❌ Micropub update failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
     }
   }
@@ -198,7 +198,7 @@ async function backfillSocialPostImages() {
 
 if (require.main === module) {
   backfillSocialPostImages().catch(err => {
-    console.error(`❌ Fatal error: ${err.message}`);
+    console.error(`❌ Fatal error: ${err.message}`); // eslint-disable-line no-console
     process.exit(1);
   });
 }

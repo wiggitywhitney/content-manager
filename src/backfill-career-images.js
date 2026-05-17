@@ -64,7 +64,7 @@ async function addPhotoToPost(postUrl, photoUrl, token, dryRun = false) {
   const existingCategory = sourceData.properties?.category ?? [];
 
   if (!existingContent) {
-    console.warn(`[addPhotoToPost] Skipping ${postUrl} — source content is null/empty (possibly rescheduled post with stale URL)`);
+    console.warn(`[addPhotoToPost] Skipping ${postUrl} — source content is null/empty (possibly rescheduled post with stale URL)`); // eslint-disable-line no-console
     return;
   }
 
@@ -196,7 +196,7 @@ async function backfillCareerImages() {
     try {
       alreadyHasPhoto = await postHasPhoto(row.microblogUrl, token);
     } catch (err) {
-      console.warn(`  ⚠️  Could not check existing photo: ${err.message} — proceeding with update`);
+      console.warn(`  ⚠️  Could not check existing photo: ${err.message} — proceeding with update`); // eslint-disable-line no-console
     }
 
     if (alreadyHasPhoto) {
@@ -210,13 +210,13 @@ async function backfillCareerImages() {
     try {
       imageBuffer = await fetchThumbnail(row.link);
     } catch (err) {
-      console.warn(`  ⚠️  Thumbnail fetch failed: ${err.message} — skipping`);
+      console.warn(`  ⚠️  Thumbnail fetch failed: ${err.message} — skipping`); // eslint-disable-line no-console
       stats.skippedFetchFailed++;
       continue;
     }
 
     if (!imageBuffer) {
-      console.warn(`  ⚠️  Thumbnail not available (null) — skipping`);
+      console.warn(`  ⚠️  Thumbnail not available (null) — skipping`); // eslint-disable-line no-console
       stats.skippedFetchFailed++;
       continue;
     }
@@ -227,7 +227,7 @@ async function backfillCareerImages() {
       photoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
       console.log(`  ✓ Thumbnail uploaded: ${photoUrl}`); // eslint-disable-line no-console
     } catch (err) {
-      console.warn(`  ⚠️  Media upload failed: ${err.message} — skipping`);
+      console.warn(`  ⚠️  Media upload failed: ${err.message} — skipping`); // eslint-disable-line no-console
       stats.skippedUploadFailed++;
       continue;
     }
@@ -238,7 +238,7 @@ async function backfillCareerImages() {
       console.log(`  ✅ Photo attached`); // eslint-disable-line no-console
       stats.updated++;
     } catch (err) {
-      console.error(`  ❌ Micropub update failed: ${err.message}`);
+      console.error(`  ❌ Micropub update failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
     }
   }
@@ -261,7 +261,7 @@ async function backfillCareerImages() {
 
 if (require.main === module) {
   backfillCareerImages().catch(err => {
-    console.error(`❌ Fatal error: ${err.message}`);
+    console.error(`❌ Fatal error: ${err.message}`); // eslint-disable-line no-console
     process.exit(1);
   });
 }

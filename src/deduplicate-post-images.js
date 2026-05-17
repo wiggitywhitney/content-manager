@@ -208,16 +208,16 @@ async function deduplicatePostImagesBatch() {
           stats.skippedSingleImage++;
           break;
         case 'skippedStaleUrl':
-          console.warn(`  ⚠️  Source content is null/empty (possibly rescheduled post with stale URL) — skipping`);
+          console.warn(`  ⚠️  Source content is null/empty (possibly rescheduled post with stale URL) — skipping`); // eslint-disable-line no-console
           stats.skippedStaleUrl++;
           break;
       }
     } catch (err) {
       if (err instanceof SourceQueryError) {
-        console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`);
+        console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`); // eslint-disable-line no-console
         stats.skippedCheckFailed++;
       } else {
-        console.error(`  ❌ Failed to deduplicate: ${err.message}`);
+        console.error(`  ❌ Failed to deduplicate: ${err.message}`); // eslint-disable-line no-console
         stats.failed++;
       }
     }
@@ -242,7 +242,7 @@ async function deduplicatePostImagesBatch() {
 
 if (require.main === module) {
   deduplicatePostImagesBatch().catch(err => {
-    console.error(`❌ Fatal error: ${err.message}`);
+    console.error(`❌ Fatal error: ${err.message}`); // eslint-disable-line no-console
     process.exit(1);
   });
 }

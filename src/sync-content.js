@@ -1269,7 +1269,7 @@ async function syncContent() {
             try {
               const token = process.env.MICROBLOG_APP_TOKEN;
               if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable not set');
-              log(`Row ${row.rowIndex}: Fetching thumbnail for ${row.link}...`, 'DEBUG');
+              log(`Row ${row.rowIndex}: Fetching thumbnail for ${row.link}...`, 'INFO');
               const imageBuffer = await fetchThumbnail(row.link);
               if (imageBuffer) {
                 photoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
@@ -1411,9 +1411,23 @@ async function syncContent() {
 
         const postContent = formatPostContent(row);
 
+        // Fetch thumbnail for regenerated post (non-fatal on failure)
+        let regenPhotoUrl = null;
+        if (needsImage(row)) {
+          try {
+            const token = process.env.MICROBLOG_APP_TOKEN;
+            if (token) {
+              const imageBuffer = await fetchThumbnail(row.link);
+              if (imageBuffer) regenPhotoUrl = await uploadImageToMediaEndpoint(imageBuffer, token);
+            }
+          } catch (err) {
+            log(`  ⚠️  Thumbnail fetch failed during regeneration (non-fatal): ${err.message}`, 'WARN');
+          }
+        }
+
         // Create new post
         const newUrl = await withRetry(
-          () => createMicroblogPost(row, postContent, publishedDate),
+          () => createMicroblogPost(row, postContent, publishedDate, regenPhotoUrl),
           `Recreate post for row ${row.rowIndex}`
         );
 

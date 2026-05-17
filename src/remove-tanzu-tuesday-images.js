@@ -147,7 +147,7 @@ async function removeTanzuTuesdayImages() {
     try {
       hasPhoto = await postHasPhoto(row.microblogUrl, token);
     } catch (err) {
-      console.warn(`  ⚠️  Could not check photo status: ${err.message} — skipping`);
+      console.warn(`  ⚠️  Could not check photo status: ${err.message} — skipping`); // eslint-disable-line no-console
       stats.skippedCheckFailed++;
       continue;
     }
@@ -163,7 +163,7 @@ async function removeTanzuTuesdayImages() {
       console.log(`  ✅ Photo removed`); // eslint-disable-line no-console
       stats.removed++;
     } catch (err) {
-      console.error(`  ❌ Micropub delete failed: ${err.message}`);
+      console.error(`  ❌ Micropub delete failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
     }
   }
@@ -185,7 +185,7 @@ async function removeTanzuTuesdayImages() {
 
 if (require.main === module) {
   removeTanzuTuesdayImages().catch(err => {
-    console.error(`❌ Fatal error: ${err.message}`);
+    console.error(`❌ Fatal error: ${err.message}`); // eslint-disable-line no-console
     process.exit(1);
   });
 }

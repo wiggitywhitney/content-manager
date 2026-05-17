@@ -174,7 +174,7 @@ async function restorePostCategories() {
     try {
       sourceData = await _queryPostSource(row.microblogUrl, token);
     } catch (err) {
-      console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`);
+      console.warn(`  ⚠️  Could not query post source: ${err.message} — skipping`); // eslint-disable-line no-console
       stats.skippedCheckFailed++;
       continue;
     }
@@ -182,7 +182,7 @@ async function restorePostCategories() {
     // Guard against stale URLs that return null/empty content
     const content = sourceData.properties?.content?.[0] ?? '';
     if (!content) {
-      console.warn(`  ⚠️  Source content is null/empty (possibly rescheduled post with stale URL) — skipping`);
+      console.warn(`  ⚠️  Source content is null/empty (possibly rescheduled post with stale URL) — skipping`); // eslint-disable-line no-console
       stats.skippedStaleUrl++;
       continue;
     }
@@ -201,7 +201,7 @@ async function restorePostCategories() {
       console.log(`  ✅ Category restored: ${category}`); // eslint-disable-line no-console
       stats.restored++;
     } catch (err) {
-      console.error(`  ❌ Micropub update failed: ${err.message}`);
+      console.error(`  ❌ Micropub update failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
     }
   }
@@ -229,7 +229,7 @@ async function restorePostCategories() {
 
 if (require.main === module) {
   restorePostCategories().catch(err => {
-    console.error(`❌ Fatal error: ${err.message}`);
+    console.error(`❌ Fatal error: ${err.message}`); // eslint-disable-line no-console
     process.exit(1);
   });
 }

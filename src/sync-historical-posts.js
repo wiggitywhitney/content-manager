@@ -126,7 +126,7 @@ async function syncHistoricalPosts() {
 
     const publishedDate = parseRowDate(row.date);
     if (!publishedDate) {
-      console.warn(`  ⚠️  Could not parse date "${row.date}" — skipping`);
+      console.warn(`  ⚠️  Could not parse date "${row.date}" — skipping`); // eslint-disable-line no-console
       stats.skippedNoDate++;
       continue;
     }
@@ -140,10 +140,10 @@ async function syncHistoricalPosts() {
           photoUrl = await uploadImageToMediaEndpoint(buffer, token);
           console.log(`  ✓ Thumbnail: ${photoUrl}`); // eslint-disable-line no-console
         } else {
-          console.warn(`  ⚠️  Thumbnail not available — proceeding without image`);
+          console.warn(`  ⚠️  Thumbnail not available — proceeding without image`); // eslint-disable-line no-console
         }
       } catch (err) {
-        console.warn(`  ⚠️  Thumbnail skipped: ${err.message}`);
+        console.warn(`  ⚠️  Thumbnail skipped: ${err.message}`); // eslint-disable-line no-console
       }
     }
 
@@ -154,7 +154,7 @@ async function syncHistoricalPosts() {
       postUrl = await createMicroblogPost(row, postContent, publishedDate, photoUrl);
       console.log(`  ✅ Created: ${postUrl}`); // eslint-disable-line no-console
     } catch (err) {
-      console.error(`  ❌ Post creation failed: ${err.message}`);
+      console.error(`  ❌ Post creation failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
       continue;
     }
@@ -165,7 +165,7 @@ async function syncHistoricalPosts() {
       await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl, false);
       stats.created++;
     } catch (err) {
-      console.warn(`  ⚠️  Could not write URL to spreadsheet: ${err.message}`);
+      console.warn(`  ⚠️  Could not write URL to spreadsheet: ${err.message}`); // eslint-disable-line no-console
       stats.created++; // Post was created; spreadsheet write is secondary
     }
 
@@ -194,7 +194,7 @@ async function syncHistoricalPosts() {
 
 if (require.main === module) {
   syncHistoricalPosts().catch(err => {
-    console.error(`❌ Fatal error: ${err.message}`);
+    console.error(`❌ Fatal error: ${err.message}`); // eslint-disable-line no-console
     process.exit(1);
   });
 }
