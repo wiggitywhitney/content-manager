@@ -196,7 +196,9 @@ async function backfillCareerImages() {
     try {
       alreadyHasPhoto = await postHasPhoto(row.microblogUrl, token);
     } catch (err) {
-      console.warn(`  ⚠️  Could not check existing photo: ${err.message} — proceeding with update`); // eslint-disable-line no-console
+      console.warn(`  ⚠️  Could not check existing photo: ${err.message} — skipping to avoid duplicate`); // eslint-disable-line no-console
+      stats.skippedAlreadyHasPhoto++;
+      continue;
     }
 
     if (alreadyHasPhoto) {

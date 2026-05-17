@@ -118,7 +118,7 @@ describe('needsImage', () => {
     expect(needsImage({ type: 'Blog', link: 'https://example.com' })).toBe(false);
   });
 
-  test('returns true for Podcast type even with empty link (Podcast always has SDI URL)', () => {
+  test('returns true for Podcast type with a link', () => {
     expect(needsImage({ type: 'Podcast', link: 'https://softwaredefinedinterviews.com/122' })).toBe(true);
   });
 

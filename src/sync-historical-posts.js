@@ -165,8 +165,8 @@ async function syncHistoricalPosts() {
       await writeUrlToSpreadsheet(sheets, SPREADSHEET_ID, row.tabName, row.tabRowIndex, postUrl, false);
       stats.created++;
     } catch (err) {
-      console.warn(`  ⚠️  Could not write URL to spreadsheet: ${err.message}`); // eslint-disable-line no-console
-      stats.created++; // Post was created; spreadsheet write is secondary
+      console.warn(`  ⚠️  Could not write URL to spreadsheet: ${err.message} — post created but not tracked; re-run may create duplicate`); // eslint-disable-line no-console
+      stats.failed++;
     }
 
     // Respect Google Sheets write rate limit
