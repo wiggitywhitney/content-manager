@@ -766,7 +766,11 @@ function detectChanges(row, existingPost) {
   // Generate expected content (includes title, show, keynote)
   const expectedContent = formatPostContent(row);
   const contentNormalized = normalizeWhitespace(expectedContent);
-  const existingContentNormalized = normalizeWhitespace(existingPost.content);
+  // Strip <img> tags before comparing — backfill scripts append images to post
+  // content and they must not trigger false "title changed" URL regeneration.
+  const existingContentNormalized = normalizeWhitespace(
+    (existingPost.content || '').replace(/<img[^>]*>/g, '').trimEnd()
+  );
 
   if (contentNormalized !== existingContentNormalized) {
     changes.content = expectedContent;
