@@ -1035,11 +1035,9 @@ async function syncContent() {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Read spreadsheet data with retry logic from multiple tabs
+    // Read spreadsheet data — Sheet1 only
+    // The "2024 & earlier" historical tab is managed by sync-historical-posts.js, not the daily sync.
     log(`Reading spreadsheet: ${SPREADSHEET_ID}`);
-
-    // Read current content from Sheet1
-    log(`  Reading Sheet1...`);
     const sheet1Response = await withRetry(
       () => sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
@@ -1048,43 +1046,14 @@ async function syncContent() {
       'Read Sheet1'
     );
     const sheet1Rows = sheet1Response.data.values || [];
-    log(`  Found ${sheet1Rows.length} rows in Sheet1`);
+    log(`Found ${sheet1Rows.length} rows in Sheet1\n`);
 
-    // Read historical content
-    log(`  Reading ${HISTORICAL_TAB_NAME}...`);
-    const historicalResponse = await withRetry(
-      () => sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${HISTORICAL_TAB_NAME}!A:H`,
-      }),
-      `Read ${HISTORICAL_TAB_NAME}`
-    );
-    const historicalRows = historicalResponse.data.values || [];
-    log(`  Found ${historicalRows.length} rows in ${HISTORICAL_TAB_NAME}`);
-
-    // Combine rows with tab tracking
-    // Each item: { row: [...], tabName: 'Sheet1' | '2024 & earlier', tabRowIndex: N }
-    const rowsWithMetadata = [];
-
-    // Add Sheet1 rows (including header row for parsing, will be skipped during validation)
-    sheet1Rows.forEach((row, idx) => {
-      rowsWithMetadata.push({
-        row: row,
-        tabName: SHEET_NAME,
-        tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
-      });
-    });
-
-    // Add historical rows (including header row for parsing, will be skipped during validation)
-    historicalRows.forEach((row, idx) => {
-      rowsWithMetadata.push({
-        row: row,
-        tabName: HISTORICAL_TAB_NAME,
-        tabRowIndex: idx + 1  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
-      });
-    });
-
-    log(`Found ${rowsWithMetadata.length} total rows (including header)\n`);
+    // Each item: { row: [...], tabName: 'Sheet1', tabRowIndex: N }
+    const rowsWithMetadata = sheet1Rows.map((row, idx) => ({
+      row,
+      tabName: SHEET_NAME,
+      tabRowIndex: idx + 1,  // Google Sheets is 1-indexed (row 1 = header, row 2 = first data)
+    }));
 
     // Parse and validate rows
     const validRows = [];
