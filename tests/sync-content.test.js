@@ -1,7 +1,7 @@
-// ABOUTME: Unit tests for sync-content.js — covers parseRow highlight column parsing, needsImage logic, and runAboutPageUpdate integration.
+// ABOUTME: Unit tests for sync-content.js — covers parseRow highlight column parsing, needsImage logic, detectChanges, and runAboutPageUpdate integration.
 'use strict';
 
-const { parseRow, runAboutPageUpdate, needsImage } = require('../src/sync-content');
+const { parseRow, runAboutPageUpdate, needsImage, detectChanges } = require('../src/sync-content');
 
 // Minimal valid row fixture (columns A-I, no highlight columns)
 function makeRow({ name = 'Test Talk', type = 'Podcast', show = 'SDI', date = '1/1/2026',
@@ -165,5 +165,34 @@ describe('runAboutPageUpdate', () => {
     const mockUpdate = jest.fn().mockResolvedValue({ updated: false });
     await runAboutPageUpdate([], { updateFn: mockUpdate });
     expect(mockUpdate).toHaveBeenCalledWith([], expect.any(Date));
+  });
+});
+
+describe('detectChanges', () => {
+  const baseRow = { name: 'My Talk', type: 'Video', show: '🌩️ Thunder', date: '4/23/2026',
+    confirmed: '', link: 'https://youtu.be/abc' };
+
+  function makePost(content, { category = 'Video', published = '2026-04-23T00:00:00Z' } = {}) {
+    return { content, category, published };
+  }
+
+  test('returns no changes when content matches exactly', () => {
+    const existingContent = '🌩️ Thunder: [My Talk](https://youtu.be/abc)';
+    const { needsUpdate, needsRegeneration } = detectChanges(baseRow,
+      makePost(existingContent));
+    expect(needsRegeneration).toBe(false);
+  });
+
+  test('does not flag needsRegeneration when only an img tag was added by backfill', () => {
+    const baseContent = '🌩️ Thunder: [My Talk](https://youtu.be/abc)';
+    const withImage = baseContent + '\n\n<img src="https://whitneylee.com/uploads/thumb.jpg" width="600">';
+    const { needsRegeneration } = detectChanges(baseRow, makePost(withImage));
+    expect(needsRegeneration).toBe(false);
+  });
+
+  test('still detects genuine title change even when img tag present', () => {
+    const oldContent = '🌩️ Thunder: [Old Title](https://youtu.be/abc)\n\n<img src="https://whitneylee.com/uploads/thumb.jpg">';
+    const { needsRegeneration } = detectChanges(baseRow, makePost(oldContent));
+    expect(needsRegeneration).toBe(true);
   });
 });
