@@ -29,6 +29,10 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 // Google Sheets write rate limit: 60 writes/min; 1500ms = 40/min with buffer
 const SHEETS_WRITE_DELAY_MS = 1500;
+// Micropub rate limit: pause between post creation calls to avoid silent rejection
+// micro.blog silently accepts bulk requests (202) but drops posts if too many arrive
+// in quick succession. 3s between calls = ~20 posts/min, well within safe limits.
+const MICROPUB_DELAY_MS = 3000;
 
 /**
  * Filter rows to those that have never been synced to micro.blog and have a
@@ -158,6 +162,9 @@ async function syncHistoricalPosts() {
       stats.failed++;
       continue;
     }
+
+    // Pause between Micropub calls — micro.blog silently drops posts under rapid bulk creation
+    await new Promise(r => setTimeout(r, MICROPUB_DELAY_MS));
 
     // Write URL back to column H (isNewPost=false: don't write timestamp to column I —
     // timestamps are used by the daily sync guard to detect whether career content ran today)
