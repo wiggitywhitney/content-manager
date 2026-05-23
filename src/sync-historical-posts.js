@@ -151,7 +151,8 @@ async function syncHistoricalPosts() {
       }
     }
 
-    // Create the archive post
+    // Create the archive post — pause after every attempt (success or failure) to
+    // respect micro.blog's rate limit on bulk Micropub creation.
     let postUrl;
     try {
       const postContent = formatPostContent(row);
@@ -160,10 +161,11 @@ async function syncHistoricalPosts() {
     } catch (err) {
       console.error(`  ❌ Post creation failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
+      await new Promise(r => setTimeout(r, MICROPUB_DELAY_MS));
       continue;
     }
 
-    // Pause between Micropub calls — micro.blog silently drops posts under rapid bulk creation
+    // Pause between successful Micropub calls
     await new Promise(r => setTimeout(r, MICROPUB_DELAY_MS));
 
     // Write URL back to column H (isNewPost=false: don't write timestamp to column I —
