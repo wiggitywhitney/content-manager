@@ -29,6 +29,10 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 // Google Sheets write rate limit: 60 writes/min; 1500ms = 40/min with buffer
 const SHEETS_WRITE_DELAY_MS = 1500;
+// Micropub rate limit: pause between post creation calls to avoid silent rejection
+// micro.blog silently accepts bulk requests (202) but drops posts if too many arrive
+// in quick succession. 3s between calls = ~20 posts/min, well within safe limits.
+const MICROPUB_DELAY_MS = 3000;
 
 /**
  * Filter rows to those that have never been synced to micro.blog and have a
@@ -147,7 +151,8 @@ async function syncHistoricalPosts() {
       }
     }
 
-    // Create the archive post
+    // Create the archive post — pause after every attempt (success or failure) to
+    // respect micro.blog's rate limit on bulk Micropub creation.
     let postUrl;
     try {
       const postContent = formatPostContent(row);
@@ -156,8 +161,12 @@ async function syncHistoricalPosts() {
     } catch (err) {
       console.error(`  ❌ Post creation failed: ${err.message}`); // eslint-disable-line no-console
       stats.failed++;
+      await new Promise(r => setTimeout(r, MICROPUB_DELAY_MS));
       continue;
     }
+
+    // Pause between successful Micropub calls
+    await new Promise(r => setTimeout(r, MICROPUB_DELAY_MS));
 
     // Write URL back to column H (isNewPost=false: don't write timestamp to column I —
     // timestamps are used by the daily sync guard to detect whether career content ran today)
