@@ -1640,7 +1640,8 @@ async function syncContent() {
         if (url) spreadsheetUrls.add(url);
       });
     } catch (err) {
-      log(`Warning: could not read ${HISTORICAL_TAB_NAME} for orphan check — historical posts may be incorrectly deleted: ${err.message}`, 'WARN');
+      log(`Error: could not read ${HISTORICAL_TAB_NAME} for orphan check — skipping orphan deletion to avoid deleting valid historical posts: ${err.message}`, 'ERROR');
+      return; // Fail closed: do not run orphan deletion with an incomplete URL set
     }
 
     log(`Posts in spreadsheet (both tabs): ${spreadsheetUrls.size}`, 'DEBUG');
