@@ -5,7 +5,7 @@
 jest.mock('googleapis');
 
 const { google } = require('googleapis');
-const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchRecentShortRows } = require('../src/social-posts-queue');
+const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows } = require('../src/social-posts-queue');
 
 // Schema columns (0-indexed):
 // A(0)=Show, B(1)=Episode/Short Title, C(2)=Post Type, D(3)=Post Text,
@@ -247,6 +247,103 @@ describe('fetchOldestPendingPost', () => {
 
     const result = await fetchOldestPendingPost();
     expect(result.title).toBe('Episode');
+  });
+
+  test('treats empty status as pending', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const emptyStatusRow = makeRow({ title: 'New Row', status: '' });
+    makeSheetsMock([header, emptyStatusRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result).not.toBeNull();
+    expect(result.title).toBe('New Row');
+  });
+});
+
+describe('fetchOldestPendingGroup', () => {
+  let mockGet;
+
+  function makeSheetsMock(rows) {
+    mockGet = jest.fn().mockResolvedValue({ data: { values: rows } });
+    google.sheets.mockReturnValue({ spreadsheets: { values: { get: mockGet } } });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+  }
+
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('treats empty status as pending', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const row = makeRow({ title: 'Headlamp', platforms: 'linkedin', status: '', groupId: 'headlamp-g' });
+    makeSheetsMock([header, row]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Headlamp');
+  });
+
+  test('returns all pending rows sharing a group id', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const li = makeRow({ title: 'Ep', platforms: 'linkedin', status: '', groupId: 'ep-g' });
+    const masto = makeRow({ title: 'Ep', platforms: 'mastodon', status: '', groupId: 'ep-g' });
+    const bsky = makeRow({ title: 'Ep', platforms: 'bluesky', status: '', groupId: 'ep-g' });
+    makeSheetsMock([header, li, masto, bsky]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(3);
+  });
+
+  test('returns empty array when only posted rows exist', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const posted = makeRow({ status: 'posted' });
+    makeSheetsMock([header, posted]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe('fetchOldestPendingMicroblogPost', () => {
+  let mockGet;
+
+  function makeSheetsMock(rows) {
+    mockGet = jest.fn().mockResolvedValue({ data: { values: rows } });
+    google.sheets.mockReturnValue({ spreadsheets: { values: { get: mockGet } } });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+  }
+
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('treats empty status as pending for micro.blog-only rows', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const row = makeRow({ title: 'MB Only', platforms: 'micro.blog', status: '' });
+    makeSheetsMock([header, row]);
+
+    const result = await fetchOldestPendingMicroblogPost();
+    expect(result).not.toBeNull();
+    expect(result.title).toBe('MB Only');
+  });
+
+  test('returns null when only non-microblog rows are pending', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const row = makeRow({ platforms: 'linkedin,bluesky', status: '' });
+    makeSheetsMock([header, row]);
+
+    const result = await fetchOldestPendingMicroblogPost();
+    expect(result).toBeNull();
   });
 });
 

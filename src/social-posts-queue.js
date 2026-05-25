@@ -174,7 +174,7 @@ async function fetchAllSocialPosts() {
 async function fetchOldestPendingPost() {
   const posts = await fetchAllSocialPosts();
   const pending = posts.filter(p =>
-    p.status === 'pending' && p.postType !== 'short' && !isMicroblogOnly(p)
+    (!p.status || p.status === 'pending') && p.postType !== 'short' && !isMicroblogOnly(p)
   );
   return pending.length > 0 ? pending[0] : null;
 }
@@ -191,7 +191,7 @@ async function fetchOldestPendingPost() {
 async function fetchOldestPendingGroup() {
   const posts = await fetchAllSocialPosts();
   const pending = posts.filter(p =>
-    p.status === 'pending' && p.postType !== 'short' && !isMicroblogOnly(p)
+    (!p.status || p.status === 'pending') && p.postType !== 'short' && !isMicroblogOnly(p)
   );
 
   if (pending.length === 0) return [];
@@ -213,7 +213,7 @@ async function fetchOldestPendingGroup() {
 async function fetchOldestPendingMicroblogPost() {
   const posts = await fetchAllSocialPosts();
   const pending = posts.filter(p =>
-    p.status === 'pending' && p.postType !== 'short' && isMicroblogOnly(p)
+    (!p.status || p.status === 'pending') && p.postType !== 'short' && isMicroblogOnly(p)
   );
   return pending.length > 0 ? pending[0] : null;
 }
