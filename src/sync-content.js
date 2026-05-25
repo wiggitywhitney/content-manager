@@ -1617,14 +1617,33 @@ async function syncContent() {
     log(`Posts with managed categories: ${categorizedPosts.length}`, 'DEBUG');
     log(`Uncategorized posts (ignored): ${existingPosts.size - categorizedPosts.length}`, 'DEBUG');
 
-    // Build set of all post URLs from spreadsheet
+    // Build set of all known post URLs from Sheet1 (the active sync tab)
     const spreadsheetUrls = new Set(
       validRows
         .filter(row => row.microblogUrl) // Only rows with Micro.blog URLs
         .map(row => row.microblogUrl)
     );
 
-    log(`Posts in spreadsheet: ${spreadsheetUrls.size}`, 'DEBUG');
+    // Also load URLs from the historical tab so its posts are not treated as orphans.
+    // The historical tab is managed by sync-historical-posts.js, not this daily sync.
+    // We read it here only to exclude those URLs from orphan deletion.
+    try {
+      const historicalRes = await withRetry(
+        () => sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${HISTORICAL_TAB_NAME}!H:H`,
+        }),
+        `Read ${HISTORICAL_TAB_NAME} URLs for orphan check`
+      );
+      (historicalRes.data.values || []).slice(1).forEach(row => {
+        const url = (row[0] || '').trim();
+        if (url) spreadsheetUrls.add(url);
+      });
+    } catch (err) {
+      log(`Warning: could not read ${HISTORICAL_TAB_NAME} for orphan check — historical posts may be incorrectly deleted: ${err.message}`, 'WARN');
+    }
+
+    log(`Posts in spreadsheet (both tabs): ${spreadsheetUrls.size}`, 'DEBUG');
 
     // Find orphaned posts: exist in Micro.blog but not in spreadsheet
     const orphanedPosts = categorizedPosts.filter(([url, post]) => {
