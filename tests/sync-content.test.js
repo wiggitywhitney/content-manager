@@ -72,6 +72,28 @@ describe('parseRow', () => {
     });
   });
 
+  describe('type normalization', () => {
+    test('normalizes "Presentation" to "Presentations"', () => {
+      const result = parseRow(makeRow({ type: 'Presentation' }), 1);
+      expect(result.type).toBe('Presentations');
+    });
+
+    test('normalizes "Video - Livestream" to "Video"', () => {
+      const result = parseRow(makeRow({ type: 'Video - Livestream' }), 1);
+      expect(result.type).toBe('Video');
+    });
+
+    test('normalizes "Edited video" to "Video"', () => {
+      const result = parseRow(makeRow({ type: 'Edited video' }), 1);
+      expect(result.type).toBe('Video');
+    });
+
+    test('normalizes "Edited Video" (capital V) to "Video"', () => {
+      const result = parseRow(makeRow({ type: 'Edited Video' }), 1);
+      expect(result.type).toBe('Video');
+    });
+  });
+
   describe('backward compatibility', () => {
     test('parses existing fields correctly alongside new highlight fields', () => {
       const result = parseRow(makeRow({ name: 'My Talk', type: 'Video', link: 'https://youtu.be/abc', highlight: 'Yes', highlightPriority: '5' }), 2);
