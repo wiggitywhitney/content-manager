@@ -432,10 +432,12 @@ function parseRow(row, rowIndex, isHeaderRow = false) {
   // Extract fields by column position (A-K)
   const [name, type, show, date, location, confirmed, link, microblogUrl, , rawHighlight, rawPriority] = row;
 
-  // Normalize type: "Presentation" (singular) → "Presentations" (plural)
+  // Normalize spreadsheet type variants to canonical values
   let normalizedType = (type || '').trim();
   if (normalizedType === 'Presentation') {
     normalizedType = 'Presentations';
+  } else if (normalizedType === 'Video - Livestream' || normalizedType.toLowerCase() === 'edited video') {
+    normalizedType = 'Video';
   }
 
   const parsedPriority = parseInt(rawPriority, 10);
