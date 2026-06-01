@@ -7,7 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Changed
-- (2026-06-01) Updated GitHub Actions workflow to use `actions/checkout@v6` and `actions/setup-node@v6`, both built on Node.js 24, ahead of GitHub's June 2, 2026 forced cutover from Node.js 20.
+- (2026-06-01) Updated GitHub Actions workflow to use `actions/checkout@v6` and `actions/setup-node@v6`, which use the Node.js 24 runtime, ahead of GitHub's June 16, 2026 default cutover (Node.js 20 removed in fall 2026).
 - (2026-05-16) Daily content sync now runs seven days a week instead of Monday–Friday only, so the backlog of staged career posts clears faster on weekends.
 
 ### Fixed
