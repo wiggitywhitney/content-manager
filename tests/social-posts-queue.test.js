@@ -239,14 +239,23 @@ describe('fetchOldestPendingPost', () => {
     expect(result.title).toBe('Pending');
   });
 
-  test('skips short posts — they are handled by view-count scan, not regular dispatch', async () => {
+  test('returns short posts with social platforms — they dispatch immediately without view-count gate', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
-    const shortRow = makeRow({ title: 'Short', postType: 'short', status: 'pending' });
-    const episodeRow = makeRow({ title: 'Episode', postType: 'episode', status: 'pending' });
-    makeSheetsMock([header, shortRow, episodeRow]);
+    const shortRow = makeRow({ title: 'Short', postType: 'short', platforms: 'bluesky,mastodon', status: 'pending' });
+    makeSheetsMock([header, shortRow]);
 
     const result = await fetchOldestPendingPost();
-    expect(result.title).toBe('Episode');
+    expect(result).not.toBeNull();
+    expect(result.title).toBe('Short');
+  });
+
+  test('skips micro.blog-only short posts — those are view-count gated via scan', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const mbOnlyShort = makeRow({ title: 'MB Short', postType: 'short', platforms: 'micro.blog', status: 'pending' });
+    makeSheetsMock([header, mbOnlyShort]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result).toBeNull();
   });
 
   test('treats empty status as pending', async () => {
@@ -303,6 +312,25 @@ describe('fetchOldestPendingGroup', () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
     const posted = makeRow({ status: 'posted' });
     makeSheetsMock([header, posted]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(0);
+  });
+
+  test('includes short posts with social platforms — they dispatch immediately without view-count gate', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const shortRow = makeRow({ title: 'Short', postType: 'short', platforms: 'bluesky,mastodon', status: 'pending' });
+    makeSheetsMock([header, shortRow]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Short');
+  });
+
+  test('excludes micro.blog-only short posts — those are view-count gated via scan', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const mbOnlyShort = makeRow({ title: 'MB Short', postType: 'short', platforms: 'micro.blog', status: 'pending' });
+    makeSheetsMock([header, mbOnlyShort]);
 
     const result = await fetchOldestPendingGroup();
     expect(result).toHaveLength(0);
