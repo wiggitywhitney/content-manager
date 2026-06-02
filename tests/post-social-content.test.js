@@ -272,6 +272,84 @@ describe('dispatchPost', () => {
     });
   });
 
+  describe('gist post type', () => {
+    test('does not call downloadShortVideo for gist posts', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['bluesky', 'mastodon', 'linkedin'] }), '2026-04-27');
+      expect(downloadShortVideo).not.toHaveBeenCalled();
+    });
+
+    test('does not create a tmpDir for gist posts', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['bluesky', 'mastodon', 'linkedin'] }), '2026-04-27');
+      expect(mkdtempSyncSpy).not.toHaveBeenCalled();
+    });
+
+    test('calls fetchThumbnail with the post youtubeUrl for gist posts', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['bluesky'] }), '2026-04-27');
+      expect(fetchThumbnail).toHaveBeenCalledWith('https://youtu.be/abc123');
+    });
+
+    test('passes imageBuffer to postToBluesky for gist posts', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['bluesky'] }), '2026-04-27');
+      expect(postToBluesky).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'gist' }),
+        { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER }
+      );
+    });
+
+    test('passes imageBuffer to postToMastodon for gist posts', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['mastodon'] }), '2026-04-27');
+      expect(postToMastodon).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'gist' }),
+        { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER }
+      );
+    });
+
+    test('passes imageBuffer to postToLinkedIn for gist posts', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['linkedin'] }), '2026-04-27');
+      expect(postToLinkedIn).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'gist' }),
+        { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER }
+      );
+    });
+
+    test('posts without image when fetchThumbnail throws for gist posts (non-fatal fallback)', async () => {
+      fetchThumbnail.mockRejectedValue(new Error('network error'));
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['bluesky'] }), '2026-04-27');
+      expect(postToBluesky).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'gist' }),
+        { videoBuffer: null, imageBuffer: null }
+      );
+      expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({ status: 'posted' }));
+    });
+
+    test('does not call fetchThumbnail when gist post has no youtubeUrl', async () => {
+      await dispatchPost(makePost({ postType: 'gist', platforms: ['bluesky'], youtubeUrl: '' }), '2026-04-27');
+      expect(fetchThumbnail).not.toHaveBeenCalled();
+    });
+
+    test('dispatches to micro.blog for gist posts with micro.blog platform', async () => {
+      await dispatchPost(
+        makePost({ postType: 'gist', platforms: ['micro.blog'], groupId: 'thunder-headlamp-gist' }),
+        '2026-04-27'
+      );
+      expect(postToMicroblog).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'gist' }),
+        { bypassViewCount: true }
+      );
+    });
+
+    test('marks gist post as posted after successful dispatch', async () => {
+      await dispatchPost(
+        makePost({ postType: 'gist', platforms: ['bluesky'], groupId: 'thunder-headlamp-gist' }),
+        '2026-04-27'
+      );
+      expect(updatePostResult).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ status: 'posted' })
+      );
+    });
+  });
+
   describe('talk post type', () => {
     test('does not call downloadShortVideo for talk posts', async () => {
       await dispatchPost(makePost({ postType: 'talk', groupId: 'talk-otel-basics' }), '2026-04-27');
