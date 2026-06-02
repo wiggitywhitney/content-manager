@@ -93,6 +93,10 @@ jobs:
         continue-on-error: true
         uses: AnimMouse/setup-yt-dlp@v3
 
+      - name: Update yt-dlp to latest
+        continue-on-error: true
+        run: yt-dlp -U
+
       - name: Scan for new content
         continue-on-error: true
         env:
