@@ -11,7 +11,8 @@ const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchOl
 // A(0)=Show, B(1)=Episode/Short Title, C(2)=Post Type, D(3)=Post Text,
 // E(4)=YouTube URL, F(5)=Alt Text, G(6)=Scheduled Date, H(7)=Platforms,
 // I(8)=Status, J(9)=LinkedIn Post URL, K(10)=Bluesky Post URL,
-// L(11)=Mastodon Post URL, M(12)=micro.blog Post URL, N(13)=Group ID
+// L(11)=Mastodon Post URL, M(12)=micro.blog Post URL, N(13)=Group ID,
+// O(14)=Drive Video ID
 
 function makeRow({
   show = 'Thunder',
@@ -28,8 +29,9 @@ function makeRow({
   mastodonUrl = '',
   microblogUrl = '',
   groupId = '',
+  driveVideoId = '',
 } = {}) {
-  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId];
+  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId, driveVideoId];
 }
 
 describe('parseSocialPostRows', () => {
@@ -54,6 +56,7 @@ describe('parseSocialPostRows', () => {
       mastodonPostUrl: '',
       microblogPostUrl: '',
       groupId: null,
+      driveVideoId: null,
     });
   });
 
@@ -115,6 +118,27 @@ describe('parseSocialPostRows', () => {
 
     expect(posts).toHaveLength(1);
     expect(posts[0].scheduledDate).toBe('');
+  });
+
+  test('parses driveVideoId from column O when present', () => {
+    const rows = [makeRow({ driveVideoId: '1AbCdEfGhIjK' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].driveVideoId).toBe('1AbCdEfGhIjK');
+  });
+
+  test('parses driveVideoId as null when column O is empty', () => {
+    const rows = [makeRow({ driveVideoId: '' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].driveVideoId).toBeNull();
+  });
+
+  test('parses driveVideoId as null when column O is absent', () => {
+    const rows = [makeRow()]; // default driveVideoId = ''
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].driveVideoId).toBeNull();
   });
 });
 

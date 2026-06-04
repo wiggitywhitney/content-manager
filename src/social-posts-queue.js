@@ -25,6 +25,7 @@ const COL = {
   MASTODON_POST_URL: 11,
   MICROBLOG_POST_URL: 12,
   GROUP_ID: 13,  // Column N — groups platform-variant rows that should post on the same day
+  DRIVE_VIDEO_ID: 14,  // Column O — Google Drive file ID for short video (populated by journal skill)
 };
 
 /**
@@ -68,6 +69,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       mastodonPostUrl: (row[COL.MASTODON_POST_URL] || '').trim(),
       microblogPostUrl: (row[COL.MICROBLOG_POST_URL] || '').trim(),
       groupId: (row[COL.GROUP_ID] || '').trim() || null,
+      driveVideoId: (row[COL.DRIVE_VIDEO_ID] || '').trim() || null,
     });
   }
 
@@ -111,7 +113,7 @@ async function fetchPendingPostsForToday(todayDate) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:N`;
+  const range = `${SOCIAL_POSTS_TAB}!A:O`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -157,7 +159,7 @@ async function fetchAllSocialPosts() {
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
-    range: `${SOCIAL_POSTS_TAB}!A:N`,
+    range: `${SOCIAL_POSTS_TAB}!A:O`,
   });
 
   const rows = response.data.values || [];
@@ -238,7 +240,7 @@ async function fetchRecentShortRows(limit = 10) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:N`;
+  const range = `${SOCIAL_POSTS_TAB}!A:O`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,

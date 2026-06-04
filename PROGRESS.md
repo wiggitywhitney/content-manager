@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Changed
+- (2026-06-04) Short video posts now download from Google Drive instead of YouTube in CI. GitHub Actions datacenter IPs are blocked by YouTube bot detection regardless of yt-dlp version; the journal skill (running on a residential IP) uploads the video to Drive when writing the queue row, and CI reads the Drive file ID from a new column O ("Drive Video ID") in the Social Posts Queue. When column O is empty, the row stays pending rather than failing — allowing the journal skill to backfill it later. The micro.blog view-count scan path is unchanged and still uses yt-dlp.
 - (2026-06-04) Determined schema for replacing yt-dlp YouTube downloads in CI with Google Drive storage: short post rows will carry a Drive file ID in a new column O ("Drive Video ID"), uploaded to the "Social Post Videos" folder by the journal skill on a residential IP where YouTube bot detection does not apply. Fixes the recurring CI dispatch failure for short posts (YouTube blocks GitHub Actions datacenter IPs regardless of yt-dlp version).
 - (2026-06-01) Updated GitHub Actions workflow to use `actions/checkout@v6` and `actions/setup-node@v6`, which use the Node.js 24 runtime, ahead of GitHub's June 16, 2026 default cutover (Node.js 20 removed in fall 2026).
 - (2026-05-16) Daily content sync now runs seven days a week instead of Monday–Friday only, so the backlog of staged career posts clears faster on weekends.

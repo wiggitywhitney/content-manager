@@ -3,9 +3,6 @@
 
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
 const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('./social-posts-queue');
 const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
@@ -13,7 +10,7 @@ const { postToMastodon } = require('./post-mastodon');
 const { postToLinkedIn } = require('./post-linkedin');
 const { scanAndPostShorts, postToMicroblog } = require('./post-microblog');
 const { updatePostResult } = require('./update-social-post-status');
-const { downloadShortVideo } = require('./video-download');
+const { downloadFromDrive } = require('./drive-download');
 const { fetchThumbnail } = require('./fetch-thumbnail');
 
 /**
@@ -40,97 +37,95 @@ async function dispatchPost(post, today) {
     return;
   }
 
-  let tmpDir = null;
   let videoBuffer = null;
   let imageBuffer = null;
   let failureCount = 0;
   let attemptCount = 0;
   let bskyPostUrl, mastodonPostUrl, linkedinPostUrl, microblogPostUrl;
 
-  try {
-    if (post.postType === 'short') {
-      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'social-'));
-      try {
-        ({ buffer: videoBuffer } = downloadShortVideo(post.youtubeUrl, tmpDir));
-      } catch (err) {
-        console.error(`[social] Failed to download video for row ${post.rowIndex}: ${err.message}`); // eslint-disable-line no-console
-        await updatePostResult(post.rowIndex, { status: 'failed' });
-        return;
-      }
+  if (post.postType === 'short') {
+    if (!post.driveVideoId) {
+      console.warn(`[social] Row ${post.rowIndex} has no Drive video ID — skipping (row remains pending)`); // eslint-disable-line no-console
+      return;
     }
-
-    if ((post.postType === 'episode' || post.postType === 'gist') && post.youtubeUrl) {
-      try {
-        console.log(`[social] Fetching thumbnail for row ${post.rowIndex}...`); // eslint-disable-line no-console
-        imageBuffer = await fetchThumbnail(post.youtubeUrl);
-      } catch (err) {
-        console.warn(`[social] Warning: thumbnail fetch failed for row ${post.rowIndex} — posting without image`); // eslint-disable-line no-console
-        imageBuffer = null;
-      }
-    }
-
-    if (post.platforms.includes('bluesky')) {
-      attemptCount++;
-      try {
-        ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer, imageBuffer }));
-        console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`); // eslint-disable-line no-console
-      } catch (err) {
-        console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`); // eslint-disable-line no-console
-        failureCount++;
-      }
-    }
-
-    if (post.platforms.includes('mastodon')) {
-      attemptCount++;
-      try {
-        ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer, imageBuffer }));
-        console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`); // eslint-disable-line no-console
-      } catch (err) {
-        console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`); // eslint-disable-line no-console
-        failureCount++;
-      }
-    }
-
-    if (post.platforms.includes('linkedin')) {
-      attemptCount++;
-      try {
-        ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer, imageBuffer }));
-        console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`); // eslint-disable-line no-console
-      } catch (err) {
-        console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`); // eslint-disable-line no-console
-        failureCount++;
-      }
-    }
-
-    if (post.platforms.includes('micro.blog') && post.postType !== 'short') {
-      attemptCount++;
-      try {
-        ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true }));
-        console.log(`[social] Posted row ${post.rowIndex} to micro.blog: ${microblogPostUrl}`); // eslint-disable-line no-console
-      } catch (err) {
-        console.error(`[social] Failed to post row ${post.rowIndex} to micro.blog: ${err.message}`); // eslint-disable-line no-console
-        failureCount++;
-      }
-    }
-
-    if (attemptCount === 0) {
-      console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
+    try {
+      ({ buffer: videoBuffer } = await downloadFromDrive(post.driveVideoId));
+    } catch (err) {
+      console.error(`[social] Failed to download Drive video for row ${post.rowIndex}: ${err.message}`); // eslint-disable-line no-console
       await updatePostResult(post.rowIndex, { status: 'failed' });
       return;
     }
-
-    const status = failureCount === 0 ? 'posted' : 'failed';
-    const resultFields = { status };
-    if (status === 'posted' && today) resultFields.scheduledDate = today;
-    if (bskyPostUrl) resultFields.bskyPostUrl = bskyPostUrl;
-    if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
-    if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;
-    if (microblogPostUrl) resultFields.microblogPostUrl = microblogPostUrl;
-
-    await updatePostResult(post.rowIndex, resultFields);
-  } finally {
-    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+
+  if ((post.postType === 'episode' || post.postType === 'gist') && post.youtubeUrl) {
+    try {
+      console.log(`[social] Fetching thumbnail for row ${post.rowIndex}...`); // eslint-disable-line no-console
+      imageBuffer = await fetchThumbnail(post.youtubeUrl);
+    } catch (err) {
+      console.warn(`[social] Warning: thumbnail fetch failed for row ${post.rowIndex} — posting without image`); // eslint-disable-line no-console
+      imageBuffer = null;
+    }
+  }
+
+  if (post.platforms.includes('bluesky')) {
+    attemptCount++;
+    try {
+      ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer, imageBuffer }));
+      console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`); // eslint-disable-line no-console
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`); // eslint-disable-line no-console
+      failureCount++;
+    }
+  }
+
+  if (post.platforms.includes('mastodon')) {
+    attemptCount++;
+    try {
+      ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer, imageBuffer }));
+      console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`); // eslint-disable-line no-console
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`); // eslint-disable-line no-console
+      failureCount++;
+    }
+  }
+
+  if (post.platforms.includes('linkedin')) {
+    attemptCount++;
+    try {
+      ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer, imageBuffer }));
+      console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`); // eslint-disable-line no-console
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`); // eslint-disable-line no-console
+      failureCount++;
+    }
+  }
+
+  if (post.platforms.includes('micro.blog') && post.postType !== 'short') {
+    attemptCount++;
+    try {
+      ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true }));
+      console.log(`[social] Posted row ${post.rowIndex} to micro.blog: ${microblogPostUrl}`); // eslint-disable-line no-console
+    } catch (err) {
+      console.error(`[social] Failed to post row ${post.rowIndex} to micro.blog: ${err.message}`); // eslint-disable-line no-console
+      failureCount++;
+    }
+  }
+
+  if (attemptCount === 0) {
+    console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
+    await updatePostResult(post.rowIndex, { status: 'failed' });
+    return;
+  }
+
+  const status = failureCount === 0 ? 'posted' : 'failed';
+  const resultFields = { status };
+  if (status === 'posted' && today) resultFields.scheduledDate = today;
+  if (bskyPostUrl) resultFields.bskyPostUrl = bskyPostUrl;
+  if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
+  if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;
+  if (microblogPostUrl) resultFields.microblogPostUrl = microblogPostUrl;
+
+  await updatePostResult(post.rowIndex, resultFields);
 }
 
 /**
