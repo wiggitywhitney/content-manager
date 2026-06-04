@@ -135,7 +135,7 @@ describe('parseSocialPostRows', () => {
   });
 
   test('parses driveVideoId as null when column O is absent', () => {
-    const rows = [makeRow()]; // default driveVideoId = ''
+    const rows = [makeRow().slice(0, 14)]; // remove column O entirely
     const posts = parseSocialPostRows(rows);
 
     expect(posts[0].driveVideoId).toBeNull();

@@ -1,7 +1,7 @@
 # Research: Video Upload APIs — Bluesky, Mastodon, LinkedIn
 
 **Project:** content-manager
-**Last Updated:** 2026-04-25
+**Last Updated:** 2026-06-04
 
 ## Update Log
 
