@@ -55,7 +55,7 @@ These were considered and ruled out during design. Do not revisit them without n
 
 ## Milestones
 
-- [ ] **M1: Schema and Drive folder decision** — Before any code is written, decide: (a) which column holds the Drive file ID (proposed: column O, after the existing Group ID column N); (b) which Drive folder to use (suggested default: create a new folder named "Social Post Videos" at the root of the service account's Drive if no obvious existing folder fits); (c) exact column header name (suggested default: "Drive Video ID"). Confirm each decision with Whitney before documenting. Document all decisions in the Decision Log below. This milestone gates M2, M3, M5, and M6.
+- [x] **M1: Schema and Drive folder decision** — Decisions confirmed by Whitney on 2026-06-04. See Decision Log: column O, header "Drive Video ID", Drive folder "Social Post Videos" (ID: `1EfuS2Z0hXeQm0OFlAe8BlJUaQzNUlN1f`). M2, M3, M5, and M6 are unblocked.
 
 - [ ] **M2: `post-social-content.js` updated for Drive download** — Step 0: Read the M1 Decision Log entry — it must exist before this milestone begins. Read the Drive file ID from the decided column. If the column is populated, download the video using `drive.files.get({ fileId, alt: 'media' })` with the service account, then use the downloaded file for platform uploads (same as the current yt-dlp output path in `src/post-social-content.js`). If the column is absent or empty, skip the row — do NOT fall back to text posting. Remove the yt-dlp invocation from the short post dispatch path. Do NOT introduce new npm packages — `googleapis` is already installed in the project; check existing Drive usage in the codebase before writing any API calls.
 
@@ -65,7 +65,7 @@ These were considered and ruled out during design. Do not revisit them without n
 
 - [ ] **M5: Schema docs and Social Instructions tab updated** — Step 0: Read the M1 Decision Log entry — it must exist before this milestone begins. Update two places: (1) the Social Instructions tab in the Staged spreadsheet (`1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts`, gid=444239135) to describe the new column and instruct the journal skill to populate it; (2) `Journal/docs/social-posts-queue.md` to add the new column to the schema table. Do NOT edit `Journal/.claude/skills/write-social-posts/SKILL.md` — that is handled by Milestone 6.
 
-- [ ] **M6: Journal team handoff** — Step 0: Read the M1 Decision Log entry and confirm M5 is complete (Social Instructions tab updated). Whitney relays the following to the journal repo's Claude Code instance: for `short` post type rows, the `/write-social-posts` skill must (a) download the video locally using yt-dlp (works on residential IP), (b) upload it to the designated Drive folder using the service account, and (c) write the Drive file ID to the new column. This milestone is complete when the journal skill produces rows with the Drive column populated.
+- [ ] **M6: Journal team handoff** — Step 0: Read the M1 Decision Log entry and confirm M5 is complete (Social Instructions tab updated). Whitney relays the following to the journal repo's Claude Code instance: for `short` post type rows, the `/write-social-posts` skill must (a) download the video locally using yt-dlp (works on residential IP), (b) upload it to the "Social Post Videos" Drive folder (ID: `1EfuS2Z0hXeQm0OFlAe8BlJUaQzNUlN1f`) using the service account, and (c) write the Drive file ID to column O ("Drive Video ID"). This milestone is complete when the journal skill produces rows with column O populated.
 
 - [ ] **M7: Existing rows backfilled and end-to-end verified** — The 8 pending short rows (15–18 and 23–26) predate this feature and have no Drive link. Backfill column O for each by running the updated journal skill or uploading videos to Drive manually and writing the file IDs. Row 15 ("Beyond Container Logs: Logging Operator's Extensions") is the highest priority — it has been blocked the longest. After backfill, verify using `npm run sync:test` (dry-run mode) that the dispatch selects row 15 and downloads the Drive video without posting live. Do NOT trigger the GitHub Actions workflow to verify — that requires Whitney's explicit approval.
 
@@ -75,14 +75,18 @@ These were considered and ruled out during design. Do not revisit them without n
 |---|---|---|
 | 2026-06-03 | Store videos in Google Drive instead of downloading from YouTube in CI | GitHub Actions datacenter IPs are blocked by YouTube bot detection regardless of tool; journal skill runs on residential IP where yt-dlp works; service account Drive access already confirmed |
 | 2026-06-03 | Video or nothing — no text fallback | Whitney's explicit requirement |
+| 2026-06-04 | Drive folder: use existing "Social Post Videos" folder, ID `1EfuS2Z0hXeQm0OFlAe8BlJUaQzNUlN1f` | Folder already exists; confirmed by Whitney |
+| 2026-06-04 | Spreadsheet column: column O, header "Drive Video ID" | Appended after existing Group ID column N; confirmed by Whitney |
 
 ## Open Questions
 
-- Which Drive folder? Create a new dedicated folder (e.g., "Social Post Videos") or use an existing one?
-- Column O as the new column position — confirm this doesn't conflict with any unreferenced columns in the live sheet.
 - What should happen when the journal skill tries to download a short that isn't yet public (private/scheduled)? Skip writing the Drive link and leave column O empty, or fail the row creation?
 
 ## Progress Log
+
+### 2026-06-04
+- M1 decisions confirmed by Whitney: column O / "Drive Video ID", existing "Social Post Videos" folder (ID: `1EfuS2Z0hXeQm0OFlAe8BlJUaQzNUlN1f`)
+- M1 marked complete; M2, M3, M5, M6 unblocked
 
 ### 2026-06-03
 - PRD created
