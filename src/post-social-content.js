@@ -3,7 +3,7 @@
 
 'use strict';
 
-const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('./social-posts-queue');
+const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, checkSocialPostedToday } = require('./social-posts-queue');
 const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
@@ -145,6 +145,11 @@ async function dispatchPost(post, today) {
 async function processPostsForDate(today) {
   const careerFirst = process.env.CAREER_PRIORITY !== '0';
 
+  if (await checkSocialPostedToday()) {
+    console.log('[social] Social content already posted today — skipping dispatch'); // eslint-disable-line no-console
+    return;
+  }
+
   if (careerFirst && await checkCareerPostedToday()) {
     console.log('[social] Career-priority day — skipping social dispatch (career posted today)'); // eslint-disable-line no-console
     return;
@@ -196,9 +201,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Career > social priority: also skip the micro.blog short scan if career posted today
+  // Skip micro.blog short scan if either career or social posted today
   const careerPostedToday = await checkCareerPostedToday().catch(() => false);
-  if (!careerPostedToday) {
+  const socialPostedToday = await checkSocialPostedToday().catch(() => false);
+  if (!careerPostedToday && !socialPostedToday) {
     try {
       await scanAndPostShorts(dryRun);
     } catch (err) {

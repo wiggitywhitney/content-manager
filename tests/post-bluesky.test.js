@@ -300,4 +300,15 @@ describe('postToBluesky - video path', () => {
     global.fetch = mockFetch;
     await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('codec not supported');
   });
+
+  test('throws with clear message if agent.pdsUrl is undefined after login', async () => {
+    BskyAgent.mockImplementation(() => ({
+      login: mockLogin,
+      post: mockPost,
+      session: { did: MOCK_DID },
+      pdsUrl: undefined,
+      com: { atproto: { server: { getServiceAuth: mockGetServiceAuth } } },
+    }));
+    await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('pdsUrl');
+  });
 });

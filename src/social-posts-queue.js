@@ -255,4 +255,49 @@ async function fetchRecentShortRows(limit = 10) {
   return shortPosts.slice(-limit);
 }
 
-module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly };
+/**
+ * Returns true if a social post was dispatched today.
+ * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G.
+ * Returns false (not throws) on any error so transient failures don't suppress future posts.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function checkSocialPostedToday() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    console.warn('[social-guard] GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping social post check'); // eslint-disable-line no-console
+    return false;
+  }
+
+  try {
+    const credentials = JSON.parse(serviceAccountJson);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: STAGED_SPREADSHEET_ID,
+      range: `${SOCIAL_POSTS_TAB}!A:O`,
+    });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = response.data.values || [];
+    const posted = rows.some(row => {
+      const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
+      const status = (row[COL.STATUS] || '').trim();
+      return status === 'posted' && scheduledDate.startsWith(today);
+    });
+
+    if (posted) {
+      console.log(`[social-guard] Social content already posted today (${today})`); // eslint-disable-line no-console
+    }
+    return posted;
+  } catch (err) {
+    console.warn(`[social-guard] Error checking social post status: ${err.message} — proceeding with dispatch`); // eslint-disable-line no-console
+    return false;
+  }
+}
+
+module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };

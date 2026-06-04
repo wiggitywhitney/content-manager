@@ -38,6 +38,9 @@ function buildBskyWebUrl(handle, uri) {
 
 async function uploadVideoToBluesky(agent, videoBuffer) {
   console.log('[bluesky] Uploading video...'); // eslint-disable-line no-console
+  if (!agent.pdsUrl) {
+    throw new Error('Bluesky login succeeded but agent.pdsUrl is undefined — cannot derive PDS DID for service auth');
+  }
   const pdsDid = `did:web:${new URL(agent.pdsUrl).hostname}`;
   const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
     aud: pdsDid,

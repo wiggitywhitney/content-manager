@@ -5,6 +5,7 @@
 jest.mock('../src/social-posts-queue', () => ({
   fetchOldestPendingGroup: jest.fn(),
   fetchOldestPendingMicroblogPost: jest.fn(),
+  checkSocialPostedToday: jest.fn(),
 }));
 jest.mock('../src/career-post-guard', () => ({
   checkCareerPostedToday: jest.fn(),
@@ -41,7 +42,7 @@ const { postToMicroblog, scanAndPostShorts } = require('../src/post-microblog');
 const { updatePostResult } = require('../src/update-social-post-status');
 const { downloadFromDrive } = require('../src/drive-download');
 const { fetchThumbnail } = require('../src/fetch-thumbnail');
-const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost } = require('../src/social-posts-queue');
+const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, checkSocialPostedToday } = require('../src/social-posts-queue');
 const { checkCareerPostedToday } = require('../src/career-post-guard');
 
 const FAKE_VIDEO_BUFFER = Buffer.from('fake-video-data');
@@ -395,6 +396,7 @@ describe('processPostsForDate — three-tier dispatch', () => {
     fetchOldestPendingGroup.mockResolvedValue([]);
     fetchOldestPendingMicroblogPost.mockResolvedValue(null);
     checkCareerPostedToday.mockResolvedValue(false);
+    checkSocialPostedToday.mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -436,6 +438,28 @@ describe('processPostsForDate — three-tier dispatch', () => {
   test('(d) career day, career posted: social and micro.blog both skipped', async () => {
     process.env.CAREER_PRIORITY = '1';
     checkCareerPostedToday.mockResolvedValue(true);
+
+    await processPostsForDate('2026-05-13');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('(f) social posted today on social-priority day: dispatch skipped', async () => {
+    process.env.CAREER_PRIORITY = '0';
+    checkSocialPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-05-12');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('(g) social posted today on career-priority day: dispatch skipped', async () => {
+    process.env.CAREER_PRIORITY = '1';
+    checkCareerPostedToday.mockResolvedValue(false);
+    checkSocialPostedToday.mockResolvedValue(true);
 
     await processPostsForDate('2026-05-13');
 

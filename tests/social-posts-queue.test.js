@@ -5,7 +5,7 @@
 jest.mock('googleapis');
 
 const { google } = require('googleapis');
-const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows } = require('../src/social-posts-queue');
+const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, checkSocialPostedToday } = require('../src/social-posts-queue');
 
 // Schema columns (0-indexed):
 // A(0)=Show, B(1)=Episode/Short Title, C(2)=Post Type, D(3)=Post Text,
@@ -466,5 +466,78 @@ describe('fetchRecentShortRows', () => {
 
     const result = await fetchRecentShortRows();
     expect(result).toHaveLength(3);
+  });
+});
+
+describe('checkSocialPostedToday', () => {
+  const STAGED_SPREADSHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
+
+  function makeSheetsMock(rows) {
+    const mockGet = jest.fn().mockResolvedValue({ data: { values: rows } });
+    google.sheets.mockReturnValue({ spreadsheets: { values: { get: mockGet } } });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+    return { mockGet };
+  }
+
+  function todayPrefix() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('returns true when a row has status=posted and today in column G', async () => {
+    makeSheetsMock([
+      makeRow({ scheduledDate: '2026-01-01', status: 'posted' }),
+      makeRow({ scheduledDate: todayPrefix(), status: 'posted' }),
+    ]);
+    expect(await checkSocialPostedToday()).toBe(true);
+  });
+
+  test('returns false when posted rows exist but none have today in column G', async () => {
+    makeSheetsMock([
+      makeRow({ scheduledDate: '2026-01-01', status: 'posted' }),
+    ]);
+    expect(await checkSocialPostedToday()).toBe(false);
+  });
+
+  test('returns false when today row is pending, not posted', async () => {
+    makeSheetsMock([
+      makeRow({ scheduledDate: todayPrefix(), status: 'pending' }),
+    ]);
+    expect(await checkSocialPostedToday()).toBe(false);
+  });
+
+  test('returns false when queue is empty', async () => {
+    makeSheetsMock([]);
+    expect(await checkSocialPostedToday()).toBe(false);
+  });
+
+  test('returns false (not throws) when GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    expect(await checkSocialPostedToday()).toBe(false);
+  });
+
+  test('returns false (not throws) when Sheets API call fails', async () => {
+    google.sheets.mockReturnValue({
+      spreadsheets: { values: { get: jest.fn().mockRejectedValue(new Error('Network error')) } },
+    });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+    expect(await checkSocialPostedToday()).toBe(false);
+  });
+
+  test('reads from the Social Posts Queue tab in the Staged spreadsheet', async () => {
+    const { mockGet } = makeSheetsMock([]);
+    await checkSocialPostedToday();
+    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
+      spreadsheetId: STAGED_SPREADSHEET_ID,
+      range: "Social Posts Queue!A:O",
+    }));
   });
 });
