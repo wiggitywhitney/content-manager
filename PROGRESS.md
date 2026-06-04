@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Changed
+- (2026-06-04) Fixed Bluesky video upload: the `getServiceAuth` token audience must be the user's PDS DID (e.g. `did:web:oyster.us-east.host.bsky.network`), not the hardcoded `did:web:video.bsky.app`. The previous value caused a 401 on every video upload attempt. The correct value is derived from `agent.pdsUrl` after login.
 - (2026-06-04) Journal skill updated to download YouTube Shorts locally and upload them to Google Drive when writing short post queue rows, populating the new Drive Video ID column so CI can fetch the video from Drive instead of YouTube. Confirmed working on 4 OpenFGA short posts now pending in the queue with Drive file IDs ready for dispatch.
 - (2026-06-04) Updated the Social Posts Queue Social Instructions tab to document column O ("Drive Video ID") and instruct the journal skill how to populate it for short post type rows: download from YouTube using yt-dlp on a local machine, upload to the "Social Post Videos" Google Drive folder, write the file ID to column O. If the video isn't yet public, leave the column empty — the cron skips the row and retries next run.
 - (2026-06-04) Documented why the yt-dlp CI setup steps are still in the daily-sync workflow after short post dispatch moved to Google Drive. The micro.blog view-count scan path (`post-microblog.js`) still downloads YouTube Shorts via yt-dlp — added an inline comment so the steps don't appear as dead code.

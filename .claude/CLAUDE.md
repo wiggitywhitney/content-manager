@@ -108,6 +108,22 @@ npm run sync:test     # dry-run sync
 npm run check-posts   # check Micro.blog post state
 ```
 
+## Social Posting Safety
+
+**`post-social-content.js` makes irreversible API calls. Never run it without explicit dry-run verification.**
+
+`DRY_RUN=true` must be set **inside** the `vals exec` subprocess — setting it as a prefix to `vals exec` silently strips it and the script runs live:
+
+```bash
+# CORRECT — DRY_RUN is inside vals exec scope
+vals exec -f .vals.yaml -- bash -c 'DRY_RUN=true node src/post-social-content.js'
+
+# WRONG — vals exec strips DRY_RUN, posts go live
+DRY_RUN=true vals exec -f .vals.yaml -- node src/post-social-content.js
+```
+
+Do not run `post-social-content.js` live (without `DRY_RUN=true`) without Whitney's explicit approval. The same rule applies to any other script that writes to social platforms.
+
 ## Secrets Management
 
 Secrets are stored in Google Secret Manager (project: `demoo-ooclock`) and injected locally via [vals](https://github.com/helmfile/vals). Install: `brew install vals`.
