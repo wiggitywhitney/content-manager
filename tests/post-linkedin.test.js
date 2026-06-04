@@ -227,7 +227,21 @@ describe('postToLinkedIn', () => {
       setupImageMocks();
       await postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
       const postBody = JSON.parse(global.fetch.mock.calls[2][1].body);
-      expect(postBody.content).toEqual({ media: { id: FAKE_IMAGE_URN } });
+      expect(postBody.content).toEqual({ media: { id: FAKE_IMAGE_URN, altText: 'A test video thumbnail' } });
+    });
+
+    test('includes altText in content.media when post.altText is set', async () => {
+      setupImageMocks();
+      await postToLinkedIn(makePost({ altText: 'A descriptive alt text' }), { imageBuffer: FAKE_IMAGE_BUFFER });
+      const postBody = JSON.parse(global.fetch.mock.calls[2][1].body);
+      expect(postBody.content.media.altText).toBe('A descriptive alt text');
+    });
+
+    test('does not include altText key in content.media when altText is absent', async () => {
+      setupImageMocks();
+      await postToLinkedIn(makePost({ altText: '' }), { imageBuffer: FAKE_IMAGE_BUFFER });
+      const postBody = JSON.parse(global.fetch.mock.calls[2][1].body);
+      expect(Object.prototype.hasOwnProperty.call(postBody.content.media, 'altText')).toBe(false);
     });
 
     test('throws when initializeUpload fails', async () => {

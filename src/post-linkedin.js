@@ -246,7 +246,9 @@ async function postToLinkedIn(post, { videoBuffer, imageBuffer } = {}) {
   if (videoUrn) {
     body.content = { media: { title: 'Short video', id: videoUrn } };
   } else if (imageUrn) {
-    body.content = { media: { id: imageUrn } };
+    const mediaContent = { id: imageUrn };
+    if (post.altText) mediaContent.altText = post.altText;
+    body.content = { media: mediaContent };
   }
 
   const response = await fetch(`${LINKEDIN_API_BASE}/rest/posts`, {

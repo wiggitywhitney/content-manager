@@ -6,6 +6,9 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 
 ## [Unreleased]
 
+### Added
+- (2026-06-04) LinkedIn image posts now pass alt text to the API. `post.altText` (read from column F of the Social Posts Queue) is now wired to `content.media.altText` in the `POST /rest/posts` body when present. The field is omitted entirely when empty, matching LinkedIn's recommendation to let their AI generate generic alt text rather than sending an empty string. The other three platforms (Bluesky, Mastodon, micro.blog) already handled this; LinkedIn was the only gap.
+
 ### Fixed
 - (2026-06-04) Fixed a bug where gist posts dispatched with no image when column E held a direct CDN image URL (e.g. `https://i.ytimg.com/vi/.../maxresdefault.jpg`). `fetchThumbnail` only recognized YouTube video page URLs and SDI episode URLs; direct image URLs threw "Unrecognized YouTube URL format" and the error was swallowed, resulting in imageless posts. Direct image URLs are now fetched as-is and returned as a buffer, throwing on non-200 responses. The Social Instructions spreadsheet tab was updated to document the gist row schema: column E holds a board-notes GitHub URL (`https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/{episode-slug}/board.png`), and gist rows use one row with all platforms comma-separated — no Group ID.
 - (2026-06-04) Fixed a bug where social dispatch would proceed on social-priority days even if career had already posted that day. The `checkCareerPostedToday()` gate was only applied on career-priority days; removing that condition means career-already-posted skips social dispatch on any day, correctly enforcing the one-post-per-day limit.
