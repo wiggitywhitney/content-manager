@@ -1,0 +1,92 @@
+# PRD: Store Short Videos in Google Drive for CI Dispatch
+
+**GitHub Issue**: [#74](https://github.com/wiggitywhitney/content-manager/issues/74)
+
+**Status**: In Progress
+
+**Priority**: High
+
+---
+
+## Problem Statement
+
+`post-social-content.js` downloads YouTube Shorts via yt-dlp during GitHub Actions runs. GitHub Actions runners use shared datacenter IPs that YouTube explicitly flags as bot traffic, returning:
+
+```text
+ERROR: [youtube] VIDEO_ID: Sign in to confirm you're not a bot.
+```
+
+This is an IP reputation problem, not a yt-dlp version problem. Keeping yt-dlp current (the previous attempted fix) does not help. When a short post row fails to download, the row stays `pending` and blocks the dispatch queue — nothing else can post until it is resolved.
+
+As of 2026-06-03, rows 15–18 and 23–26 in the Social Posts Queue are pending short posts that have been blocked by this issue.
+
+## Solution Overview
+
+Move video storage to Google Drive. The journal skill (which runs on Whitney's local machine with a residential IP) downloads the YouTube Short and uploads it to a designated Drive folder when creating the queue row. CI reads the Drive file ID from the spreadsheet and downloads the video from Drive instead of touching YouTube directly.
+
+The `content-manager-sheets` service account already has Google Drive access confirmed.
+
+## Rejected Alternatives
+
+These were considered and ruled out during design. Do not revisit them without new information.
+
+| Approach | Rejected because |
+|---|---|
+| `yt-dlp -U` self-update in CI | Fixes version staleness; does not fix datacenter IP reputation |
+| `bgutil-ytdlp-pot-provider` (PO token plugin) | "Does not guarantee bypassing 403 errors" per official README; adds complexity without reliability |
+| Firefox cookies stored as CI secret | Expires every ~2 weeks; requires manual rotation; uses Whitney's personal Google account credentials |
+| Different download tool (pytube, ytdl-core, etc.) | Same datacenter IP problem regardless of tool |
+| Text + YouTube link fallback when video fails | Whitney wants video or nothing — text-only posts are not acceptable |
+
+## Design Notes
+
+- **Video or nothing**: when a short post row has no Drive link, skip the row entirely. Do NOT post text + YouTube link as a fallback.
+- **Drive file ID format**: store the Drive file ID (not a shareable URL) in the spreadsheet. File IDs are stable and don't expire. Download via `drive.files.get({ fileId, alt: 'media' })` using the service account.
+- **Journal skill boundary**: `Journal/.claude/skills/write-social-posts/SKILL.md` must NOT be edited directly from this repo. Whitney relays what the skill needs to do to the journal repo's Claude Code instance (see Milestone 6).
+- **Cross-repo schema changes**: whenever the spreadsheet column schema changes, three places must be updated together: the Social Instructions tab (gid=444239135), `Journal/docs/social-posts-queue.md`, and `src/post-social-content.js`. See CLAUDE.md "Cross-repo relationship — Social Posts Queue."
+
+## Success Criteria
+
+- Short post rows dispatch with the actual video attached to LinkedIn, Bluesky, and Mastodon
+- No yt-dlp invocation occurs in GitHub Actions for short post dispatch
+- Rows with no Drive link are skipped (not failed, not posted as text-only)
+- The 8 existing pending short rows (15–18, 23–26) are backfilled and dispatch successfully
+- All existing tests pass; new tests cover the Drive download path
+
+## Milestones
+
+- [ ] **M1: Schema and Drive folder decision** — Before any code is written, decide: (a) which column holds the Drive file ID (proposed: column O, after the existing Group ID column N); (b) which Drive folder to use (suggested default: create a new folder named "Social Post Videos" at the root of the service account's Drive if no obvious existing folder fits); (c) exact column header name (suggested default: "Drive Video ID"). Confirm each decision with Whitney before documenting. Document all decisions in the Decision Log below. This milestone gates M2, M3, M5, and M6.
+
+- [ ] **M2: `post-social-content.js` updated for Drive download** — Step 0: Read the M1 Decision Log entry — it must exist before this milestone begins. Read the Drive file ID from the decided column. If the column is populated, download the video using `drive.files.get({ fileId, alt: 'media' })` with the service account, then use the downloaded file for platform uploads (same as the current yt-dlp output path in `src/post-social-content.js`). If the column is absent or empty, skip the row — do NOT fall back to text posting. Remove the yt-dlp invocation from the short post dispatch path. Do NOT introduce new npm packages — `googleapis` is already installed in the project; check existing Drive usage in the codebase before writing any API calls.
+
+- [ ] **M3: Tests updated** — Step 0: Read the M1 Decision Log entry. Add tests covering: Drive link present → video fetched and post attempted on each platform; Drive link absent → row skipped with no post attempt; Drive API error → row marked failed, not silently swallowed. Existing tests must continue to pass.
+
+- [ ] **M4: CI workflow cleanup** — Audit `daily-sync.yml` for all yt-dlp usages. If short post dispatch was the only consumer, remove `AnimMouse/setup-yt-dlp@v3` and the `yt-dlp -U` self-update step. If yt-dlp is used elsewhere in the workflow, leave those steps in place and add an inline comment in `daily-sync.yml` next to the retained step explaining what still uses it. This milestone has no dependency on M1.
+
+- [ ] **M5: Schema docs and Social Instructions tab updated** — Step 0: Read the M1 Decision Log entry — it must exist before this milestone begins. Update two places: (1) the Social Instructions tab in the Staged spreadsheet (`1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts`, gid=444239135) to describe the new column and instruct the journal skill to populate it; (2) `Journal/docs/social-posts-queue.md` to add the new column to the schema table. Do NOT edit `Journal/.claude/skills/write-social-posts/SKILL.md` — that is handled by Milestone 6.
+
+- [ ] **M6: Journal team handoff** — Step 0: Read the M1 Decision Log entry and confirm M5 is complete (Social Instructions tab updated). Whitney relays the following to the journal repo's Claude Code instance: for `short` post type rows, the `/write-social-posts` skill must (a) download the video locally using yt-dlp (works on residential IP), (b) upload it to the designated Drive folder using the service account, and (c) write the Drive file ID to the new column. This milestone is complete when the journal skill produces rows with the Drive column populated.
+
+- [ ] **M7: Existing rows backfilled and end-to-end verified** — The 8 pending short rows (15–18 and 23–26) predate this feature and have no Drive link. Backfill column O for each by running the updated journal skill or uploading videos to Drive manually and writing the file IDs. Row 15 ("Beyond Container Logs: Logging Operator's Extensions") is the highest priority — it has been blocked the longest. After backfill, verify using `npm run sync:test` (dry-run mode) that the dispatch selects row 15 and downloads the Drive video without posting live. Do NOT trigger the GitHub Actions workflow to verify — that requires Whitney's explicit approval.
+
+## Decision Log
+
+| Date | Decision | Rationale |
+|---|---|---|
+| 2026-06-03 | Store videos in Google Drive instead of downloading from YouTube in CI | GitHub Actions datacenter IPs are blocked by YouTube bot detection regardless of tool; journal skill runs on residential IP where yt-dlp works; service account Drive access already confirmed |
+| 2026-06-03 | Video or nothing — no text fallback | Whitney's explicit requirement |
+
+## Open Questions
+
+- Which Drive folder? Create a new dedicated folder (e.g., "Social Post Videos") or use an existing one?
+- Column O as the new column position — confirm this doesn't conflict with any unreferenced columns in the live sheet.
+- What should happen when the journal skill tries to download a short that isn't yet public (private/scheduled)? Skip writing the Drive link and leave column O empty, or fail the row creation?
+
+## Progress Log
+
+### 2026-06-03
+- PRD created
+- Root cause confirmed: datacenter IP reputation, not yt-dlp version
+- All alternative approaches evaluated and rejected (see Rejected Alternatives table)
+- 8 existing pending short rows (15–18, 23–26) identified as blocked by this issue
+- Service account Drive access confirmed via test call
