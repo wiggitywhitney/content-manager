@@ -45,8 +45,9 @@ function extractVideoId(youtubeUrl) {
  * throws on other failures.
  * For SDI episode URLs: parses the SDI RSS feed to find the episode artwork,
  * returns null (with console.warn) on RSS fetch failure or missing episode.
+ * For any other URL: fetches the URL directly, throws on non-200.
  *
- * @param {string} url - YouTube video URL or SDI episode URL
+ * @param {string} url - YouTube video URL, SDI episode URL, or direct image URL
  * @returns {Promise<Buffer|null>} Image bytes as a Buffer, or null if SDI lookup fails
  */
 async function fetchThumbnail(url) {
@@ -54,28 +55,57 @@ async function fetchThumbnail(url) {
     return fetchSdiThumbnail(url);
   }
 
-  const videoId = extractVideoId(url);
-  const maxresUrl = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
-  const hqUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  if (isYoutubeUrl(url)) {
+    const videoId = extractVideoId(url);
+    const maxresUrl = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+    const hqUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-  const maxresRes = await fetch(maxresUrl);
-  if (maxresRes.ok) {
-    return Buffer.from(await maxresRes.arrayBuffer());
+    const maxresRes = await fetch(maxresUrl);
+    if (maxresRes.ok) {
+      return Buffer.from(await maxresRes.arrayBuffer());
+    }
+
+    if (maxresRes.status !== 404) {
+      throw new Error(`Failed to fetch thumbnail (${maxresRes.status}): ${maxresUrl}`);
+    }
+
+    const hqRes = await fetch(hqUrl);
+    if (!hqRes.ok) {
+      throw new Error(`Failed to fetch thumbnail (${hqRes.status}): ${hqUrl}`);
+    }
+
+    return Buffer.from(await hqRes.arrayBuffer());
   }
 
-  if (maxresRes.status !== 404) {
-    throw new Error(`Failed to fetch thumbnail (${maxresRes.status}): ${maxresUrl}`);
+  try {
+    new URL(url);
+  } catch {
+    throw new Error(`Invalid URL: ${url}`);
   }
 
-  const hqRes = await fetch(hqUrl);
-  if (!hqRes.ok) {
-    throw new Error(`Failed to fetch thumbnail (${hqRes.status}): ${hqUrl}`);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch image (${res.status}): ${url}`);
   }
-
-  return Buffer.from(await hqRes.arrayBuffer());
+  return Buffer.from(await res.arrayBuffer());
 }
 
 const SDI_FEED_URL = 'https://feeds.fireside.fm/softwaredefinedinterviews/rss';
+
+/**
+ * Returns true if the URL is a YouTube video URL.
+ *
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isYoutubeUrl(url) {
+  try {
+    const h = new URL(url).hostname;
+    return h === 'youtu.be' || h === 'youtube.com' || h === 'www.youtube.com';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Returns true if the URL is a Software Defined Interviews episode URL.
@@ -144,4 +174,4 @@ async function fetchSdiThumbnail(episodeUrl) {
   }
 }
 
-module.exports = { fetchThumbnail, extractVideoId, isSdiUrl, fetchSdiThumbnail };
+module.exports = { fetchThumbnail, extractVideoId, isYoutubeUrl, isSdiUrl, fetchSdiThumbnail };

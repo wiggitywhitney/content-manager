@@ -104,8 +104,40 @@ describe('fetchThumbnail', () => {
   });
 
   test('throws on malformed URL', async () => {
-    await expect(fetchThumbnail('not-a-url')).rejects.toThrow('Invalid YouTube URL');
+    await expect(fetchThumbnail('not-a-url')).rejects.toThrow('Invalid URL');
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchThumbnail — direct image URLs', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+  });
+
+  test('returns buffer from a direct image URL', async () => {
+    const FAKE_IMAGE_BYTES = Buffer.from('fake-jpeg-data');
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(FAKE_IMAGE_BYTES.buffer),
+    });
+
+    const result = await fetchThumbnail('https://i.ytimg.com/vi/RNaa_48LWBY/maxresdefault.jpg');
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith('https://i.ytimg.com/vi/RNaa_48LWBY/maxresdefault.jpg');
+  });
+
+  test('throws when direct image URL returns non-200', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 403 });
+
+    await expect(
+      fetchThumbnail('https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png')
+    ).rejects.toThrow('Failed to fetch image (403)');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });
 
