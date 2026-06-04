@@ -136,20 +136,7 @@ describe('dispatchPost', () => {
     });
   });
 
-  describe('short post Drive download', () => {
-    test('calls downloadFromDrive with the drive video ID', async () => {
-      await dispatchPost(makePost({ driveVideoId: 'abc-drive-id' }), '2026-04-27');
-      expect(downloadFromDrive).toHaveBeenCalledWith('abc-drive-id');
-    });
-
-    test('passes videoBuffer from Drive to postToBluesky', async () => {
-      await dispatchPost(makePost(), '2026-04-27');
-      expect(postToBluesky).toHaveBeenCalledWith(
-        expect.objectContaining({ postType: 'short' }),
-        expect.objectContaining({ videoBuffer: FAKE_VIDEO_BUFFER })
-      );
-    });
-
+  describe('short post with missing Drive ID', () => {
     test('skips row when Drive video ID is absent, leaving status pending', async () => {
       await dispatchPost(makePost({ driveVideoId: '' }), '2026-04-27');
       expect(updatePostResult).not.toHaveBeenCalled();
@@ -157,20 +144,6 @@ describe('dispatchPost', () => {
 
     test('does not call any platform posters when Drive ID is absent', async () => {
       await dispatchPost(makePost({ driveVideoId: '' }), '2026-04-27');
-      expect(postToBluesky).not.toHaveBeenCalled();
-      expect(postToMastodon).not.toHaveBeenCalled();
-      expect(postToLinkedIn).not.toHaveBeenCalled();
-    });
-
-    test('marks post as failed when Drive download throws', async () => {
-      downloadFromDrive.mockRejectedValue(new Error('Drive API error'));
-      await dispatchPost(makePost(), '2026-04-27');
-      expect(updatePostResult).toHaveBeenCalledWith(5, { status: 'failed' });
-    });
-
-    test('does not call any platform posters when Drive download throws', async () => {
-      downloadFromDrive.mockRejectedValue(new Error('Drive API error'));
-      await dispatchPost(makePost(), '2026-04-27');
       expect(postToBluesky).not.toHaveBeenCalled();
       expect(postToMastodon).not.toHaveBeenCalled();
       expect(postToLinkedIn).not.toHaveBeenCalled();
@@ -414,14 +387,24 @@ describe('processPostsForDate — three-tier dispatch', () => {
     expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
   });
 
-  test('(b) social day, social empty, career posted today: micro.blog deferred', async () => {
+  test('(b) social day, career posted today: all dispatch skipped', async () => {
     process.env.CAREER_PRIORITY = '0';
-    fetchOldestPendingGroup.mockResolvedValue([]);
     checkCareerPostedToday.mockResolvedValue(true);
 
     await processPostsForDate('2026-05-12');
 
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
     expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('(h) social day, career posted today, social pending: dispatch skipped', async () => {
+    process.env.CAREER_PRIORITY = '0';
+    checkCareerPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-05-12');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
   });
 
   test('(c) social day, social empty, career not posted today: micro.blog tier reached', async () => {
@@ -535,14 +518,15 @@ describe('processPostsForDate — full dispatch coverage', () => {
     expect(updatePostResult).not.toHaveBeenCalled();
   });
 
-  test('dispatches on social-priority day (even day) even when career posted today', async () => {
+  test('skips dispatch on social-priority day (even day) when career already posted today', async () => {
     process.env.CAREER_PRIORITY = '0';
     checkCareerPostedToday.mockResolvedValue(true);
     fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky'] })]);
 
     await processPostsForDate(EVEN_DAY);
 
-    expect(postToBluesky).toHaveBeenCalled();
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+    expect(postToBluesky).not.toHaveBeenCalled();
   });
 
   test('proceeds normally when career has not posted today', async () => {

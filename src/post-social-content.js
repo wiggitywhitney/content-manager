@@ -45,12 +45,16 @@ async function dispatchPost(post, today) {
 
   if (post.postType === 'short') {
     if (!post.driveVideoId) {
+      // No Drive ID means the journal skill hasn't uploaded the video yet — leave pending so the
+      // next cron run retries. Do NOT mark failed; do NOT fall back to text-only posting.
       console.warn(`[social] Row ${post.rowIndex} has no Drive video ID — skipping (row remains pending)`); // eslint-disable-line no-console
       return;
     }
     try {
       ({ buffer: videoBuffer } = await downloadFromDrive(post.driveVideoId));
     } catch (err) {
+      // Drive API error (including transient failures) — mark failed so the operator can investigate.
+      // Distinct from "no ID" above: if the file ID is present but download fails, something is wrong.
       console.error(`[social] Failed to download Drive video for row ${post.rowIndex}: ${err.message}`); // eslint-disable-line no-console
       await updatePostResult(post.rowIndex, { status: 'failed' });
       return;
@@ -132,7 +136,8 @@ async function dispatchPost(post, today) {
  * Fetch and dispatch the next eligible social post(s).
  *
  * Dispatch priority order:
- * 1. Career-priority check: when CAREER_PRIORITY env var is not '0', skip if career posted today.
+ * 0. Social-posted-today gate: skip all dispatch if social content already posted today.
+ * 1. Career-posted-today gate: skip all dispatch if career content already posted today (any day).
  * 2. Non-micro.blog group: dispatch the oldest pending group of LinkedIn/Bluesky/Mastodon rows.
  *    If the group has a Group ID (col N), all rows sharing that ID post together in one run.
  * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND career has not
@@ -150,8 +155,8 @@ async function processPostsForDate(today) {
     return;
   }
 
-  if (careerFirst && await checkCareerPostedToday()) {
-    console.log('[social] Career-priority day — skipping social dispatch (career posted today)'); // eslint-disable-line no-console
+  if (await checkCareerPostedToday()) {
+    console.log('[social] Career content already posted today — skipping social dispatch'); // eslint-disable-line no-console
     return;
   }
 

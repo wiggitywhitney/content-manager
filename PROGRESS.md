@@ -6,6 +6,9 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 
 ## [Unreleased]
 
+### Fixed
+- (2026-06-04) Fixed a bug where social dispatch would proceed on social-priority days even if career had already posted that day. The `checkCareerPostedToday()` gate was only applied on career-priority days; removing that condition means career-already-posted skips social dispatch on any day, correctly enforcing the one-post-per-day limit.
+
 ### Changed
 - (2026-06-04) Added a posted-today gate for social dispatch. Previously, `post-social-content.js` would dispatch a social post on every cron run regardless of whether one had already gone out that day. The new `checkSocialPostedToday()` function reads the Social Posts Queue for any `status=posted` row with today's date, and skips both dispatch and the micro.blog short scan when one is found — matching the behavior of the existing career-post guard.
 - (2026-06-04) Fixed Bluesky video upload: the `getServiceAuth` token audience must be the user's PDS DID (e.g. `did:web:oyster.us-east.host.bsky.network`), not the hardcoded `did:web:video.bsky.app`. The previous value caused a 401 on every video upload attempt. The correct value is derived from `agent.pdsUrl` after login.

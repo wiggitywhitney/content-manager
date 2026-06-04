@@ -12,6 +12,8 @@ const { google } = require('googleapis');
  *
  * @param {string} fileId - Google Drive file ID
  * @returns {Promise<{ buffer: Buffer, mimeType: string, filename: string }>}
+ *   mimeType and filename are hardcoded to 'video/mp4'/'video.mp4' — the journal skill only
+ *   uploads MP4s to the Social Post Videos folder.
  */
 async function downloadFromDrive(fileId) {
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
