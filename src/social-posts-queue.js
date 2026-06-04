@@ -286,7 +286,7 @@ async function checkSocialPostedToday() {
     const rows = response.data.values || [];
     const posted = rows.some(row => {
       const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
-      const status = (row[COL.STATUS] || '').trim();
+      const status = (row[COL.STATUS] || '').trim().toLowerCase();
       return status === 'posted' && scheduledDate.startsWith(today);
     });
 
