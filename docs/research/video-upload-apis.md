@@ -1,13 +1,14 @@
 # Research: Video Upload APIs — Bluesky, Mastodon, LinkedIn
 
 **Project:** content-manager
-**Last Updated:** 2026-04-25
+**Last Updated:** 2026-06-04
 
 ## Update Log
 
 | Date | Summary |
 |------|---------|
 | 2026-04-25 | Initial research — video embed for social short posts (Bluesky, Mastodon, LinkedIn) |
+| 2026-06-04 | Corrected Bluesky `getServiceAuth` aud: must be user's PDS DID, not `did:web:video.bsky.app`. Updated code example to use `agent.pdsUrl` (`dispatchUrl` is undefined in `@atproto/api` ≥ 0.13.x). |
 
 ## Findings
 
@@ -29,8 +30,11 @@ All three platforms support video upload and embedding. LinkedIn is genuinely co
 
 ```javascript
 // 1. Get scoped service token (30-minute TTL)
+// aud must be the user's PDS DID — NOT did:web:video.bsky.app
+// agent.pdsUrl is populated after login; agent.dispatchUrl is undefined in @atproto/api ≥ 0.13.x
+const pdsDid = `did:web:${new URL(agent.pdsUrl).hostname}`;
 const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
-  aud: `did:web:${agent.dispatchUrl.host}`,
+  aud: pdsDid,
   lxm: 'com.atproto.repo.uploadBlob',
   exp: Math.floor(Date.now() / 1000) + 60 * 30,
 });
@@ -74,6 +78,8 @@ await agent.post({
 
 #### Gotchas
 
+- **`aud` must be the user's PDS DID, NOT `did:web:video.bsky.app`**: The video service saves the processed video to your PDS — so the PDS is the intended audience. Using `did:web:video.bsky.app` returns a 401. Derive from `agent.pdsUrl` after login: `` `did:web:${new URL(agent.pdsUrl).hostname}` ``.
+- **`agent.dispatchUrl` is undefined in `@atproto/api` ≥ 0.13.x**: The official docs still show `dispatchUrl.host` but this property was removed. Use `agent.pdsUrl` instead.
 - **Different service, different token**: The video endpoint is `video.bsky.app`, NOT the user's PDS. Must use `getServiceAuth` — the session JWT is rejected.
 - **`aspectRatio` is required**: Omitting it causes the embed to fail silently. For vertical shorts: `{ width: 9, height: 16 }`. Use `ffprobe` to get actual dimensions if needed.
 - **Email verification required**: Bluesky-hosted accounts must have email verified before video upload is allowed. Returns an error otherwise.

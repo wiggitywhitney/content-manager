@@ -25,6 +25,7 @@ const COL = {
   MASTODON_POST_URL: 11,
   MICROBLOG_POST_URL: 12,
   GROUP_ID: 13,  // Column N — groups platform-variant rows that should post on the same day
+  DRIVE_VIDEO_ID: 14,  // Column O — Google Drive file ID for short video (populated by journal skill)
 };
 
 /**
@@ -68,6 +69,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       mastodonPostUrl: (row[COL.MASTODON_POST_URL] || '').trim(),
       microblogPostUrl: (row[COL.MICROBLOG_POST_URL] || '').trim(),
       groupId: (row[COL.GROUP_ID] || '').trim() || null,
+      driveVideoId: (row[COL.DRIVE_VIDEO_ID] || '').trim() || null,
     });
   }
 
@@ -111,7 +113,7 @@ async function fetchPendingPostsForToday(todayDate) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:N`;
+  const range = `${SOCIAL_POSTS_TAB}!A:O`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -157,7 +159,7 @@ async function fetchAllSocialPosts() {
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
-    range: `${SOCIAL_POSTS_TAB}!A:N`,
+    range: `${SOCIAL_POSTS_TAB}!A:O`,
   });
 
   const rows = response.data.values || [];
@@ -238,7 +240,7 @@ async function fetchRecentShortRows(limit = 10) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:N`;
+  const range = `${SOCIAL_POSTS_TAB}!A:O`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -253,4 +255,49 @@ async function fetchRecentShortRows(limit = 10) {
   return shortPosts.slice(-limit);
 }
 
-module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly };
+/**
+ * Returns true if a social post was dispatched today.
+ * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G.
+ * Returns false (not throws) on any error so transient failures don't suppress future posts.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function checkSocialPostedToday() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    console.warn('[social-guard] GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping social post check'); // eslint-disable-line no-console
+    return false;
+  }
+
+  try {
+    const credentials = JSON.parse(serviceAccountJson);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: STAGED_SPREADSHEET_ID,
+      range: `${SOCIAL_POSTS_TAB}!A:O`,
+    });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = response.data.values || [];
+    const posted = rows.some(row => {
+      const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
+      const status = (row[COL.STATUS] || '').trim().toLowerCase();
+      return status === 'posted' && scheduledDate.startsWith(today);
+    });
+
+    if (posted) {
+      console.log(`[social-guard] Social content already posted today (${today})`); // eslint-disable-line no-console
+    }
+    return posted;
+  } catch (err) {
+    console.warn(`[social-guard] Error checking social post status: ${err.message} — proceeding with dispatch`); // eslint-disable-line no-console
+    return false;
+  }
+}
+
+module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };

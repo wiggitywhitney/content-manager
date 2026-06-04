@@ -122,6 +122,7 @@ describe('postToBluesky - image path', () => {
       post: jest.fn().mockResolvedValue({ uri: FAKE_POST_URI }),
       uploadBlob: jest.fn().mockResolvedValue({ data: { blob: FAKE_BLOB } }),
       session: { did: 'did:plc:testuser' },
+      pdsUrl: 'https://oyster.us-east.host.bsky.network/',
       com: { atproto: { server: { getServiceAuth: jest.fn().mockResolvedValue({ data: { token: 'service-token' } }) } } },
     };
 
@@ -194,6 +195,8 @@ describe('postToBluesky - video path', () => {
   let mockFetch;
 
   const MOCK_DID = 'did:plc:testdid';
+  const MOCK_PDS_URL = 'https://oyster.us-east.host.bsky.network/';
+  const MOCK_PDS_DID = 'did:web:oyster.us-east.host.bsky.network';
   const MOCK_SERVICE_TOKEN = 'service-token-123';
   const MOCK_JOB_ID = 'job-abc-456';
   const MOCK_BLOB = { $type: 'blob', ref: { $link: 'bafytest' }, mimeType: 'video/mp4', size: 12345 };
@@ -207,6 +210,7 @@ describe('postToBluesky - video path', () => {
       login: mockLogin,
       post: mockPost,
       session: { did: MOCK_DID },
+      pdsUrl: MOCK_PDS_URL,
       com: { atproto: { server: { getServiceAuth: mockGetServiceAuth } } },
     }));
 
@@ -232,10 +236,10 @@ describe('postToBluesky - video path', () => {
     jest.clearAllMocks();
   });
 
-  test('acquires service auth token with correct aud and lxm', async () => {
+  test('acquires service auth token with PDS DID as aud', async () => {
     await postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') });
     expect(mockGetServiceAuth).toHaveBeenCalledWith({
-      aud: 'did:web:video.bsky.app',
+      aud: MOCK_PDS_DID,
       lxm: 'com.atproto.repo.uploadBlob',
       exp: expect.any(Number),
     });
@@ -295,5 +299,16 @@ describe('postToBluesky - video path', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'codec not supported' } }) });
     global.fetch = mockFetch;
     await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('codec not supported');
+  });
+
+  test('throws with clear message if agent.pdsUrl is undefined after login', async () => {
+    BskyAgent.mockImplementation(() => ({
+      login: mockLogin,
+      post: mockPost,
+      session: { did: MOCK_DID },
+      pdsUrl: undefined,
+      com: { atproto: { server: { getServiceAuth: mockGetServiceAuth } } },
+    }));
+    await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('pdsUrl');
   });
 });
