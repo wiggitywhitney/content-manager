@@ -89,6 +89,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --omit=dev
 
+      # yt-dlp is used by post-microblog.js (scanAndPostShorts) for the micro.blog view-count scan path.
+      # Short post dispatch (post-social-content.js) no longer uses yt-dlp — it reads video files from Google Drive.
       - name: Set up yt-dlp
         continue-on-error: true
         uses: AnimMouse/setup-yt-dlp@v3

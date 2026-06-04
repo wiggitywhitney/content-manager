@@ -61,7 +61,7 @@ These were considered and ruled out during design. Do not revisit them without n
 
 - [x] **M3: Tests updated** — Step 0: Read the M1 Decision Log entry. Add tests covering: Drive link present → video fetched and post attempted on each platform; Drive link absent → row skipped with no post attempt; Drive API error → row marked failed, not silently swallowed. Existing tests must continue to pass.
 
-- [ ] **M4: CI workflow cleanup** — Audit `daily-sync.yml` for all yt-dlp usages. If short post dispatch was the only consumer, remove `AnimMouse/setup-yt-dlp@v3` and the `yt-dlp -U` self-update step. If yt-dlp is used elsewhere in the workflow, leave those steps in place and add an inline comment in `daily-sync.yml` next to the retained step explaining what still uses it. This milestone has no dependency on M1. **Context for implementor**: As of M2/M3 completion, yt-dlp is no longer used by the short post dispatch path, but `src/post-microblog.js` still calls `downloadShortVideo()` (from `src/video-download.js`) for the micro.blog view-count scan path (`scanAndPostShorts`). The CI yt-dlp setup steps must stay, with a comment explaining micro.blog is the remaining consumer.
+- [x] **M4: CI workflow cleanup** — Audit `daily-sync.yml` for all yt-dlp usages. If short post dispatch was the only consumer, remove `AnimMouse/setup-yt-dlp@v3` and the `yt-dlp -U` self-update step. If yt-dlp is used elsewhere in the workflow, leave those steps in place and add an inline comment in `daily-sync.yml` next to the retained step explaining what still uses it. This milestone has no dependency on M1. **Context for implementor**: As of M2/M3 completion, yt-dlp is no longer used by the short post dispatch path, but `src/post-microblog.js` still calls `downloadShortVideo()` (from `src/video-download.js`) for the micro.blog view-count scan path (`scanAndPostShorts`). The CI yt-dlp setup steps must stay, with a comment explaining micro.blog is the remaining consumer.
 
 - [ ] **M5: Social Instructions tab updated** — Step 0: Read the M1 Decision Log entry — it must exist before this milestone begins. Update the Social Instructions tab in the Staged spreadsheet (`1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts`, gid=444239135) to describe the new column O and instruct the journal skill to populate it for `short` post type rows. This is the only change that can be made from this repo — `Journal/docs/social-posts-queue.md` and `Journal/.claude/skills/write-social-posts/SKILL.md` both live in the journal repo and are handled in M6.
 
@@ -90,6 +90,7 @@ These were considered and ruled out during design. Do not revisit them without n
 - M2 complete: `src/drive-download.js` created; `src/social-posts-queue.js` updated with COL.DRIVE_VIDEO_ID and A:O range; `src/post-social-content.js` updated — yt-dlp path removed, Drive download path added, missing Drive ID leaves row pending
 - M3 complete: `tests/post-social-content.test.js` and `tests/social-posts-queue.test.js` updated; 459 tests pass
 - Note: yt-dlp still used by `post-microblog.js` for micro.blog view-count scan — CI yt-dlp steps must remain (M4 will add an explanatory comment)
+- M4 complete: added explanatory comment to `daily-sync.yml` yt-dlp steps — `post-microblog.js` (scanAndPostShorts) is the remaining consumer; short post dispatch no longer uses yt-dlp
 
 ### 2026-06-03
 - PRD created
