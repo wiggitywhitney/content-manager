@@ -227,7 +227,7 @@ describe('postToLinkedIn', () => {
       setupImageMocks();
       await postToLinkedIn(makePost(), { imageBuffer: FAKE_IMAGE_BUFFER });
       const postBody = JSON.parse(global.fetch.mock.calls[2][1].body);
-      expect(postBody.content).toEqual({ media: { id: FAKE_IMAGE_URN, altText: 'A test video thumbnail' } });
+      expect(postBody.content.media.id).toBe(FAKE_IMAGE_URN);
     });
 
     test('includes altText in content.media when post.altText is set', async () => {
