@@ -113,6 +113,20 @@ function escapeLinkedInCommentary(text) {
 
 **Source:** ["When a left or right parenthesis appears anywhere in the commentary, all text from that parenthesis onwards gets silently dropped from the post (no error returned)."](https://learn.microsoft.com/en-us/answers/questions/5741122/issues-when-mentioning-urns-with-special-character) — Microsoft Learn Q&A, confirmed by LinkedIn Support.
 
+## Image alt text goes in `content.media.altText` on the post — NOT during upload
+
+Alt text is set in the `POST /rest/posts` body, not during `initializeUpload` or binary upload. Add it as `content.media.altText`. Omit the field (or use `undefined`) when no alt text is available — do not send an empty string.
+
+```json
+"content": { "media": { "altText": "Description here", "id": "urn:li:image:..." } }
+```
+
+- Maximum 4,086 characters; recommended under 120.
+- **GET responses do not return `altText`** — it is write-only. LinkedIn renders it server-side and does not echo it back.
+- LinkedIn auto-generates alt text via AI when the field is omitted.
+
+**Source:** [LinkedIn Posts API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api?view=li-lms-2026-05), [LinkedIn Image API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/images-api?view=li-lms-2026-05)
+
 ## `content.media` does NOT cause text truncation — it is not image-specific
 
 The `content.media` format for single-image posts does not impose any lower character limit on `commentary` vs text-only posts. The official schema defines the same `little` text `commentary` field for all post types with no type-specific limit. Apparent truncation on image posts is the reserved-character escaping issue above — coincidental because image post captions commonly contain parentheses.
