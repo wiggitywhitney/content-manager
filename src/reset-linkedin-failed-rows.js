@@ -39,11 +39,11 @@ async function resetFailedLinkedInRows() {
   const toReset = findFailedLinkedInRows(all);
 
   if (toReset.length === 0) {
-    console.log('[reset] No failed LinkedIn rows found — nothing to do.');
+    console.log('[reset] No failed LinkedIn rows found — nothing to do.'); // eslint-disable-line no-console
     return;
   }
 
-  console.log(`[reset] Resetting ${toReset.length} failed LinkedIn row(s) to pending: ${toReset.map(p => p.rowIndex).join(', ')}`);
+  console.log(`[reset] Resetting ${toReset.length} failed LinkedIn row(s) to pending: ${toReset.map(p => p.rowIndex).join(', ')}`); // eslint-disable-line no-console
 
   const data = toReset.map(p => ({
     range: `Social Posts Queue!${STATUS_COL}${p.rowIndex}`,
@@ -51,7 +51,7 @@ async function resetFailedLinkedInRows() {
   }));
 
   if (process.env.DRY_RUN === 'true') {
-    console.log('[reset] DRY_RUN active — no changes written.');
+    console.log('[reset] DRY_RUN active — no changes written.'); // eslint-disable-line no-console
     return;
   }
 
@@ -60,7 +60,7 @@ async function resetFailedLinkedInRows() {
     resource: { valueInputOption: 'USER_ENTERED', data },
   });
 
-  console.log('[reset] Done.');
+  console.log('[reset] Done.'); // eslint-disable-line no-console
 }
 
 module.exports = { findFailedLinkedInRows };
