@@ -32,7 +32,8 @@ LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
 LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
 LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn
 
-# Datadog API key — used by post-linkedin.js to emit token expiry metric
-# Create the GSM secret first: echo -n "YOUR_DD_API_KEY" | gcloud secrets create datadog_api_key --data-file=- --replication-policy=automatic --project=demoo-ooclock
-# Then also add DD_API_KEY as a GitHub Actions secret in the repo settings.
-# DD_API_KEY: ref+gcpsecrets://demoo-ooclock/datadog_api_key
+# Datadog credentials — shared with commit-story project (no new secrets needed)
+# DD_API_KEY: used by post-linkedin.js to emit token expiry metric; also needed for GitHub Actions secret
+# DD_APP_KEY: needed for monitor creation (M4) — maps to DD-APPLICATION-KEY header in Datadog API
+DD_API_KEY: ref+gcpsecrets://demoo-ooclock/datadog-commit-story-dev
+DD_APP_KEY: ref+gcpsecrets://demoo-ooclock/datadog-commit-story-app

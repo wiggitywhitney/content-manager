@@ -116,11 +116,10 @@ Do NOT modify any code outside `src/post-linkedin.js` for this milestone.
 
 The test framework is Vitest. Tests live in the `test/` directory. Read existing test files before adding new ones to match their import style and mock patterns. Mock the `fetch` call; do not make real Datadog API calls in unit tests.
 
-**Secrets setup:**
+**Secrets setup (Updated per Decision 4):**
 
-- Create a GSM secret `datadog_api_key` in project `demoo-ooclock` containing the Datadog API key (found in Datadog UI → Organization Settings → API Keys)
-- Add to `.vals.yaml`: `DD_API_KEY: ref+gcpsecrets://demoo-ooclock/datadog_api_key`
-- Add `DD_API_KEY` as a GitHub Actions secret in the repo settings, with the same value
+- `DD_API_KEY` and `DD_APP_KEY` are already in `.vals.yaml`, pointing to existing GSM secrets `datadog-commit-story-dev` and `datadog-commit-story-app` respectively — no new GSM secrets needed
+- Add `DD_API_KEY` as a GitHub Actions secret in the repo settings (same value as `datadog-commit-story-dev`)
 
 **Tests:**
 
@@ -162,6 +161,8 @@ After the next daily-sync run (or trigger it manually via GitHub Actions UI), co
 **Step 0:** Read [`docs/research/datadog-ci-observability.md`](../docs/research/datadog-ci-observability.md) — specifically the "Log-Based Monitor Creation" and "Metric Monitor for Token Expiry Countdown" sections for the exact API payload shapes and gotchas (Flex Tier logs not supported, unscoped app key with `logs_read_data` required, monitor threshold direction for metric alert).
 
 **Prerequisite:** M3 must be complete and at least one daily-sync run must have forwarded logs before the log query can be validated. M2 must be complete and at least one run with `DD_API_KEY` must have fired the metric before the metric monitor can be validated.
+
+**Credentials (Updated per Decision 4):** Both `DD_API_KEY` and `DD_APP_KEY` are already in `.vals.yaml`. When calling the Datadog Monitors API, use `DD_API_KEY` for the `DD-API-KEY` header and `DD_APP_KEY` for the `DD-APPLICATION-KEY` header.
 
 **What to implement:**
 
@@ -228,3 +229,4 @@ Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 | 2026-06-15 | CI Visibility via GitHub App (no workflow changes) | Research confirmed this is the current approach; datadog-ci CLI in workflow is outdated |
 | 2026-06-15 | Metric emitted via direct HTTP POST from Node.js | Avoids third-party Action dependency; simpler for a solo personal pipeline |
 | 2026-06-15 | Monitors created in Datadog UI first, then optionally exported | UI provides live query validation; safer than deploying untested monitor API payloads |
+| 2026-06-15 | Reuse existing GSM secrets for Datadog credentials | `datadog-commit-story-dev` (DD_API_KEY) and `datadog-commit-story-app` (DD_APP_KEY) already exist in demoo-ooclock GSM from the commit-story project — no new secrets needed. Both are now in `.vals.yaml`; DD_API_KEY also needs to be added as a GitHub Actions secret. |
