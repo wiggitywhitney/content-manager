@@ -300,4 +300,4 @@ async function checkSocialPostedToday() {
   }
 }
 
-module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };
+module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchAllSocialPosts, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };
