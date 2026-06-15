@@ -34,7 +34,7 @@ jest.mock('../src/fetch-thumbnail', () => ({
   fetchThumbnail: jest.fn(),
 }));
 
-const { dispatchPost, processPostsForDate } = require('../src/post-social-content');
+const { dispatchPost, processPostsForDate, main } = require('../src/post-social-content');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
@@ -951,5 +951,144 @@ describe('processPostsForDate — full dispatch coverage', () => {
     expect(postToBluesky).not.toHaveBeenCalled();
     expect(postToMicroblog).not.toHaveBeenCalled();
     expect(updatePostResult).not.toHaveBeenCalled();
+  });
+});
+
+describe('dispatchPost — failure flag return value', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    downloadFromDrive.mockResolvedValue({ buffer: FAKE_VIDEO_BUFFER, mimeType: 'video/mp4', filename: 'video.mp4' });
+    fetchThumbnail.mockResolvedValue(FAKE_IMAGE_BUFFER);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/test/post/1' });
+    postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@test/1' });
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:1/' });
+    postToMicroblog.mockResolvedValue({ postUrl: 'https://micro.blog/test/1' });
+    updatePostResult.mockResolvedValue(undefined);
+  });
+
+  test('returns false when all platforms succeed', async () => {
+    const result = await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky', 'mastodon'] }), '2026-04-27');
+    expect(result).toBe(false);
+  });
+
+  test('returns true when one platform fails and others succeed', async () => {
+    postToLinkedIn.mockRejectedValue(new Error('LinkedIn 401'));
+    const result = await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky', 'linkedin'] }), '2026-04-27');
+    expect(result).toBe(true);
+  });
+
+  test('returns true when all platforms fail', async () => {
+    postToBluesky.mockRejectedValue(new Error('Bluesky down'));
+    postToMastodon.mockRejectedValue(new Error('Mastodon down'));
+    const result = await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky', 'mastodon'] }), '2026-04-27');
+    expect(result).toBe(true);
+  });
+
+  test('returns false in DRY_RUN mode regardless of what platform mocks would do', async () => {
+    process.env.DRY_RUN = 'true';
+    postToBluesky.mockRejectedValue(new Error('would fail if called'));
+    const result = await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky'] }), '2026-04-27');
+    expect(result).toBe(false);
+    delete process.env.DRY_RUN;
+  });
+});
+
+describe('processPostsForDate — failure flag return value', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    checkSocialPostedToday.mockResolvedValue(false);
+    checkCareerPostedToday.mockResolvedValue(false);
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/test/post/1' });
+    postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@test/1' });
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:1/' });
+    updatePostResult.mockResolvedValue(undefined);
+    fetchThumbnail.mockResolvedValue(FAKE_IMAGE_BUFFER);
+  });
+
+  test('returns false when all platforms succeed', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky'] })]);
+    const result = await processPostsForDate('2026-04-27');
+    expect(result).toBe(false);
+  });
+
+  test('returns true when one platform fails', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky', 'linkedin'] })]);
+    postToLinkedIn.mockRejectedValue(new Error('fail'));
+    const result = await processPostsForDate('2026-04-27');
+    expect(result).toBe(true);
+  });
+
+  test('returns true when all platforms fail', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky', 'mastodon'] })]);
+    postToBluesky.mockRejectedValue(new Error('fail'));
+    postToMastodon.mockRejectedValue(new Error('fail'));
+    const result = await processPostsForDate('2026-04-27');
+    expect(result).toBe(true);
+  });
+
+  test('returns false when no posts are dispatched (empty queue)', async () => {
+    const result = await processPostsForDate('2026-04-27');
+    expect(result).toBe(false);
+  });
+
+  test('returns false when dispatch is skipped due to social-posted-today gate', async () => {
+    checkSocialPostedToday.mockResolvedValue(true);
+    const result = await processPostsForDate('2026-04-27');
+    expect(result).toBe(false);
+  });
+});
+
+describe('main — exit code on partial platform failure', () => {
+  let processExitSpy;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    processExitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    checkSocialPostedToday.mockResolvedValue(false);
+    checkCareerPostedToday.mockResolvedValue(false);
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    scanAndPostShorts.mockResolvedValue(undefined);
+    updatePostResult.mockResolvedValue(undefined);
+    fetchThumbnail.mockResolvedValue(FAKE_IMAGE_BUFFER);
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/profile/test/post/1' });
+    postToMastodon.mockResolvedValue({ postUrl: 'https://mastodon.social/@test/1' });
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://www.linkedin.com/feed/update/urn:li:share:1/' });
+  });
+
+  afterEach(() => {
+    processExitSpy.mockRestore();
+    delete process.env.DRY_RUN;
+  });
+
+  test('exits 0 (no process.exit(1)) when all platforms succeed', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky'] })]);
+    await main();
+    expect(processExitSpy).not.toHaveBeenCalledWith(1);
+  });
+
+  test('exits 1 when one platform fails and others succeed', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky', 'linkedin'] })]);
+    postToLinkedIn.mockRejectedValue(new Error('Token expired'));
+    await main();
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  test('exits 1 when all platforms fail', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky', 'mastodon'] })]);
+    postToBluesky.mockRejectedValue(new Error('Bluesky down'));
+    postToMastodon.mockRejectedValue(new Error('Mastodon down'));
+    await main();
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  test('exits 0 in DRY_RUN mode even when platforms would fail if called', async () => {
+    process.env.DRY_RUN = 'true';
+    fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky'] })]);
+    // dispatchPost returns early in DRY_RUN before calling any platform, so failures are never tracked
+    await main();
+    expect(processExitSpy).not.toHaveBeenCalledWith(1);
   });
 });
