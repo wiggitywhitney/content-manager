@@ -160,7 +160,7 @@ After the next daily-sync run (or trigger it manually via GitHub Actions UI), co
 
 **Step 0:** Read [`docs/research/datadog-ci-observability.md`](../docs/research/datadog-ci-observability.md) — specifically the "Log-Based Monitor Creation" and "Metric Monitor for Token Expiry Countdown" sections for the exact API payload shapes and gotchas (Flex Tier logs not supported, unscoped app key with `logs_read_data` required, monitor threshold direction for metric alert).
 
-**Prerequisite:** M3 must be complete and at least one daily-sync run must have forwarded logs before the log query can be validated. M2 must be complete and at least one run with `DD_API_KEY` must have fired the metric before the metric monitor can be validated.
+**Prerequisite:** M3 is complete and log forwarding is verified (57 log entries confirmed in Datadog Log Explorer on 2026-06-15 from run #27571718423). M2 is complete. The log query and metric monitor can both be validated immediately — no need to wait for another run.
 
 **Credentials (Updated per Decision 4):** Both `DD_API_KEY` and `DD_APP_KEY` are already in `.vals.yaml`. When calling the Datadog Monitors API, use `DD_API_KEY` for the `DD-API-KEY` header and `DD_APP_KEY` for the `DD-APPLICATION-KEY` header.
 
