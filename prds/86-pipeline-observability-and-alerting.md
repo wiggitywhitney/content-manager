@@ -183,9 +183,22 @@ Create both monitors via the Datadog UI first (use the "Create Monitor" flow to 
 - Warning threshold: 30 days
 - Critical threshold: 21 days
 - Notify no data: true (if the metric stops reporting, the token may have expired)
-- Message: `LinkedIn OAuth token expires in {{value}} days. Refresh it at: https://github.com/wiggitywhitney/content-manager — run node src/linkedin-oauth-setup.js`
+- Message: (Updated per Decisions 6 and 7)
+  ```text
+  LinkedIn OAuth token expires in {{value}} days. Refresh it with these steps:
+
+  1. Run: vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js
+  2. Complete the LinkedIn authorization in the browser that opens
+  3. Copy and run the three "gcloud secrets versions add" commands the script outputs
+     (updates linkedin_access_token, linkedin_token_expires_at, linkedin_person_urn in GSM)
+  4. Clear your terminal history immediately after — the token appears in plaintext
+     zsh: fc -p   bash: history -c
+
+  CI reads credentials from GSM at runtime — no GitHub Actions secrets to update.
+  The next daily run will use the new token automatically.
+  ```
 - Tags: `service:content-manager`
-- Notify: Whitney's email or Datadog notification channel
+- Notify: Both work email AND wiggitywhitney personal email (Decision 6)
 
 **Verification:** Confirm both monitors appear in the Datadog Monitors list and show status "OK" (or "No Data" for the metric monitor until M2 produces its first data point).
 
@@ -231,3 +244,5 @@ Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 | 2026-06-15 | Monitors created in Datadog UI first, then optionally exported | UI provides live query validation; safer than deploying untested monitor API payloads |
 | 2026-06-15 | Reuse existing GSM secrets for Datadog credentials | `datadog-commit-story-dev` (DD_API_KEY) and `datadog-commit-story-app` (DD_APP_KEY) already exist in demoo-ooclock GSM from the commit-story project — no new secrets needed. Both are now in `.vals.yaml`. |
 | 2026-06-15 | Fetch DD_API_KEY from GSM at runtime in CI, not via GitHub Actions secret | The existing service account already fetches LinkedIn credentials from GSM at runtime in the "Read credentials from GSM" step. DD_API_KEY follows the same pattern — no manual GitHub Actions secret needed. |
+| 2026-06-15 | Both monitors notify work email AND wiggitywhitney personal email | Whitney wants the alert to reach both addresses so it's visible whether she's at work or not. The "Notify" field in Datadog supports multiple email recipients. |
+| 2026-06-15 | LinkedIn token refresh runbook included in M4 monitor message | The monitor alert message should contain the complete step-by-step refresh instructions so Whitney can act immediately when the alert fires without hunting for docs. Key steps: run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js`, complete browser OAuth, run the three `gcloud secrets versions add` commands the script outputs, clear terminal history. CI reads from GSM at runtime so no GitHub Actions secrets need updating after GSM is updated. |
