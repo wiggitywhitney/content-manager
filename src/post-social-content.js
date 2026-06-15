@@ -41,6 +41,7 @@ async function dispatchPost(post, today) {
   let imageBuffer = null;
   let failureCount = 0;
   let attemptCount = 0;
+  let skippedCount = 0;
   let bskyPostUrl, mastodonPostUrl, linkedinPostUrl, microblogPostUrl;
 
   if (post.postType === 'short') {
@@ -71,7 +72,7 @@ async function dispatchPost(post, today) {
     }
   }
 
-  if (post.platforms.includes('bluesky')) {
+  if (post.platforms.includes('bluesky') && !post.bskyPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer, imageBuffer }));
@@ -80,9 +81,11 @@ async function dispatchPost(post, today) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
+  } else if (post.platforms.includes('bluesky')) {
+    skippedCount++;
   }
 
-  if (post.platforms.includes('mastodon')) {
+  if (post.platforms.includes('mastodon') && !post.mastodonPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer, imageBuffer }));
@@ -91,9 +94,11 @@ async function dispatchPost(post, today) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
+  } else if (post.platforms.includes('mastodon')) {
+    skippedCount++;
   }
 
-  if (post.platforms.includes('linkedin')) {
+  if (post.platforms.includes('linkedin') && !post.linkedinPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer, imageBuffer }));
@@ -102,9 +107,11 @@ async function dispatchPost(post, today) {
       console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
+  } else if (post.platforms.includes('linkedin')) {
+    skippedCount++;
   }
 
-  if (post.platforms.includes('micro.blog') && post.postType !== 'short') {
+  if (post.platforms.includes('micro.blog') && post.postType !== 'short' && !post.microblogPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true }));
@@ -113,9 +120,11 @@ async function dispatchPost(post, today) {
       console.error(`[social] Failed to post row ${post.rowIndex} to micro.blog: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
+  } else if (post.platforms.includes('micro.blog') && post.postType !== 'short') {
+    skippedCount++;
   }
 
-  if (attemptCount === 0) {
+  if (attemptCount === 0 && skippedCount === 0) {
     console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
     await updatePostResult(post.rowIndex, { status: 'failed' });
     return;
