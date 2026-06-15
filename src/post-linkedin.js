@@ -39,7 +39,7 @@ async function submitTokenExpiryMetric(daysUntilExpiry) {
 
   const timestamp = Math.floor(Date.now() / 1000);
   try {
-    await fetch('https://api.datadoghq.com/api/v2/series', {
+    const response = await fetch('https://api.datadoghq.com/api/v2/series', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,6 +54,10 @@ async function submitTokenExpiryMetric(daysUntilExpiry) {
         }],
       }),
     });
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[linkedin] Warning: Datadog metric submission returned ${response.status}: ${text}`);
+    }
   } catch (err) {
     console.warn(`[linkedin] Warning: failed to submit token expiry metric: ${err.message}`);
   }

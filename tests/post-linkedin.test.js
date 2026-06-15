@@ -120,11 +120,20 @@ describe('submitTokenExpiryMetric', () => {
     expect(body.series[0].tags).toContain('service:content-manager');
   });
 
-  test('does not throw when fetch fails', async () => {
+  test('does not throw when fetch fails, and logs a warning', async () => {
     process.env.DD_API_KEY = 'test-dd-api-key';
     global.fetch.mockRejectedValue(new Error('Network error'));
 
     await expect(submitTokenExpiryMetric(10)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Network error'));
+  });
+
+  test('logs a warning when Datadog API returns a non-OK status', async () => {
+    process.env.DD_API_KEY = 'test-dd-api-key';
+    global.fetch.mockResolvedValue({ ok: false, status: 403, text: async () => 'Forbidden' });
+
+    await expect(submitTokenExpiryMetric(10)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('403'));
   });
 });
 
