@@ -214,7 +214,7 @@ Create both monitors via the Datadog UI first (use the "Create Monitor" flow to 
 
 Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 
-1. **Pipeline status over time** — CI Visibility query: `@ci.pipeline.name:daily-sync @git.repository.id_v2:"github.com/wiggitywhitney/content-manager"`, grouped by day, showing pass/fail counts. Use a bar or timeseries widget.
+1. **Pipeline status over time** — CI Visibility query: `@ci.pipeline.name:"Daily Content Sync" @git.repository.id_v2:"github.com/wiggitywhitney/content-manager"`, grouped by day, showing pass/fail counts. Use a bar or timeseries widget. (Note: the pipeline name comes from the `name:` field in the GitHub Actions YAML — `"Daily Content Sync"` — not the filename `daily-sync`.)
 
 2. **Log error count by day** — Log query: `source:github "Failed to post"`, aggregated by day. Use a timeseries widget.
 
@@ -246,3 +246,4 @@ Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 | 2026-06-15 | Fetch DD_API_KEY from GSM at runtime in CI, not via GitHub Actions secret | The existing service account already fetches LinkedIn credentials from GSM at runtime in the "Read credentials from GSM" step. DD_API_KEY follows the same pattern — no manual GitHub Actions secret needed. |
 | 2026-06-15 | Both monitors notify work email AND wiggitywhitney personal email | Whitney wants the alert to reach both addresses so it's visible whether she's at work or not. The "Notify" field in Datadog supports multiple email recipients. |
 | 2026-06-15 | LinkedIn token refresh runbook included in M4 monitor message | The monitor alert message should contain the complete step-by-step refresh instructions so Whitney can act immediately when the alert fires without hunting for docs. Key steps: run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js`, complete browser OAuth, run the three `gcloud secrets versions add` commands the script outputs, clear terminal history. CI reads from GSM at runtime so no GitHub Actions secrets need updating after GSM is updated. |
+| 2026-06-15 | Datadog CI pipeline name is the workflow `name:` field, not the filename | The CI Visibility pipeline name comes from `name: Daily Content Sync` in the GitHub Actions YAML, not from the filename `daily-sync.yml`. The dashboard widget 1 query must use `@ci.pipeline.name:"Daily Content Sync"` (with quotes because of the space). Using the filename produces zero results with no error. |
