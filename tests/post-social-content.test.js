@@ -422,6 +422,27 @@ describe('dispatchPost', () => {
       expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({ status: 'posted' }));
     });
 
+    test('marks row as failed when one remaining platform succeeds and another fails, capturing the successful URL', async () => {
+      postToLinkedIn.mockRejectedValue(new Error('LinkedIn 401'));
+
+      await dispatchPost(
+        makePost({
+          postType: 'episode',
+          platforms: ['bluesky', 'mastodon', 'linkedin'],
+          bskyPostUrl: 'https://bsky.app/profile/test/post/existing',
+        }),
+        '2026-04-27'
+      );
+
+      expect(postToBluesky).not.toHaveBeenCalled();
+      expect(postToMastodon).toHaveBeenCalled();
+      expect(postToLinkedIn).toHaveBeenCalled();
+      expect(updatePostResult).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ status: 'failed', mastodonPostUrl: 'https://mastodon.social/@test/1' })
+      );
+    });
+
     test('dispatches normally when all URL fields are empty strings (fresh row)', async () => {
       await dispatchPost(
         makePost({
