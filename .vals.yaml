@@ -31,3 +31,8 @@ MASTODON_INSTANCE_URL: ref+gcpsecrets://demoo-ooclock/mastodon_instance_url
 LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
 LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
 LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn
+
+# Datadog API key — used by post-linkedin.js to emit token expiry metric
+# Create the GSM secret first: echo -n "YOUR_DD_API_KEY" | gcloud secrets create datadog_api_key --data-file=- --replication-policy=automatic --project=demoo-ooclock
+# Then also add DD_API_KEY as a GitHub Actions secret in the repo settings.
+# DD_API_KEY: ref+gcpsecrets://demoo-ooclock/datadog_api_key

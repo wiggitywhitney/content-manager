@@ -6,7 +6,7 @@
 const LINKEDIN_API_BASE = 'https://api.linkedin.com';
 // Format: YYYYMM — update when current version approaches sunset (~1 year after release)
 const LINKEDIN_VERSION = '202603';
-const WARNING_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const WARNING_THRESHOLD_MS = 21 * 24 * 60 * 60 * 1000; // 21 days
 
 // LinkedIn's `little` text format reserves 13 characters that must be backslash-escaped.
 // Unescaped reserved chars silently drop all following text — API still returns 201.
@@ -28,25 +28,60 @@ function buildLinkedInWebUrl(urn) {
 }
 
 /**
+ * Submit a gauge metric to Datadog reporting how many days until the LinkedIn token expires.
+ * No-op when DD_API_KEY is not set. Fetch errors are logged as warnings and not re-thrown.
+ *
+ * @param {number} daysUntilExpiry - Days remaining until token expiry
+ */
+async function submitTokenExpiryMetric(daysUntilExpiry) {
+  const apiKey = process.env.DD_API_KEY;
+  if (!apiKey) return;
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  try {
+    await fetch('https://api.datadoghq.com/api/v2/series', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'DD-API-KEY': apiKey,
+      },
+      body: JSON.stringify({
+        series: [{
+          metric: 'content_manager.linkedin.token_days_until_expiry',
+          type: 3, // gauge
+          points: [{ timestamp, value: daysUntilExpiry }],
+          tags: ['service:content-manager'],
+        }],
+      }),
+    });
+  } catch (err) {
+    console.warn(`[linkedin] Warning: failed to submit token expiry metric: ${err.message}`);
+  }
+}
+
+/**
  * Check whether the LinkedIn access token is nearing expiry and warn if so.
+ * Also emits a Datadog gauge metric for the token countdown.
  * Refresh tokens are not available without LinkedIn partner approval, so a warning
  * is the signal to re-run the OAuth setup script before the token expires.
  *
  * @param {string|undefined} expiresAt - Unix timestamp in ms as a string (from LINKEDIN_TOKEN_EXPIRES_AT)
  */
-function checkTokenExpiry(expiresAt) {
+async function checkTokenExpiry(expiresAt) {
   if (!expiresAt) return;
 
   const expiresAtMs = parseInt(expiresAt, 10);
   const msRemaining = expiresAtMs - Date.now();
+  const daysRemaining = Math.floor(msRemaining / (24 * 60 * 60 * 1000));
 
   if (msRemaining < WARNING_THRESHOLD_MS) {
-    const daysRemaining = Math.floor(msRemaining / (24 * 60 * 60 * 1000));
     console.warn(
       `[linkedin] WARNING: access token expires in ${daysRemaining} day(s). ` +
       'Re-run src/linkedin-oauth-setup.js to refresh before it expires.'
     );
   }
+
+  await submitTokenExpiryMetric(daysRemaining);
 }
 
 /**
@@ -218,7 +253,7 @@ async function postToLinkedIn(post, { videoBuffer, imageBuffer } = {}) {
   if (!accessToken) throw new Error('LINKEDIN_ACCESS_TOKEN environment variable is required');
   if (!personUrn) throw new Error('LINKEDIN_PERSON_URN environment variable is required');
 
-  checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT);
+  await checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT);
 
   let videoUrn;
   if (videoBuffer) {
@@ -275,4 +310,4 @@ async function postToLinkedIn(post, { videoBuffer, imageBuffer } = {}) {
   return { postUrl: buildLinkedInWebUrl(urn) };
 }
 
-module.exports = { postToLinkedIn, buildLinkedInWebUrl, checkTokenExpiry };
+module.exports = { postToLinkedIn, buildLinkedInWebUrl, checkTokenExpiry, submitTokenExpiryMetric };

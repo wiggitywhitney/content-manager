@@ -47,7 +47,7 @@ Research saved at: [`docs/research/datadog-ci-observability.md`](../docs/researc
 
 - [x] M0: Research — Datadog CI Visibility, log forwarding, custom metrics API, monitor creation (completed; see [`docs/research/datadog-ci-observability.md`](../docs/research/datadog-ci-observability.md))
 - [x] M1: Exit non-zero on partial platform failure
-- [ ] M2: Emit LinkedIn token expiry metric and lower warning threshold
+- [x] M2: Emit LinkedIn token expiry metric and lower warning threshold
 - [ ] M3: Enable Datadog CI Visibility and job log forwarding
 - [ ] M4: Create Datadog monitors (log-based + metric)
 - [ ] M5: Create Datadog dashboard
