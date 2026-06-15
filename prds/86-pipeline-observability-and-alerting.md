@@ -116,10 +116,10 @@ Do NOT modify any code outside `src/post-linkedin.js` for this milestone.
 
 The test framework is Vitest. Tests live in the `test/` directory. Read existing test files before adding new ones to match their import style and mock patterns. Mock the `fetch` call; do not make real Datadog API calls in unit tests.
 
-**Secrets setup (Updated per Decision 4):**
+**Secrets setup (Updated per Decisions 4 and 5):**
 
 - `DD_API_KEY` and `DD_APP_KEY` are already in `.vals.yaml`, pointing to existing GSM secrets `datadog-commit-story-dev` and `datadog-commit-story-app` respectively — no new GSM secrets needed
-- Add `DD_API_KEY` as a GitHub Actions secret in the repo settings (same value as `datadog-commit-story-dev`)
+- `DD_API_KEY` is fetched from GSM at runtime in `daily-sync.yml` alongside the LinkedIn credentials — no GitHub Actions secret needed
 
 **Tests:**
 
@@ -229,4 +229,5 @@ Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 | 2026-06-15 | CI Visibility via GitHub App (no workflow changes) | Research confirmed this is the current approach; datadog-ci CLI in workflow is outdated |
 | 2026-06-15 | Metric emitted via direct HTTP POST from Node.js | Avoids third-party Action dependency; simpler for a solo personal pipeline |
 | 2026-06-15 | Monitors created in Datadog UI first, then optionally exported | UI provides live query validation; safer than deploying untested monitor API payloads |
-| 2026-06-15 | Reuse existing GSM secrets for Datadog credentials | `datadog-commit-story-dev` (DD_API_KEY) and `datadog-commit-story-app` (DD_APP_KEY) already exist in demoo-ooclock GSM from the commit-story project — no new secrets needed. Both are now in `.vals.yaml`; DD_API_KEY also needs to be added as a GitHub Actions secret. |
+| 2026-06-15 | Reuse existing GSM secrets for Datadog credentials | `datadog-commit-story-dev` (DD_API_KEY) and `datadog-commit-story-app` (DD_APP_KEY) already exist in demoo-ooclock GSM from the commit-story project — no new secrets needed. Both are now in `.vals.yaml`. |
+| 2026-06-15 | Fetch DD_API_KEY from GSM at runtime in CI, not via GitHub Actions secret | The existing service account already fetches LinkedIn credentials from GSM at runtime in the "Read credentials from GSM" step. DD_API_KEY follows the same pattern — no manual GitHub Actions secret needed. |
