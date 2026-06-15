@@ -357,6 +357,126 @@ describe('dispatchPost', () => {
       );
     });
   });
+
+  describe('skip platforms that already have a post URL (partial retry guard)', () => {
+    test('skips Bluesky when bskyPostUrl is already populated', async () => {
+      await dispatchPost(
+        makePost({ postType: 'episode', platforms: ['bluesky', 'mastodon'], bskyPostUrl: 'https://bsky.app/profile/test/post/existing' }),
+        '2026-04-27'
+      );
+      expect(postToBluesky).not.toHaveBeenCalled();
+      expect(postToMastodon).toHaveBeenCalled();
+    });
+
+    test('skips Mastodon when mastodonPostUrl is already populated', async () => {
+      await dispatchPost(
+        makePost({ postType: 'episode', platforms: ['bluesky', 'mastodon'], mastodonPostUrl: 'https://mastodon.social/@test/existing' }),
+        '2026-04-27'
+      );
+      expect(postToMastodon).not.toHaveBeenCalled();
+      expect(postToBluesky).toHaveBeenCalled();
+    });
+
+    test('skips LinkedIn when linkedinPostUrl is already populated', async () => {
+      await dispatchPost(
+        makePost({ postType: 'episode', platforms: ['linkedin', 'bluesky'], linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:existing/' }),
+        '2026-04-27'
+      );
+      expect(postToLinkedIn).not.toHaveBeenCalled();
+      expect(postToBluesky).toHaveBeenCalled();
+    });
+
+    test('skips micro.blog when microblogPostUrl is already populated', async () => {
+      await dispatchPost(
+        makePost({ postType: 'episode', platforms: ['micro.blog', 'bluesky'], microblogPostUrl: 'https://micro.blog/test/existing' }),
+        '2026-04-27'
+      );
+      expect(postToMicroblog).not.toHaveBeenCalled();
+      expect(postToBluesky).toHaveBeenCalled();
+    });
+
+    test('still dispatches platforms that have no URL yet when some platforms already posted', async () => {
+      await dispatchPost(
+        makePost({
+          postType: 'episode',
+          platforms: ['bluesky', 'mastodon', 'linkedin'],
+          bskyPostUrl: 'https://bsky.app/profile/test/post/existing',
+          mastodonPostUrl: 'https://mastodon.social/@test/existing',
+        }),
+        '2026-04-27'
+      );
+      expect(postToBluesky).not.toHaveBeenCalled();
+      expect(postToMastodon).not.toHaveBeenCalled();
+      expect(postToLinkedIn).toHaveBeenCalled();
+    });
+
+    test('marks row as posted when all remaining platforms succeed on retry', async () => {
+      await dispatchPost(
+        makePost({
+          postType: 'episode',
+          platforms: ['bluesky', 'linkedin'],
+          bskyPostUrl: 'https://bsky.app/profile/test/post/existing',
+        }),
+        '2026-04-27'
+      );
+      expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({ status: 'posted' }));
+    });
+
+    test('marks row as failed when one remaining platform succeeds and another fails, capturing the successful URL', async () => {
+      postToLinkedIn.mockRejectedValue(new Error('LinkedIn 401'));
+
+      await dispatchPost(
+        makePost({
+          postType: 'episode',
+          platforms: ['bluesky', 'mastodon', 'linkedin'],
+          bskyPostUrl: 'https://bsky.app/profile/test/post/existing',
+        }),
+        '2026-04-27'
+      );
+
+      expect(postToBluesky).not.toHaveBeenCalled();
+      expect(postToMastodon).toHaveBeenCalled();
+      expect(postToLinkedIn).toHaveBeenCalled();
+      expect(updatePostResult).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ status: 'failed', mastodonPostUrl: 'https://mastodon.social/@test/1' })
+      );
+    });
+
+    test('dispatches normally when all URL fields are empty strings (fresh row)', async () => {
+      await dispatchPost(
+        makePost({
+          postType: 'episode',
+          platforms: ['bluesky', 'mastodon', 'linkedin'],
+          bskyPostUrl: '',
+          mastodonPostUrl: '',
+          linkedinPostUrl: '',
+          microblogPostUrl: '',
+        }),
+        '2026-04-27'
+      );
+      expect(postToBluesky).toHaveBeenCalled();
+      expect(postToMastodon).toHaveBeenCalled();
+      expect(postToLinkedIn).toHaveBeenCalled();
+    });
+
+    test('marks row as posted without calling any platform when all platforms already have URLs', async () => {
+      await dispatchPost(
+        makePost({
+          postType: 'episode',
+          platforms: ['bluesky', 'mastodon', 'linkedin'],
+          bskyPostUrl: 'https://bsky.app/profile/test/post/existing',
+          mastodonPostUrl: 'https://mastodon.social/@test/existing',
+          linkedinPostUrl: 'https://www.linkedin.com/feed/update/urn:li:share:existing/',
+        }),
+        '2026-04-27'
+      );
+      expect(postToBluesky).not.toHaveBeenCalled();
+      expect(postToMastodon).not.toHaveBeenCalled();
+      expect(postToLinkedIn).not.toHaveBeenCalled();
+      expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({ status: 'posted' }));
+    });
+  });
 });
 
 const FAKE_GROUP_POST = { rowIndex: 2, title: 'Test Episode', postType: 'episode', platforms: ['bluesky'], groupId: 'ep-1', postText: 'test', youtubeUrl: '', altText: '', scheduledDate: '', status: 'pending', linkedinPostUrl: '', bskyPostUrl: '', mastodonPostUrl: '', microblogPostUrl: '' };
