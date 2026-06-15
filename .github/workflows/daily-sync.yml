@@ -140,6 +140,9 @@ jobs:
           LINKEDIN_ACCESS_TOKEN=$(gcloud secrets versions access latest --secret=linkedin_access_token --project=demoo-ooclock)
           LINKEDIN_TOKEN_EXPIRES_AT=$(gcloud secrets versions access latest --secret=linkedin_token_expires_at --project=demoo-ooclock)
           LINKEDIN_PERSON_URN=$(gcloud secrets versions access latest --secret=linkedin_person_urn --project=demoo-ooclock)
+          echo "::add-mask::$LINKEDIN_ACCESS_TOKEN"
+          echo "::add-mask::$LINKEDIN_TOKEN_EXPIRES_AT"
+          echo "::add-mask::$LINKEDIN_PERSON_URN"
           echo "LINKEDIN_ACCESS_TOKEN=$LINKEDIN_ACCESS_TOKEN" >> "$GITHUB_ENV"
           echo "LINKEDIN_TOKEN_EXPIRES_AT=$LINKEDIN_TOKEN_EXPIRES_AT" >> "$GITHUB_ENV"
           echo "LINKEDIN_PERSON_URN=$LINKEDIN_PERSON_URN" >> "$GITHUB_ENV"

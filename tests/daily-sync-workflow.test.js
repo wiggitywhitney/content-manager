@@ -59,6 +59,12 @@ describe('daily-sync workflow', () => {
       expect(gsmStep.run).toContain('linkedin_person_urn');
     });
 
+    test('GSM step masks all three secrets before exporting to GITHUB_ENV', () => {
+      expect(gsmStep.run).toContain('::add-mask::$LINKEDIN_ACCESS_TOKEN');
+      expect(gsmStep.run).toContain('::add-mask::$LINKEDIN_TOKEN_EXPIRES_AT');
+      expect(gsmStep.run).toContain('::add-mask::$LINKEDIN_PERSON_URN');
+    });
+
     test('GSM step uses GOOGLE_SERVICE_ACCOUNT_JSON for authentication', () => {
       expect(gsmStep.env && gsmStep.env.GOOGLE_SERVICE_ACCOUNT_JSON).toBeDefined();
     });
