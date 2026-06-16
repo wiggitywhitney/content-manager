@@ -65,6 +65,18 @@ describe('daily-sync workflow', () => {
       expect(gsmStep.run).toContain('::add-mask::$LINKEDIN_PERSON_URN');
     });
 
+    test('GSM step reads DD_API_KEY from GSM', () => {
+      expect(gsmStep.run).toContain('datadog-commit-story-dev');
+    });
+
+    test('GSM step masks DD_API_KEY before exporting to GITHUB_ENV', () => {
+      expect(gsmStep.run).toContain('::add-mask::$DD_API_KEY');
+    });
+
+    test('GSM step exports DD_API_KEY to GITHUB_ENV', () => {
+      expect(gsmStep.run).toContain('DD_API_KEY=$DD_API_KEY');
+    });
+
     test('GSM step uses GOOGLE_SERVICE_ACCOUNT_JSON for authentication', () => {
       expect(gsmStep.env && gsmStep.env.GOOGLE_SERVICE_ACCOUNT_JSON).toBeDefined();
     });

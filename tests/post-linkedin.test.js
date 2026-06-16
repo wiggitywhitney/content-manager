@@ -167,6 +167,7 @@ describe('postToLinkedIn', () => {
   let originalFetch;
 
   beforeEach(() => {
+    delete process.env.DD_API_KEY;
     process.env.LINKEDIN_ACCESS_TOKEN = 'test-access-token';
     process.env.LINKEDIN_PERSON_URN = 'urn:li:person:abc123';
     process.env.LINKEDIN_TOKEN_EXPIRES_AT = futureExpiry(30);
@@ -176,6 +177,7 @@ describe('postToLinkedIn', () => {
   });
 
   afterEach(() => {
+    delete process.env.DD_API_KEY;
     delete process.env.LINKEDIN_ACCESS_TOKEN;
     delete process.env.LINKEDIN_PERSON_URN;
     delete process.env.LINKEDIN_TOKEN_EXPIRES_AT;
