@@ -1,0 +1,14 @@
+{
+  "_comment": "Monitor ID 295791590. Created 2026-06-15 via Datadog Monitors API. Datadog UI is source of truth; this file is reference only.",
+  "id": 295791590,
+  "name": "content-manager: LinkedIn token expiry warning",
+  "type": "metric alert",
+  "query": "avg(last_1h):avg:content_manager.linkedin.token_days_until_expiry{*} < 21",
+  "message": "LinkedIn OAuth token expires in {{value}} days. Refresh it with these steps:\n\n1. Run: vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js\n2. Complete the LinkedIn authorization in the browser that opens\n3. Copy and run the three \"gcloud secrets versions add\" commands the script outputs\n   (updates linkedin_access_token, linkedin_token_expires_at, linkedin_person_urn in GSM)\n4. Clear your terminal history immediately after -- the token appears in plaintext\n   zsh: fc -p   bash: history -c\n\nCI reads credentials from GSM at runtime -- no GitHub Actions secrets to update.\nThe next daily run will use the new token automatically.\n\n@whitney.lee@datadoghq.com @wiggitywhitney@gmail.com",
+  "tags": ["service:content-manager"],
+  "options": {
+    "thresholds": { "critical": 21, "warning": 30 },
+    "notify_no_data": true,
+    "no_data_timeframe": 1560
+  }
+}

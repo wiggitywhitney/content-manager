@@ -45,15 +45,16 @@ Setting up Datadog CI Visibility for a GitHub Actions repo requires **no workflo
 🟢 **High confidence** — verified against official docs.
 
 Setup steps (all in Datadog UI, no workflow changes):
-1. Navigate to **Software Delivery → CI Visibility → Add a Pipeline Provider → GitHub**
-2. Click **Enable Account** → **Create GitHub App** → grant `Actions: Read Only` permission
-3. Install the GitHub App on the target repo in GitHub
-4. Toggle **Enable CI Visibility** per-account or per-repo
-5. Toggle **Enable Job Logs Collection** to forward workflow logs
+1. Navigate directly to **`app.datadoghq.com/ci/setup/pipeline?provider=github`** (the "Software Delivery → CI Visibility" submenu path shown in some docs is outdated — use this URL directly)
+2. If no GitHub App exists yet: click **+ Create GitHub App** → grant `Actions: Read Only` permission → install on target repos in GitHub. If the GitHub App already exists (check `app.datadoghq.com/integrations/github/`), skip to step 3.
+3. Click **Enable Account** on the wiggitywhitney row
+4. Toggle **Enable CI Visibility** — can be done at the account level (all repos) or per-repo in the repository list below
+5. Toggle **Enable Job Logs Collection** per-repo only (not account-wide, to avoid generating PR Comments noise on all repos — see warning in UI)
 
 **Required secrets in the repo:** None.
 **Required changes to workflow YAML:** None.
 **Data available:** Pipeline status, duration, job-level breakdown, log streams.
+**Verified 2026-06-15:** 57 log entries from a `daily-sync` run appeared in Datadog Log Explorer (query: `source:github content-manager`) within minutes of enabling Job Logs Collection.
 
 #### 2. Log Forwarding and Query
 

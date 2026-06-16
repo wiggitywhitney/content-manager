@@ -3,7 +3,7 @@
 
 'use strict';
 
-const { postToLinkedIn, buildLinkedInWebUrl, checkTokenExpiry } = require('../src/post-linkedin');
+const { postToLinkedIn, buildLinkedInWebUrl, checkTokenExpiry, submitTokenExpiryMetric } = require('../src/post-linkedin');
 
 function makePost(overrides = {}) {
   return {
@@ -37,30 +37,129 @@ describe('checkTokenExpiry', () => {
 
   beforeEach(() => {
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    delete process.env.DD_API_KEY;
   });
 
   afterEach(() => {
     warnSpy.mockRestore();
+    delete process.env.DD_API_KEY;
   });
 
-  test('does not warn when token expires far in the future', () => {
-    checkTokenExpiry(futureExpiry(30));
+  test('does not warn when token expires far in the future', async () => {
+    await checkTokenExpiry(futureExpiry(30));
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  test('warns when token expires within 7 days', () => {
-    checkTokenExpiry(futureExpiry(5));
+  test('warns when token expires within 21 days', async () => {
+    await checkTokenExpiry(futureExpiry(15));
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('expires'));
   });
 
-  test('warns when token is already expired', () => {
-    checkTokenExpiry(futureExpiry(-1));
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('expires'));
-  });
-
-  test('does not warn when expiresAt is not provided', () => {
-    checkTokenExpiry(undefined);
+  test('does not warn when token has more than 21 days remaining', async () => {
+    await checkTokenExpiry(futureExpiry(25));
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('warns when token expires within 5 days', async () => {
+    await checkTokenExpiry(futureExpiry(5));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('expires'));
+  });
+
+  test('warns when token is already expired', async () => {
+    await checkTokenExpiry(futureExpiry(-1));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('expires'));
+  });
+
+  test('does not warn when expiresAt is not provided', async () => {
+    await checkTokenExpiry(undefined);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('warns and returns early when expiresAt is not a valid timestamp', async () => {
+    await checkTokenExpiry('not-a-number');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('not a valid millisecond timestamp'));
+  });
+
+  test('does not submit metric when expiresAt is malformed', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn();
+    process.env.DD_API_KEY = 'test-key';
+    await checkTokenExpiry('not-a-number');
+    expect(global.fetch).not.toHaveBeenCalled();
+    global.fetch = originalFetch;
+    delete process.env.DD_API_KEY;
+  });
+});
+
+describe('submitTokenExpiryMetric', () => {
+  let originalFetch;
+  let warnSpy;
+
+  beforeEach(() => {
+    originalFetch = global.fetch;
+    global.fetch = jest.fn();
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    delete process.env.DD_API_KEY;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    warnSpy.mockRestore();
+    delete process.env.DD_API_KEY;
+    jest.clearAllMocks();
+  });
+
+  test('is a no-op when DD_API_KEY is not set', async () => {
+    await submitTokenExpiryMetric(25);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('POSTs gauge metric to Datadog v2/series with correct payload', async () => {
+    process.env.DD_API_KEY = 'test-dd-api-key';
+    global.fetch.mockResolvedValue({ ok: true });
+
+    await submitTokenExpiryMetric(42);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = global.fetch.mock.calls[0];
+    expect(url).toBe('https://api.datadoghq.com/api/v2/series');
+    expect(opts.method).toBe('POST');
+    expect(opts.headers['DD-API-KEY']).toBe('test-dd-api-key');
+    expect(opts.headers['Content-Type']).toBe('application/json');
+
+    const body = JSON.parse(opts.body);
+    expect(body.series).toHaveLength(1);
+    expect(body.series[0].metric).toBe('content_manager.linkedin.token_days_until_expiry');
+    expect(body.series[0].type).toBe(3); // gauge
+    expect(body.series[0].points[0].value).toBe(42);
+    expect(body.series[0].tags).toContain('service:content-manager');
+  });
+
+  test('passes an AbortSignal to fetch for timeout enforcement', async () => {
+    process.env.DD_API_KEY = 'test-dd-api-key';
+    global.fetch.mockResolvedValue({ ok: true });
+
+    await submitTokenExpiryMetric(42);
+
+    const [, opts] = global.fetch.mock.calls[0];
+    expect(opts.signal).toBeDefined();
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  test('does not throw when fetch fails, and logs a warning', async () => {
+    process.env.DD_API_KEY = 'test-dd-api-key';
+    global.fetch.mockRejectedValue(new Error('Network error'));
+
+    await expect(submitTokenExpiryMetric(10)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Network error'));
+  });
+
+  test('logs a warning when Datadog API returns a non-OK status', async () => {
+    process.env.DD_API_KEY = 'test-dd-api-key';
+    global.fetch.mockResolvedValue({ ok: false, status: 403, text: async () => 'Forbidden' });
+
+    await expect(submitTokenExpiryMetric(10)).resolves.toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('403'));
   });
 });
 
@@ -68,6 +167,7 @@ describe('postToLinkedIn', () => {
   let originalFetch;
 
   beforeEach(() => {
+    delete process.env.DD_API_KEY;
     process.env.LINKEDIN_ACCESS_TOKEN = 'test-access-token';
     process.env.LINKEDIN_PERSON_URN = 'urn:li:person:abc123';
     process.env.LINKEDIN_TOKEN_EXPIRES_AT = futureExpiry(30);
@@ -77,6 +177,7 @@ describe('postToLinkedIn', () => {
   });
 
   afterEach(() => {
+    delete process.env.DD_API_KEY;
     delete process.env.LINKEDIN_ACCESS_TOKEN;
     delete process.env.LINKEDIN_PERSON_URN;
     delete process.env.LINKEDIN_TOKEN_EXPIRES_AT;

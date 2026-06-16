@@ -32,8 +32,8 @@ Research saved at: [`docs/research/datadog-ci-observability.md`](../docs/researc
 
 - `src/post-social-content.js` — sets `status = 'failed'` in sheet but exits 0; this is where partial failure detection lives
 - `src/post-linkedin.js` — reads `LINKEDIN_TOKEN_EXPIRES_AT`, logs warning; this is where the metric emission goes
-- `.github/workflows/daily-sync.yml` — the GitHub Actions workflow; CI Visibility is enabled at the Datadog UI level, but a `DD_API_KEY` secret must be added here for metric submission
-- `.vals.yaml` — secrets injection; `DD_API_KEY` must be added pointing to a GSM secret
+- `.github/workflows/daily-sync.yml` — the GitHub Actions workflow; CI Visibility is enabled at the Datadog UI level; `DD_API_KEY` is fetched from GSM at runtime in the "Read credentials from GSM" step (no GitHub Actions secret needed — see Decisions 4 and 5)
+- `.vals.yaml` — secrets injection; `DD_API_KEY` already points to `datadog-commit-story-dev` GSM secret
 
 ## Success Criteria
 
@@ -46,11 +46,11 @@ Research saved at: [`docs/research/datadog-ci-observability.md`](../docs/researc
 ## Milestones
 
 - [x] M0: Research — Datadog CI Visibility, log forwarding, custom metrics API, monitor creation (completed; see [`docs/research/datadog-ci-observability.md`](../docs/research/datadog-ci-observability.md))
-- [ ] M1: Exit non-zero on partial platform failure
-- [ ] M2: Emit LinkedIn token expiry metric and lower warning threshold
-- [ ] M3: Enable Datadog CI Visibility and job log forwarding
-- [ ] M4: Create Datadog monitors (log-based + metric)
-- [ ] M5: Create Datadog dashboard
+- [x] M1: Exit non-zero on partial platform failure
+- [x] M2: Emit LinkedIn token expiry metric and lower warning threshold
+- [x] M3: Enable Datadog CI Visibility and job log forwarding
+- [x] M4: Create Datadog monitors (log-based + metric)
+- [x] M5: Create Datadog dashboard
 
 ---
 
@@ -116,11 +116,10 @@ Do NOT modify any code outside `src/post-linkedin.js` for this milestone.
 
 The test framework is Vitest. Tests live in the `test/` directory. Read existing test files before adding new ones to match their import style and mock patterns. Mock the `fetch` call; do not make real Datadog API calls in unit tests.
 
-**Secrets setup:**
+**Secrets setup (Updated per Decisions 4 and 5):**
 
-- Create a GSM secret `datadog_api_key` in project `demoo-ooclock` containing the Datadog API key (found in Datadog UI → Organization Settings → API Keys)
-- Add to `.vals.yaml`: `DD_API_KEY: ref+gcpsecrets://demoo-ooclock/datadog_api_key`
-- Add `DD_API_KEY` as a GitHub Actions secret in the repo settings, with the same value
+- `DD_API_KEY` and `DD_APP_KEY` are already in `.vals.yaml`, pointing to existing GSM secrets `datadog-commit-story-dev` and `datadog-commit-story-app` respectively — no new GSM secrets needed
+- `DD_API_KEY` is fetched from GSM at runtime in `daily-sync.yml` alongside the LinkedIn credentials — no GitHub Actions secret needed
 
 **Tests:**
 
@@ -161,7 +160,9 @@ After the next daily-sync run (or trigger it manually via GitHub Actions UI), co
 
 **Step 0:** Read [`docs/research/datadog-ci-observability.md`](../docs/research/datadog-ci-observability.md) — specifically the "Log-Based Monitor Creation" and "Metric Monitor for Token Expiry Countdown" sections for the exact API payload shapes and gotchas (Flex Tier logs not supported, unscoped app key with `logs_read_data` required, monitor threshold direction for metric alert).
 
-**Prerequisite:** M3 must be complete and at least one daily-sync run must have forwarded logs before the log query can be validated. M2 must be complete and at least one run with `DD_API_KEY` must have fired the metric before the metric monitor can be validated.
+**Prerequisite:** M3 is complete and log forwarding is verified (57 log entries confirmed in Datadog Log Explorer on 2026-06-15 from run #27571718423). M2 is complete. The log query and metric monitor can both be validated immediately — no need to wait for another run.
+
+**Credentials (Updated per Decision 4):** Both `DD_API_KEY` and `DD_APP_KEY` are already in `.vals.yaml`. When calling the Datadog Monitors API, use `DD_API_KEY` for the `DD-API-KEY` header and `DD_APP_KEY` for the `DD-APPLICATION-KEY` header.
 
 **What to implement:**
 
@@ -182,9 +183,22 @@ Create both monitors via the Datadog UI first (use the "Create Monitor" flow to 
 - Warning threshold: 30 days
 - Critical threshold: 21 days
 - Notify no data: true (if the metric stops reporting, the token may have expired)
-- Message: `LinkedIn OAuth token expires in {{value}} days. Refresh it at: https://github.com/wiggitywhitney/content-manager — run node src/linkedin-oauth-setup.js`
+- Message: (Updated per Decisions 6 and 7)
+  ```text
+  LinkedIn OAuth token expires in {{value}} days. Refresh it with these steps:
+
+  1. Run: vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js
+  2. Complete the LinkedIn authorization in the browser that opens
+  3. Copy and run the three "gcloud secrets versions add" commands the script outputs
+     (updates linkedin_access_token, linkedin_token_expires_at, linkedin_person_urn in GSM)
+  4. Clear your terminal history immediately after — the token appears in plaintext
+     zsh: fc -p   bash: history -c
+
+  CI reads credentials from GSM at runtime — no GitHub Actions secrets to update.
+  The next daily run will use the new token automatically.
+  ```
 - Tags: `service:content-manager`
-- Notify: Whitney's email or Datadog notification channel
+- Notify: Both work email AND wiggitywhitney personal email (Decision 6)
 
 **Verification:** Confirm both monitors appear in the Datadog Monitors list and show status "OK" (or "No Data" for the metric monitor until M2 produces its first data point).
 
@@ -200,7 +214,7 @@ Create both monitors via the Datadog UI first (use the "Create Monitor" flow to 
 
 Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 
-1. **Pipeline status over time** — CI Visibility query: `@ci.pipeline.name:daily-sync @git.repository.id_v2:"github.com/wiggitywhitney/content-manager"`, grouped by day, showing pass/fail counts. Use a bar or timeseries widget.
+1. **Pipeline status over time** — CI Visibility query: `@ci.pipeline.name:"Daily Content Sync" @git.repository.id_v2:"github.com/wiggitywhitney/content-manager"`, grouped by day, showing pass/fail counts. Use a bar or timeseries widget. (Note: the pipeline name comes from the `name:` field in the GitHub Actions YAML — `"Daily Content Sync"` — not the filename `daily-sync`.)
 
 2. **Log error count by day** — Log query: `source:github "Failed to post"`, aggregated by day. Use a timeseries widget.
 
@@ -228,3 +242,9 @@ Create a dashboard titled "Content Manager Pipeline Health" with these widgets:
 | 2026-06-15 | CI Visibility via GitHub App (no workflow changes) | Research confirmed this is the current approach; datadog-ci CLI in workflow is outdated |
 | 2026-06-15 | Metric emitted via direct HTTP POST from Node.js | Avoids third-party Action dependency; simpler for a solo personal pipeline |
 | 2026-06-15 | Monitors created in Datadog UI first, then optionally exported | UI provides live query validation; safer than deploying untested monitor API payloads |
+| 2026-06-15 | Reuse existing GSM secrets for Datadog credentials | `datadog-commit-story-dev` (DD_API_KEY) and `datadog-commit-story-app` (DD_APP_KEY) already exist in demoo-ooclock GSM from the commit-story project — no new secrets needed. Both are now in `.vals.yaml`. |
+| 2026-06-15 | Fetch DD_API_KEY from GSM at runtime in CI, not via GitHub Actions secret | The existing service account already fetches LinkedIn credentials from GSM at runtime in the "Read credentials from GSM" step. DD_API_KEY follows the same pattern — no manual GitHub Actions secret needed. |
+| 2026-06-15 | Both monitors notify work email AND wiggitywhitney personal email | Whitney wants the alert to reach both addresses so it's visible whether she's at work or not. The "Notify" field in Datadog supports multiple email recipients. |
+| 2026-06-15 | LinkedIn token refresh runbook included in M4 monitor message | The monitor alert message should contain the complete step-by-step refresh instructions so Whitney can act immediately when the alert fires without hunting for docs. Key steps: run `vals exec -f .vals.yaml -- node src/linkedin-oauth-setup.js`, complete browser OAuth, run the three `gcloud secrets versions add` commands the script outputs, clear terminal history. CI reads from GSM at runtime so no GitHub Actions secrets need updating after GSM is updated. |
+| 2026-06-15 | Datadog CI pipeline name is the workflow `name:` field, not the filename | The CI Visibility pipeline name comes from `name: Daily Content Sync` in the GitHub Actions YAML, not from the filename `daily-sync.yml`. The dashboard widget 1 query must use `@ci.pipeline.name:"Daily Content Sync"` (with quotes because of the space). Using the filename produces zero results with no error. |
+| 2026-06-16 | Add a fifth dashboard widget showing all pipeline log lines, not just failures | Whitney wants visibility into every log line from every run alongside the failure-only stream. Widget 5 uses `source:github @github.repository.name:content-manager` with no failure filter. Widget 4 (failure log stream) is retained as-is. |

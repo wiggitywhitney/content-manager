@@ -34,7 +34,7 @@ function getTodayDate() {
 async function dispatchPost(post, today) {
   if (process.env.DRY_RUN === 'true') {
     console.log(`[social] DRY_RUN: Would dispatch row ${post.rowIndex} to [${post.platforms.join(',')}] (${post.postType}): ${post.title}`); // eslint-disable-line no-console
-    return;
+    return false;
   }
 
   let videoBuffer = null;
@@ -49,7 +49,7 @@ async function dispatchPost(post, today) {
       // No Drive ID means the journal skill hasn't uploaded the video yet — leave pending so the
       // next cron run retries. Do NOT mark failed; do NOT fall back to text-only posting.
       console.warn(`[social] Row ${post.rowIndex} has no Drive video ID — skipping (row remains pending)`); // eslint-disable-line no-console
-      return;
+      return false;
     }
     try {
       ({ buffer: videoBuffer } = await downloadFromDrive(post.driveVideoId));
@@ -58,7 +58,7 @@ async function dispatchPost(post, today) {
       // Distinct from "no ID" above: if the file ID is present but download fails, something is wrong.
       console.error(`[social] Failed to download Drive video for row ${post.rowIndex}: ${err.message}`); // eslint-disable-line no-console
       await updatePostResult(post.rowIndex, { status: 'failed' });
-      return;
+      return true;
     }
   }
 
@@ -127,7 +127,7 @@ async function dispatchPost(post, today) {
   if (attemptCount === 0 && skippedCount === 0) {
     console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
     await updatePostResult(post.rowIndex, { status: 'failed' });
-    return;
+    return true;
   }
 
   const status = failureCount === 0 ? 'posted' : 'failed';
@@ -139,6 +139,7 @@ async function dispatchPost(post, today) {
   if (microblogPostUrl) resultFields.microblogPostUrl = microblogPostUrl;
 
   await updatePostResult(post.rowIndex, resultFields);
+  return failureCount > 0;
 }
 
 /**
@@ -161,13 +162,15 @@ async function processPostsForDate(today) {
 
   if (await checkSocialPostedToday()) {
     console.log('[social] Social content already posted today — skipping dispatch'); // eslint-disable-line no-console
-    return;
+    return false;
   }
 
   if (await checkCareerPostedToday()) {
     console.log('[social] Career content already posted today — skipping social dispatch'); // eslint-disable-line no-console
-    return;
+    return false;
   }
+
+  let hadFailure = false;
 
   // Step 1: try non-micro.blog group dispatch
   const group = await fetchOldestPendingGroup();
@@ -177,26 +180,28 @@ async function processPostsForDate(today) {
     console.log(`[social] Dispatching group "${groupId}" — ${group.length} post(s)`); // eslint-disable-line no-console
     for (const post of group) {
       console.log(`[social]   Row ${post.rowIndex}: [${post.platforms.join(',')}] ${post.title} (${post.postType})`); // eslint-disable-line no-console
-      await dispatchPost(post, today);
+      const failed = await dispatchPost(post, today);
+      if (failed) hadFailure = true;
     }
-    return;
+    return hadFailure;
   }
 
   // Step 2: social queue empty — defer micro.blog if career already posted today
   if (await checkCareerPostedToday()) {
     console.log('[social] No social posts pending and career posted today — micro.blog deferred'); // eslint-disable-line no-console
-    return;
+    return false;
   }
 
   // Step 3: both queues empty — dispatch oldest pending micro.blog post
   const microblogPost = await fetchOldestPendingMicroblogPost();
   if (!microblogPost) {
     console.log('[social] No pending posts in queue'); // eslint-disable-line no-console
-    return;
+    return false;
   }
 
   console.log(`[social] Dispatching micro.blog post — Row ${microblogPost.rowIndex}: ${microblogPost.title} (${microblogPost.postType})`); // eslint-disable-line no-console
-  await dispatchPost(microblogPost, today);
+  const failed = await dispatchPost(microblogPost, today);
+  return !!failed;
 }
 
 /**
@@ -208,11 +213,13 @@ async function main() {
   console.log(`[social] Checking queue for posts due ${today}`); // eslint-disable-line no-console
   if (dryRun) console.log('[social] DRY_RUN mode active — no posts will be sent'); // eslint-disable-line no-console
 
+  let hadFailure = false;
   try {
-    await processPostsForDate(today);
+    hadFailure = await processPostsForDate(today);
   } catch (err) {
     console.error('[social] Failed to read social posts queue:', err.message); // eslint-disable-line no-console
     process.exit(1);
+    return;
   }
 
   // Skip micro.blog short scan if either career or social posted today
@@ -226,6 +233,10 @@ async function main() {
       // Non-fatal: regular platform dispatch already completed
     }
   }
+
+  if (hadFailure && !dryRun) {
+    process.exit(1);
+  }
 }
 
 if (require.main === module) {
@@ -235,4 +246,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processPostsForDate, dispatchPost };
+module.exports = { processPostsForDate, dispatchPost, main };
