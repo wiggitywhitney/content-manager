@@ -66,20 +66,34 @@ describe('Dispatch pipeline e2e', () => {
     });
     const rows = allRows.data.values || [];
     // Row 0 is the header; data rows start at index 1 (sheet row 2)
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const scheduledDate = (row[6] || '').trim(); // COL.SCHEDULED_DATE = 6
-      const status = (row[8] || '').trim().toLowerCase(); // COL.STATUS = 8
-      if (status === 'posted' && scheduledDate.startsWith(today)) {
-        const rowIndex = i + 1; // convert 0-based array index to 1-based sheet row
-        maskedRows.push({ rowIndex, originalDate: scheduledDate });
+    try {
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const scheduledDate = (row[6] || '').trim(); // COL.SCHEDULED_DATE = 6
+        const status = (row[8] || '').trim().toLowerCase(); // COL.STATUS = 8
+        if (status === 'posted' && scheduledDate.startsWith(today)) {
+          const rowIndex = i + 1; // convert 0-based array index to 1-based sheet row
+          maskedRows.push({ rowIndex, originalDate: scheduledDate });
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: STAGED_SPREADSHEET_ID,
+            range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[GUARD_MASK_DATE]] },
+          });
+        }
+      }
+    } catch (err) {
+      // Roll back any rows already masked so we don't leave the sheet in a partial state.
+      for (const { rowIndex, originalDate } of maskedRows) {
         await sheets.spreadsheets.values.update({
           spreadsheetId: STAGED_SPREADSHEET_ID,
           range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
           valueInputOption: 'USER_ENTERED',
-          resource: { values: [[GUARD_MASK_DATE]] },
-        });
+          resource: { values: [[originalDate]] },
+        }).catch(() => {}); // best effort
       }
+      maskedRows = [];
+      throw new Error(`Failed to mask rows for e2e test: ${err.message}`);
     }
 
     // Insert test row: platforms bluesky,mastodon; postType episode; scheduledDate today
@@ -133,12 +147,16 @@ describe('Dispatch pipeline e2e', () => {
 
     // Restore any rows whose scheduledDate was temporarily masked before the run.
     for (const { rowIndex, originalDate } of maskedRows) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: STAGED_SPREADSHEET_ID,
-        range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: [[originalDate]] },
-      });
+      try {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: STAGED_SPREADSHEET_ID,
+          range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [[originalDate]] },
+        });
+      } catch (err) {
+        console.error(`Failed to restore row ${rowIndex} to ${originalDate}: ${err.message}`);
+      }
     }
 
     if (!testRowIndex || !sheetId) return;
