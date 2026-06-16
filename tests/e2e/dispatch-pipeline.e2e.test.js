@@ -31,10 +31,16 @@ function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Date used as a placeholder when temporarily masking already-posted rows so the guard won't fire.
+const GUARD_MASK_DATE = '2020-01-01';
+
 describe('Dispatch pipeline e2e', () => {
   let testRowIndex; // 1-based sheet row index of the inserted test row
   let sheetId;     // numeric sheet ID for batchUpdate
   let pipelineOutput; // shared stdout from the single DRY_RUN pipeline run
+  // Rows with status=posted and scheduledDate=today that were temporarily masked before the run.
+  // Each entry: { rowIndex: number, originalDate: string }
+  let maskedRows = [];
 
   beforeAll(async () => {
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
@@ -49,6 +55,46 @@ describe('Dispatch pipeline e2e', () => {
     const tab = (meta.data.sheets || []).find(s => s.properties.title === SOCIAL_POSTS_TAB);
     if (!tab) throw new Error(`Tab "${SOCIAL_POSTS_TAB}" not found`);
     sheetId = tab.properties.sheetId;
+
+    // Mask any already-posted rows for today so the social-guard won't block dispatch.
+    // The guard fires when it sees status=posted + scheduledDate=today; temporarily
+    // rewriting those dates to GUARD_MASK_DATE makes the guard see a clean day.
+    // afterAll restores the original dates regardless of test outcome.
+    const allRows = await sheets.spreadsheets.values.get({
+      spreadsheetId: STAGED_SPREADSHEET_ID,
+      range: `${SOCIAL_POSTS_TAB}!A:I`,
+    });
+    const rows = allRows.data.values || [];
+    // Row 0 is the header; data rows start at index 1 (sheet row 2)
+    try {
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const scheduledDate = (row[6] || '').trim(); // COL.SCHEDULED_DATE = 6
+        const status = (row[8] || '').trim().toLowerCase(); // COL.STATUS = 8
+        if (status === 'posted' && scheduledDate.startsWith(today)) {
+          const rowIndex = i + 1; // convert 0-based array index to 1-based sheet row
+          maskedRows.push({ rowIndex, originalDate: scheduledDate });
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: STAGED_SPREADSHEET_ID,
+            range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[GUARD_MASK_DATE]] },
+          });
+        }
+      }
+    } catch (err) {
+      // Roll back any rows already masked so we don't leave the sheet in a partial state.
+      for (const { rowIndex, originalDate } of maskedRows) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: STAGED_SPREADSHEET_ID,
+          range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [[originalDate]] },
+        }).catch(() => {}); // best effort
+      }
+      maskedRows = [];
+      throw new Error(`Failed to mask rows for e2e test: ${err.message}`);
+    }
 
     // Insert test row: platforms bluesky,mastodon; postType episode; scheduledDate today
     // COL order: Show, Title, PostType, PostText, YouTubeURL, AltText, ScheduledDate, Platforms, Status
@@ -97,9 +143,24 @@ describe('Dispatch pipeline e2e', () => {
   });
 
   afterAll(async () => {
+    const sheets = getSheets();
+
+    // Restore any rows whose scheduledDate was temporarily masked before the run.
+    for (const { rowIndex, originalDate } of maskedRows) {
+      try {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: STAGED_SPREADSHEET_ID,
+          range: `${SOCIAL_POSTS_TAB}!G${rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: { values: [[originalDate]] },
+        });
+      } catch (err) {
+        console.error(`Failed to restore row ${rowIndex} to ${originalDate}: ${err.message}`);
+      }
+    }
+
     if (!testRowIndex || !sheetId) return;
 
-    const sheets = getSheets();
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: STAGED_SPREADSHEET_ID,
       resource: {
