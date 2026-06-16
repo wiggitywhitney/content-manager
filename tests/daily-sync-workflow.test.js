@@ -39,7 +39,7 @@ describe('daily-sync workflow', () => {
 
     beforeAll(() => {
       dailySyncSteps = workflow.jobs['daily-sync'].steps;
-      gsmStep = dailySyncSteps.find(s => s.name && s.name.toLowerCase().includes('linkedin credentials from gsm'));
+      gsmStep = dailySyncSteps.find(s => s.name && s.name.toLowerCase().includes('read credentials from gsm'));
       postStep = dailySyncSteps.find(s => s.name === 'Post social content');
     });
 
