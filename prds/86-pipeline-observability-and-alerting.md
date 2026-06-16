@@ -32,8 +32,8 @@ Research saved at: [`docs/research/datadog-ci-observability.md`](../docs/researc
 
 - `src/post-social-content.js` — sets `status = 'failed'` in sheet but exits 0; this is where partial failure detection lives
 - `src/post-linkedin.js` — reads `LINKEDIN_TOKEN_EXPIRES_AT`, logs warning; this is where the metric emission goes
-- `.github/workflows/daily-sync.yml` — the GitHub Actions workflow; CI Visibility is enabled at the Datadog UI level, but a `DD_API_KEY` secret must be added here for metric submission
-- `.vals.yaml` — secrets injection; `DD_API_KEY` must be added pointing to a GSM secret
+- `.github/workflows/daily-sync.yml` — the GitHub Actions workflow; CI Visibility is enabled at the Datadog UI level; `DD_API_KEY` is fetched from GSM at runtime in the "Read credentials from GSM" step (no GitHub Actions secret needed — see Decisions 4 and 5)
+- `.vals.yaml` — secrets injection; `DD_API_KEY` already points to `datadog-commit-story-dev` GSM secret
 
 ## Success Criteria
 

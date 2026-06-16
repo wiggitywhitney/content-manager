@@ -74,6 +74,21 @@ describe('checkTokenExpiry', () => {
     await checkTokenExpiry(undefined);
     expect(warnSpy).not.toHaveBeenCalled();
   });
+
+  test('warns and returns early when expiresAt is not a valid timestamp', async () => {
+    await checkTokenExpiry('not-a-number');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('not a valid millisecond timestamp'));
+  });
+
+  test('does not submit metric when expiresAt is malformed', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn();
+    process.env.DD_API_KEY = 'test-key';
+    await checkTokenExpiry('not-a-number');
+    expect(global.fetch).not.toHaveBeenCalled();
+    global.fetch = originalFetch;
+    delete process.env.DD_API_KEY;
+  });
 });
 
 describe('submitTokenExpiryMetric', () => {
@@ -118,6 +133,17 @@ describe('submitTokenExpiryMetric', () => {
     expect(body.series[0].type).toBe(3); // gauge
     expect(body.series[0].points[0].value).toBe(42);
     expect(body.series[0].tags).toContain('service:content-manager');
+  });
+
+  test('passes an AbortSignal to fetch for timeout enforcement', async () => {
+    process.env.DD_API_KEY = 'test-dd-api-key';
+    global.fetch.mockResolvedValue({ ok: true });
+
+    await submitTokenExpiryMetric(42);
+
+    const [, opts] = global.fetch.mock.calls[0];
+    expect(opts.signal).toBeDefined();
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
   });
 
   test('does not throw when fetch fails, and logs a warning', async () => {

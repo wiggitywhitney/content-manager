@@ -38,9 +38,12 @@ async function submitTokenExpiryMetric(daysUntilExpiry) {
   if (!apiKey) return;
 
   const timestamp = Math.floor(Date.now() / 1000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const response = await fetch('https://api.datadoghq.com/api/v2/series', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'DD-API-KEY': apiKey,
@@ -60,6 +63,8 @@ async function submitTokenExpiryMetric(daysUntilExpiry) {
     }
   } catch (err) {
     console.warn(`[linkedin] Warning: failed to submit token expiry metric: ${err.message}`);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -75,6 +80,10 @@ async function checkTokenExpiry(expiresAt) {
   if (!expiresAt) return;
 
   const expiresAtMs = parseInt(expiresAt, 10);
+  if (!Number.isFinite(expiresAtMs)) {
+    console.warn('[linkedin] Warning: LINKEDIN_TOKEN_EXPIRES_AT is not a valid millisecond timestamp');
+    return;
+  }
   const msRemaining = expiresAtMs - Date.now();
   const daysRemaining = Math.floor(msRemaining / (24 * 60 * 60 * 1000));
 

@@ -33,7 +33,7 @@ LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires
 LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn
 
 # Datadog credentials — shared with commit-story project (no new secrets needed)
-# DD_API_KEY: used by post-linkedin.js to emit token expiry metric; also needed for GitHub Actions secret
+# DD_API_KEY: used by post-linkedin.js to emit token expiry metric; fetched from GSM at runtime in daily-sync.yml (no GitHub Actions secret needed)
 # DD_APP_KEY: needed for monitor creation (M4) — maps to DD-APPLICATION-KEY header in Datadog API
 DD_API_KEY: ref+gcpsecrets://demoo-ooclock/datadog-commit-story-dev
 DD_APP_KEY: ref+gcpsecrets://demoo-ooclock/datadog-commit-story-app

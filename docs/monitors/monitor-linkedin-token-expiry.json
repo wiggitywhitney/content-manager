@@ -9,6 +9,6 @@
   "options": {
     "thresholds": { "critical": 21, "warning": 30 },
     "notify_no_data": true,
-    "no_data_timeframe": 2
+    "no_data_timeframe": 1560
   }
 }
