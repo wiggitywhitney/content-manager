@@ -4,9 +4,12 @@ on:
   # Manual trigger for testing
   workflow_dispatch:
 
-  # Scheduled run daily at 16:15 UTC = 11:15am CDT / 10:15am CST, never before 10am
+  # Two-post mode: morning slot at 13:00 UTC = 8am CDT / 7am CST (social priority)
+  #                evening slot at 21:00 UTC = 4pm CDT / 3pm CST (career priority)
+  # Single-post mode: only the morning cron posts; the evening run exits early via skip_run guard.
   schedule:
-    - cron: '15 16 * * *'  # Run at 16:15 UTC, every day including weekends
+    - cron: '0 13 * * *'  # Morning slot: 8am CDT every day
+    - cron: '0 21 * * *'  # Evening slot: 4pm CDT every day
 
 jobs:
   integration-tests:
@@ -72,6 +75,10 @@ jobs:
     concurrency:
       group: daily-sync-${{ github.ref }}
       cancel-in-progress: true
+    env:
+      # Set to 'true' to enable two-post-per-day mode (morning=social, evening=career).
+      # Set to 'false' (default) to restore one-post-per-day behavior — evening cron runs but skips posting.
+      TWO_POSTS_PER_DAY: 'false'
 
     steps:
       - name: Checkout repository
@@ -110,7 +117,23 @@ jobs:
           DAY=$(date +%-d)
           CAREER_FIRST=$((DAY % 2))
           echo "career_first=${CAREER_FIRST}" >> "$GITHUB_OUTPUT"
-          if [ "$CAREER_FIRST" -eq 0 ]; then
+
+          # Slot detection: morning = UTC hour before 17 (covers 8am CDT cron at 13:00 UTC)
+          #                 evening = UTC hour 17 or later (covers 4pm CDT cron at 21:00 UTC)
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" -lt 17 ]; then IS_MORNING=true; else IS_MORNING=false; fi
+          echo "is_morning_slot=${IS_MORNING}" >> "$GITHUB_OUTPUT"
+
+          # In single-post mode, skip evening cron runs to preserve one-post-per-day behavior
+          if [ "${TWO_POSTS_PER_DAY}" != "true" ] && [ "$IS_MORNING" = "false" ]; then
+            echo "skip_run=true" >> "$GITHUB_OUTPUT"
+            echo "[priority] Evening run skipped — TWO_POSTS_PER_DAY is not enabled"
+            exit 0
+          fi
+          echo "skip_run=false" >> "$GITHUB_OUTPUT"
+
+          # Probe social queue — needed for two-post morning career fallback and single-post priority logic
+          if [ "$CAREER_FIRST" -eq 0 ] || [ "${TWO_POSTS_PER_DAY}" = "true" ]; then
             PROBE=$(node -e "const { fetchOldestPendingPost } = require('./src/social-posts-queue'); (async () => { try { const p = await fetchOldestPendingPost(); process.stdout.write(p ? 'pending' : 'empty'); } catch (e) { process.stderr.write(e.message); process.stdout.write('error'); process.exit(2); } })();")
             case "$PROBE" in
               pending) echo "social_has_pending=true" >> "$GITHUB_OUTPUT" ;;
@@ -122,7 +145,7 @@ jobs:
           fi
 
       - name: Sync content to Micro.blog and update About page
-        if: steps.priority.outputs.career_first == '1' || steps.priority.outputs.social_has_pending == 'false'
+        if: steps.priority.outputs.skip_run != 'true' && ((steps.priority.outputs.career_first == '1' && env.TWO_POSTS_PER_DAY != 'true') || steps.priority.outputs.social_has_pending == 'false' || (steps.priority.outputs.is_morning_slot == 'false' && env.TWO_POSTS_PER_DAY == 'true'))
         env:
           DRY_RUN: 'false'  # Explicitly disable dry-run mode for production
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -132,6 +155,7 @@ jobs:
         run: node src/sync-content.js
 
       - name: Read credentials from GSM
+        if: steps.priority.outputs.skip_run != 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -152,6 +176,7 @@ jobs:
           rm /tmp/sa-key.json
 
       - name: Post social content
+        if: steps.priority.outputs.skip_run != 'true'
         env:
           CAREER_PRIORITY: ${{ steps.priority.outputs.career_first }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -163,6 +188,7 @@ jobs:
         run: node src/post-social-content.js
 
       - name: Update page visibility
+        if: steps.priority.outputs.skip_run != 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           MICROBLOG_XMLRPC_TOKEN: ${{ secrets.MICROBLOG_XMLRPC_TOKEN }}

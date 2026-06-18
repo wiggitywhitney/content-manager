@@ -34,7 +34,7 @@ jest.mock('../src/fetch-thumbnail', () => ({
   fetchThumbnail: jest.fn(),
 }));
 
-const { dispatchPost, processPostsForDate, main } = require('../src/post-social-content');
+const { dispatchPost, processPostsForDate, main, getSlot } = require('../src/post-social-content');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
@@ -1090,5 +1090,104 @@ describe('main — exit code on partial platform failure', () => {
     // dispatchPost returns early in DRY_RUN before calling any platform, so failures are never tracked
     await main();
     expect(processExitSpy).not.toHaveBeenCalledWith(1);
+  });
+});
+
+describe('getSlot', () => {
+  test('returns morning for UTC hours before 17 (covers 8am CDT cron at 13:00 UTC)', () => {
+    expect(getSlot(new Date('2026-06-18T13:00:00Z'))).toBe('morning');
+  });
+
+  test('returns evening for UTC hour 21 (covers 4pm CDT cron at 21:00 UTC)', () => {
+    expect(getSlot(new Date('2026-06-18T21:00:00Z'))).toBe('evening');
+  });
+
+  test('boundary: UTC hour 16 is morning', () => {
+    expect(getSlot(new Date('2026-06-18T16:59:00Z'))).toBe('morning');
+  });
+
+  test('boundary: UTC hour 17 is evening', () => {
+    expect(getSlot(new Date('2026-06-18T17:00:00Z'))).toBe('evening');
+  });
+});
+
+describe('processPostsForDate — two-post mode (TWO_POSTS_PER_DAY=true)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.DRY_RUN = 'true';
+    process.env.TWO_POSTS_PER_DAY = 'true';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    checkCareerPostedToday.mockResolvedValue(false);
+    checkSocialPostedToday.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    delete process.env.DRY_RUN;
+    delete process.env.TWO_POSTS_PER_DAY;
+  });
+
+  test('social dispatches even when career has already posted today', async () => {
+    checkCareerPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-06-18');
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+  });
+
+  test('social guard still applies — skips if social already posted today', async () => {
+    checkSocialPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-06-18');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+  });
+
+  test('micro.blog is deferred when social queue empty and career has already posted', async () => {
+    checkCareerPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+
+    await processPostsForDate('2026-06-18');
+
+    expect(fetchOldestPendingMicroblogPost).not.toHaveBeenCalled();
+  });
+
+  test('micro.blog dispatches when social queue empty and career has not posted', async () => {
+    checkCareerPostedToday.mockResolvedValue(false);
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+
+    await processPostsForDate('2026-06-18');
+
+    expect(fetchOldestPendingMicroblogPost).toHaveBeenCalled();
+  });
+});
+
+describe('processPostsForDate — single-post mode unchanged when TWO_POSTS_PER_DAY=false', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.DRY_RUN = 'true';
+    process.env.TWO_POSTS_PER_DAY = 'false';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    checkCareerPostedToday.mockResolvedValue(false);
+    checkSocialPostedToday.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    delete process.env.DRY_RUN;
+    delete process.env.TWO_POSTS_PER_DAY;
+  });
+
+  test('career posted today blocks social dispatch (single-post mode behavior preserved)', async () => {
+    checkCareerPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-06-18');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
   });
 });

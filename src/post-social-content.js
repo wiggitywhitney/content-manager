@@ -23,6 +23,17 @@ function getTodayDate() {
 }
 
 /**
+ * Return the current posting slot based on UTC hour.
+ * Morning slot covers the 8am CDT cron (13:00 UTC); evening slot covers the 4pm CDT cron (21:00 UTC).
+ *
+ * @param {Date} [now] - Defaults to current time; pass a Date in tests to avoid clock dependency.
+ * @returns {'morning'|'evening'}
+ */
+function getSlot(now = new Date()) {
+  return now.getUTCHours() < 17 ? 'morning' : 'evening';
+}
+
+/**
  * Dispatch a single post to all of its specified platforms.
  * When DRY_RUN=true, logs what would be dispatched and returns immediately.
  * Otherwise, collects all results before writing to the sheet so that a failure
@@ -158,14 +169,16 @@ async function dispatchPost(post, today) {
  * @param {string} today - Date in YYYY-MM-DD format
  */
 async function processPostsForDate(today) {
-  const careerFirst = process.env.CAREER_PRIORITY !== '0';
+  const twoPosts = process.env.TWO_POSTS_PER_DAY === 'true';
 
   if (await checkSocialPostedToday()) {
     console.log('[social] Social content already posted today — skipping dispatch'); // eslint-disable-line no-console
     return false;
   }
 
-  if (await checkCareerPostedToday()) {
+  // In single-post mode, one managed post per day — skip social if career already posted.
+  // In two-post mode, career and social each have their own slot; career guard is bypassed here.
+  if (!twoPosts && await checkCareerPostedToday()) {
     console.log('[social] Career content already posted today — skipping social dispatch'); // eslint-disable-line no-console
     return false;
   }
@@ -246,4 +259,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processPostsForDate, dispatchPost, main };
+module.exports = { processPostsForDate, dispatchPost, main, getSlot };
