@@ -119,8 +119,19 @@ describe('fetchThumbnail', () => {
 });
 
 describe('fetchThumbnail — direct image URLs', () => {
+  let sharpMock;
+
   beforeEach(() => {
     global.fetch = jest.fn();
+    sharpMock = require('sharp');
+    jest.clearAllMocks();
+    // Re-apply return values cleared by clearAllMocks
+    const chainable = {
+      resize: jest.fn().mockReturnThis(),
+      jpeg: jest.fn().mockReturnThis(),
+      toBuffer: jest.fn().mockResolvedValue(Buffer.from('converted-jpeg-data')),
+    };
+    sharpMock.mockReturnValue(chainable);
   });
 
   afterEach(() => {
@@ -138,6 +149,22 @@ describe('fetchThumbnail — direct image URLs', () => {
     expect(Buffer.isBuffer(result)).toBe(true);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith('https://i.ytimg.com/vi/RNaa_48LWBY/maxresdefault.jpg');
+  });
+
+  test('passes raw buffer through sharp for JPEG conversion on direct image URLs', async () => {
+    const RAW_PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // PNG magic bytes
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(RAW_PNG_BYTES.buffer),
+    });
+
+    await fetchThumbnail('https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png');
+
+    expect(sharpMock).toHaveBeenCalledWith(expect.any(Buffer));
+    const chainable = sharpMock.mock.results[0].value;
+    expect(chainable.resize).toHaveBeenCalledWith(1920, 1920, { fit: 'inside', withoutEnlargement: true });
+    expect(chainable.jpeg).toHaveBeenCalledWith({ quality: 90 });
+    expect(chainable.toBuffer).toHaveBeenCalled();
   });
 
   test('throws when direct image URL returns non-200', async () => {
