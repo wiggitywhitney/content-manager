@@ -1,5 +1,5 @@
-// ABOUTME: Fetches thumbnail images for YouTube videos and SDI podcast episodes.
-// ABOUTME: YouTube: tries maxresdefault.jpg first, falls back to hqdefault.jpg. SDI: parses RSS feed.
+// ABOUTME: Fetches thumbnail images for YouTube videos, SDI podcast episodes, and direct image URLs.
+// ABOUTME: YouTube: tries maxresdefault.jpg first, falls back to hqdefault.jpg. SDI: parses RSS feed. Direct URLs: converts to JPEG.
 
 'use strict';
 
@@ -87,7 +87,24 @@ async function fetchThumbnail(url) {
   if (!res.ok) {
     throw new Error(`Failed to fetch image (${res.status}): ${url}`);
   }
-  return Buffer.from(await res.arrayBuffer());
+  const rawBuffer = Buffer.from(await res.arrayBuffer());
+  return convertToJpeg(rawBuffer);
+}
+
+/**
+ * Resize and convert an image buffer to JPEG.
+ * Caps the long side at 1920px; never upscales.
+ * Used to keep direct-URL images (e.g. board PNGs) within platform upload limits.
+ *
+ * @param {Buffer} buffer - Raw image bytes in any format sharp supports
+ * @returns {Promise<Buffer>} JPEG image bytes
+ */
+async function convertToJpeg(buffer) {
+  const sharp = require('sharp');
+  return sharp(buffer)
+    .resize(1920, 1920, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 90 })
+    .toBuffer();
 }
 
 const SDI_FEED_URL = 'https://feeds.fireside.fm/softwaredefinedinterviews/rss';

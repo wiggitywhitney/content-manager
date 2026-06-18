@@ -294,7 +294,7 @@ describe('dispatchPost', () => {
       );
       expect(postToMicroblog).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'gist' }),
-        { bypassViewCount: true }
+        { bypassViewCount: true, imageBuffer: FAKE_IMAGE_BUFFER }
       );
     });
 
@@ -342,7 +342,7 @@ describe('dispatchPost', () => {
       );
       expect(postToMicroblog).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'talk' }),
-        { bypassViewCount: true }
+        { bypassViewCount: true, imageBuffer: null }
       );
     });
 
@@ -912,7 +912,7 @@ describe('processPostsForDate — full dispatch coverage', () => {
 
     await processPostsForDate(TODAY_ODD);
 
-    expect(postToMicroblog).toHaveBeenCalledWith(post, { bypassViewCount: true });
+    expect(postToMicroblog).toHaveBeenCalledWith(post, { bypassViewCount: true, imageBuffer: FAKE_IMAGE_BUFFER });
   });
 
   test('posts to micro.blog and writes result when eligible', async () => {

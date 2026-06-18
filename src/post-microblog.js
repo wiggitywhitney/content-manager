@@ -1,5 +1,5 @@
 // ABOUTME: micro.blog posting module using Micropub API with view-count gating.
-// ABOUTME: Exports postToMicroblog(post) for individual posts and scanAndPostShorts() for the daily view-count scan.
+// ABOUTME: Exports postToMicroblog(post, options) for individual posts and scanAndPostShorts() for the daily view-count scan.
 
 'use strict';
 
@@ -127,11 +127,13 @@ async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) 
   params.append('h', 'entry');
   params.append('content', postText);
 
-  if (mimeType.startsWith('image/')) {
-    params.append('photo[]', mediaUrl);
-    if (altText) params.append('mp-photo-alt[]', altText);
-  } else {
-    params.append('video[]', mediaUrl);
+  if (mediaUrl && mimeType) {
+    if (mimeType.startsWith('image/')) {
+      params.append('photo[]', mediaUrl);
+      if (altText) params.append('mp-photo-alt[]', altText);
+    } else {
+      params.append('video[]', mediaUrl);
+    }
   }
 
   const res = await fetch(MICROPUB_ENDPOINT, {
@@ -154,22 +156,53 @@ async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) 
 }
 
 /**
- * Post a single short or episode to micro.blog via Micropub.
+ * Detect MIME type from image buffer magic bytes.
  *
- * Checks the YouTube view count first. Returns { skipped: true, viewCount } without
- * posting if the view count is below the threshold.
+ * @param {Buffer} buffer
+ * @returns {string} MIME type string
+ */
+function detectMimeType(buffer) {
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+  throw new Error(`Unrecognized image format (magic bytes: ${buffer[0]?.toString(16)} ${buffer[1]?.toString(16)})`);
+}
+
+/**
+ * Post a single short, episode, or gist to micro.blog via Micropub.
+ *
+ * Checks the YouTube view count first (unless bypassViewCount is true).
+ * Returns { skipped: true, viewCount } without posting if the view count is below the threshold.
+ *
+ * For non-short posts, provide imageBuffer to use an already-fetched image directly
+ * (e.g. board photos for gist posts) instead of fetching from YouTube.
  *
  * @param {Object} post - Post object from the social posts queue
+ * @param {Object} [options]
+ * @param {boolean} [options.bypassViewCount=false] - Skip view count check
+ * @param {Buffer|null} [options.imageBuffer=null] - Pre-fetched image buffer; skips YouTube thumbnail fetch when provided. Requires bypassViewCount: true.
  * @returns {Promise<{postUrl: string}|{skipped: true, viewCount: number}>}
  */
-async function postToMicroblog(post, { bypassViewCount = false } = {}) {
+async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = null } = {}) {
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable is required');
 
-  const videoId = extractYouTubeVideoId(post.youtubeUrl);
-  if (!videoId) throw new Error(`Could not extract video ID from: ${post.youtubeUrl}`);
+  if (imageBuffer && !bypassViewCount) {
+    throw new Error('imageBuffer requires bypassViewCount: true — view count lookup needs a YouTube video ID, which is unavailable for imageBuffer posts');
+  }
 
-  if (!bypassViewCount) {
+  // Short posts always need the YouTube video ID for download.
+  // Non-short posts use it only when no imageBuffer is provided and the URL is a YouTube URL.
+  // Gist posts may have a non-YouTube board image URL — if imageBuffer is unavailable,
+  // videoId remains null and the post proceeds text-only.
+  let videoId = null;
+  if (post.postType === 'short' || !imageBuffer) {
+    videoId = extractYouTubeVideoId(post.youtubeUrl);
+    if (!videoId && post.postType !== 'gist') {
+      throw new Error(`Could not extract video ID from: ${post.youtubeUrl}`);
+    }
+  }
+
+  if (!bypassViewCount && videoId) {
     const viewCount = await getYouTubeViewCount(videoId);
     if (viewCount < VIEW_COUNT_THRESHOLD) {
       console.log(`[microblog] Row ${post.rowIndex}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`); // eslint-disable-line no-console
@@ -182,12 +215,21 @@ async function postToMicroblog(post, { bypassViewCount = false } = {}) {
     let media;
     if (post.postType === 'short') {
       media = downloadShortVideo(post.youtubeUrl, tmpDir);
-    } else {
+    } else if (imageBuffer) {
+      const mimeType = detectMimeType(imageBuffer);
+      const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
+      media = { buffer: imageBuffer, mimeType, filename: `thumbnail.${ext}` };
+    } else if (videoId) {
       media = await fetchEpisodeThumbnail(videoId);
+    } else {
+      media = null; // thumbnail fetch failed and no YouTube ID available — post text-only
     }
 
-    const mediaUrl = await uploadToMediaEndpoint(media.buffer, media.mimeType, media.filename, token);
-    const postUrl = await createMicropubPost(post.postText, mediaUrl, media.mimeType, post.altText, token);
+    let mediaUrl = null;
+    if (media) {
+      mediaUrl = await uploadToMediaEndpoint(media.buffer, media.mimeType, media.filename, token);
+    }
+    const postUrl = await createMicropubPost(post.postText, mediaUrl, media?.mimeType ?? null, post.altText, token);
     return { postUrl };
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

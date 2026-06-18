@@ -114,7 +114,7 @@ async function dispatchPost(post, today) {
   if (post.platforms.includes('micro.blog') && post.postType !== 'short' && !post.microblogPostUrl) {
     attemptCount++;
     try {
-      ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true }));
+      ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true, imageBuffer }));
       console.log(`[social] Posted row ${post.rowIndex} to micro.blog: ${microblogPostUrl}`); // eslint-disable-line no-console
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to micro.blog: ${err.message}`); // eslint-disable-line no-console
