@@ -1,5 +1,5 @@
 // ABOUTME: micro.blog posting module using Micropub API with view-count gating.
-// ABOUTME: Exports postToMicroblog(post) for individual posts and scanAndPostShorts() for the daily view-count scan.
+// ABOUTME: Exports postToMicroblog(post, options) for individual posts and scanAndPostShorts() for the daily view-count scan.
 
 'use strict';
 
@@ -162,7 +162,7 @@ async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) 
 function detectMimeType(buffer) {
   if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
   if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
-  return 'image/jpeg';
+  throw new Error(`Unrecognized image format (magic bytes: ${buffer[0]?.toString(16)} ${buffer[1]?.toString(16)})`);
 }
 
 /**
@@ -175,13 +175,18 @@ function detectMimeType(buffer) {
  * (e.g. board photos for gist posts) instead of fetching from YouTube.
  *
  * @param {Object} post - Post object from the social posts queue
- * @param {boolean} [bypassViewCount] - Skip view count check
- * @param {Buffer|null} [imageBuffer] - Pre-fetched image buffer; skips YouTube thumbnail fetch when provided
+ * @param {Object} [options]
+ * @param {boolean} [options.bypassViewCount=false] - Skip view count check
+ * @param {Buffer|null} [options.imageBuffer=null] - Pre-fetched image buffer; skips YouTube thumbnail fetch when provided. Requires bypassViewCount: true.
  * @returns {Promise<{postUrl: string}|{skipped: true, viewCount: number}>}
  */
 async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = null } = {}) {
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable is required');
+
+  if (imageBuffer && !bypassViewCount) {
+    throw new Error('imageBuffer requires bypassViewCount: true — view count lookup needs a YouTube video ID, which is unavailable for imageBuffer posts');
+  }
 
   // Short posts always need the YouTube video ID for download.
   // Non-short posts need it only if no imageBuffer is provided.

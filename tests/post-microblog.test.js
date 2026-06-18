@@ -239,6 +239,26 @@ describe('postToMicroblog', () => {
         )
       ).resolves.toMatchObject({ postUrl: expect.any(String) });
     });
+
+    test('throws when imageBuffer is provided with bypassViewCount false — videoId would be null', async () => {
+      const boardBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+      await expect(
+        postToMicroblog(
+          makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.jpg' }),
+          { bypassViewCount: false, imageBuffer: boardBuffer }
+        )
+      ).rejects.toThrow('imageBuffer requires bypassViewCount: true');
+    });
+
+    test('detectMimeType throws for unrecognized image format', async () => {
+      const unknownBuffer = Buffer.from([0x00, 0x01, 0x02, 0x03]);
+      await expect(
+        postToMicroblog(
+          makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.jpg' }),
+          { bypassViewCount: true, imageBuffer: unknownBuffer }
+        )
+      ).rejects.toThrow('Unrecognized image format');
+    });
   });
 });
 
