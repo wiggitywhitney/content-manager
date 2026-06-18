@@ -179,7 +179,6 @@ jobs:
       - name: Post social content
         if: steps.priority.outputs.skip_run != 'true'
         env:
-          CAREER_PRIORITY: ${{ steps.priority.outputs.career_first }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
           BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}

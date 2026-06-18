@@ -22,13 +22,15 @@ Whitney publishes three distinct types of posts. This system manages the first t
 | **Social posts** | `post-social-content.js` (this repo) | LinkedIn, Bluesky, Mastodon, micro.blog directly | Scheduled via Social Posts Queue tab |
 | **Personal posts** | Whitney manually, via Micro.blog UI | Micro.blog → syndicates to Bluesky, Mastodon, LinkedIn | Ad hoc |
 
-**Daily limit**: one managed post per day collectively — career, social, or micro.blog-only, never more than one. Personal posts are exempt — they can appear on the same day as a managed post.
+**Daily limit**: one managed post per day collectively when `TWO_POSTS_PER_DAY=false` (default) — career, social, or micro.blog-only, never more than one. When `TWO_POSTS_PER_DAY=true`, up to two managed posts per day: one social in the morning cron (13:00 UTC = 8am CDT) and one career in the evening cron (21:00 UTC = 4pm CDT). Personal posts are always exempt — they can appear on the same day as a managed post.
 
-**Priority**: date parity with three-tier fallback. Odd days = career priority; even days = social priority.
+**Priority**: date parity with three-tier fallback (single-post mode only). Odd days = career priority; even days = social priority.
 
 - **Tier 1 (priority type)**: Career on odd days, social on even days. If the priority type posts, the day is done.
 - **Tier 2 (fallback type)**: If the priority type has nothing to post, the other type posts instead.
 - **Tier 3 (micro.blog-only)**: If both career and social have nothing to post for this run, the oldest pending micro.blog-only row dispatches. Micro.blog posts cross-post to LinkedIn, Bluesky, and Mastodon via micro.blog's feed-based syndication — only post here when both other tiers are empty.
+
+**Two-post mode** (`TWO_POSTS_PER_DAY=true`): morning slot dispatches social only; evening slot dispatches career only — no day-parity logic. The career-posted-today gate is bypassed so career can post even if a social post already ran that morning.
 
 **Social queue dispatch**: On each run, finds the oldest pending row by row order (not by date). If that row has a Group ID in Column N, posts all pending rows sharing that Group ID in the same run — one post per platform, same day. Rows with no Group ID post individually. After posting, today's date is written to Column G.
 

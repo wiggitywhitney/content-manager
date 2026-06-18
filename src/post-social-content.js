@@ -158,7 +158,7 @@ async function dispatchPost(post, today) {
  *
  * Dispatch priority order:
  * 0. Social-posted-today gate: skip all dispatch if social content already posted today.
- * 1. Career-posted-today gate: skip all dispatch if career content already posted today (any day).
+ * 1. Career-posted-today gate: skip all dispatch if career content already posted today (single-post mode only; bypassed when TWO_POSTS_PER_DAY=true).
  * 2. Non-micro.blog group: dispatch the oldest pending group of LinkedIn/Bluesky/Mastodon rows.
  *    If the group has a Group ID (col N), all rows sharing that ID post together in one run.
  * 3. Micro.blog fallback: only when the non-micro.blog queue is fully empty AND career has not
