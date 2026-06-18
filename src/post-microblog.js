@@ -127,11 +127,13 @@ async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) 
   params.append('h', 'entry');
   params.append('content', postText);
 
-  if (mimeType.startsWith('image/')) {
-    params.append('photo[]', mediaUrl);
-    if (altText) params.append('mp-photo-alt[]', altText);
-  } else {
-    params.append('video[]', mediaUrl);
+  if (mediaUrl && mimeType) {
+    if (mimeType.startsWith('image/')) {
+      params.append('photo[]', mediaUrl);
+      if (altText) params.append('mp-photo-alt[]', altText);
+    } else {
+      params.append('video[]', mediaUrl);
+    }
   }
 
   const res = await fetch(MICROPUB_ENDPOINT, {
@@ -189,11 +191,15 @@ async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = nu
   }
 
   // Short posts always need the YouTube video ID for download.
-  // Non-short posts need it only if no imageBuffer is provided.
+  // Non-short posts use it only when no imageBuffer is provided and the URL is a YouTube URL.
+  // Gist posts may have a non-YouTube board image URL — if imageBuffer is unavailable,
+  // videoId remains null and the post proceeds text-only.
   let videoId = null;
   if (post.postType === 'short' || !imageBuffer) {
     videoId = extractYouTubeVideoId(post.youtubeUrl);
-    if (!videoId) throw new Error(`Could not extract video ID from: ${post.youtubeUrl}`);
+    if (!videoId && post.postType !== 'gist') {
+      throw new Error(`Could not extract video ID from: ${post.youtubeUrl}`);
+    }
   }
 
   if (!bypassViewCount) {
@@ -213,12 +219,17 @@ async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = nu
       const mimeType = detectMimeType(imageBuffer);
       const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
       media = { buffer: imageBuffer, mimeType, filename: `thumbnail.${ext}` };
-    } else {
+    } else if (videoId) {
       media = await fetchEpisodeThumbnail(videoId);
+    } else {
+      media = null; // thumbnail fetch failed and no YouTube ID available — post text-only
     }
 
-    const mediaUrl = await uploadToMediaEndpoint(media.buffer, media.mimeType, media.filename, token);
-    const postUrl = await createMicropubPost(post.postText, mediaUrl, media.mimeType, post.altText, token);
+    let mediaUrl = null;
+    if (media) {
+      mediaUrl = await uploadToMediaEndpoint(media.buffer, media.mimeType, media.filename, token);
+    }
+    const postUrl = await createMicropubPost(post.postText, mediaUrl, media?.mimeType ?? null, post.altText, token);
     return { postUrl };
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

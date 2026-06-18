@@ -250,6 +250,21 @@ describe('postToMicroblog', () => {
       ).rejects.toThrow('imageBuffer requires bypassViewCount: true');
     });
 
+    test('posts text-only for a gist post when imageBuffer is null and URL is non-YouTube', async () => {
+      const result = await postToMicroblog(
+        makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png' }),
+        { bypassViewCount: true, imageBuffer: null }
+      );
+      expect(result).toMatchObject({ postUrl: expect.any(String) });
+      // No upload to the media endpoint
+      const mediaCalls = fetchSpy.mock.calls.filter(c => c[0].includes('micropub/media'));
+      expect(mediaCalls).toHaveLength(0);
+      // Micropub post body must not include photo or video
+      const micropubCall = fetchSpy.mock.calls.find(c => c[0].includes('micropub') && !c[0].includes('/media'));
+      expect(micropubCall[1].body).not.toContain('photo');
+      expect(micropubCall[1].body).not.toContain('video');
+    });
+
     test('detectMimeType throws for unrecognized image format', async () => {
       const unknownBuffer = Buffer.from([0x00, 0x01, 0x02, 0x03]);
       await expect(
