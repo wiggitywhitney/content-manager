@@ -103,12 +103,6 @@ jobs:
         continue-on-error: true
         run: yt-dlp -U
 
-      - name: Scan for new content
-        continue-on-error: true
-        env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: node src/scan-new-content.js
-
       - name: Determine post priority
         id: priority
         env:
@@ -143,6 +137,13 @@ jobs:
           else
             echo "social_has_pending=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Scan for new content
+        if: steps.priority.outputs.skip_run != 'true'
+        continue-on-error: true
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node src/scan-new-content.js
 
       - name: Sync content to Micro.blog and update About page
         if: steps.priority.outputs.skip_run != 'true' && ((steps.priority.outputs.career_first == '1' && env.TWO_POSTS_PER_DAY != 'true') || steps.priority.outputs.social_has_pending == 'false' || (steps.priority.outputs.is_morning_slot == 'false' && env.TWO_POSTS_PER_DAY == 'true'))

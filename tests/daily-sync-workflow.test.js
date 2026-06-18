@@ -104,17 +104,32 @@ describe('daily-sync workflow', () => {
   describe('two-post mode configuration', () => {
     test('has morning cron trigger at 13:00 UTC (8am CDT)', () => {
       const crons = workflow.on.schedule.map(s => s.cron);
-      expect(crons.some(c => c.includes('0 13'))).toBe(true);
+      expect(crons).toContain('0 13 * * *');
     });
 
     test('has evening cron trigger at 21:00 UTC (4pm CDT)', () => {
       const crons = workflow.on.schedule.map(s => s.cron);
-      expect(crons.some(c => c.includes('0 21'))).toBe(true);
+      expect(crons).toContain('0 21 * * *');
     });
 
-    test('daily-sync job has TWO_POSTS_PER_DAY env var', () => {
+    test('daily-sync job has TWO_POSTS_PER_DAY env var defaulting to false', () => {
       const jobEnv = workflow.jobs['daily-sync'].env || {};
-      expect(jobEnv.TWO_POSTS_PER_DAY).toBeDefined();
+      expect(jobEnv.TWO_POSTS_PER_DAY).toBe('false');
+    });
+
+    test('Determine post priority step runs before Scan for new content', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const priorityIndex = steps.findIndex(s => s.id === 'priority');
+      const scanIndex = steps.findIndex(s => s.name === 'Scan for new content');
+      expect(priorityIndex).toBeGreaterThanOrEqual(0);
+      expect(scanIndex).toBeGreaterThanOrEqual(0);
+      expect(priorityIndex).toBeLessThan(scanIndex);
+    });
+
+    test('Scan for new content step is gated on skip_run', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const scanStep = steps.find(s => s.name === 'Scan for new content');
+      expect(scanStep.if).toContain('skip_run');
     });
 
     test('Determine post priority step computes is_morning_slot output', () => {
