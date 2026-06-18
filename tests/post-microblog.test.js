@@ -250,6 +250,16 @@ describe('postToMicroblog', () => {
       ).rejects.toThrow('imageBuffer requires bypassViewCount: true');
     });
 
+    test('skips view count check and posts text-only when videoId is null for a gist post (bypassViewCount: false)', async () => {
+      const mockVideosList = google.youtube().videos.list;
+      const result = await postToMicroblog(
+        makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png' }),
+        { bypassViewCount: false }
+      );
+      expect(result).toMatchObject({ postUrl: expect.any(String) });
+      expect(mockVideosList).not.toHaveBeenCalled();
+    });
+
     test('posts text-only for a gist post when imageBuffer is null and URL is non-YouTube', async () => {
       const result = await postToMicroblog(
         makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png' }),

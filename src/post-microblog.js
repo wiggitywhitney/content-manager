@@ -202,7 +202,7 @@ async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = nu
     }
   }
 
-  if (!bypassViewCount) {
+  if (!bypassViewCount && videoId) {
     const viewCount = await getYouTubeViewCount(videoId);
     if (viewCount < VIEW_COUNT_THRESHOLD) {
       console.log(`[microblog] Row ${post.rowIndex}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`); // eslint-disable-line no-console
