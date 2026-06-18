@@ -158,8 +158,10 @@ describe('fetchThumbnail — direct image URLs', () => {
       arrayBuffer: () => Promise.resolve(RAW_PNG_BYTES.buffer),
     });
 
-    await fetchThumbnail('https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png');
+    const result = await fetchThumbnail('https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.png');
 
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect(result).toEqual(Buffer.from('converted-jpeg-data'));
     expect(sharpMock).toHaveBeenCalledWith(expect.any(Buffer));
     const chainable = sharpMock.mock.results[0].value;
     expect(chainable.resize).toHaveBeenCalledWith(1920, 1920, { fit: 'inside', withoutEnlargement: true });
