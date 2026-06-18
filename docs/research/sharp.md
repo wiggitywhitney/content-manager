@@ -18,7 +18,7 @@ sharp is the right choice for PNG→JPEG conversion and resize in this project. 
 
 **macOS Homebrew libvips triggers source build** 🟢 high — If `brew install vips` is present globally, `npm install sharp` tries to build from source instead of using prebuilt binaries and may fail. Fix: `SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install sharp`.
 
-**Node.js >= 20.9.0 required** 🟢 high — sharp 0.35.x requires Node-API v9, meaning Node >= 20.9.0. The project's `engines` field says `>=18.14.0` — this is now incorrect. CI uses Node 22, local uses Node 25, so no practical issue, but the field is stale.
+**Node.js >= 20.9.0 required** 🟢 high — sharp 0.35.x requires Node-API v9, meaning Node >= 20.9.0. The project's `engines` field is `>=20.9.0` to match.
 
 **Cross-platform package-lock.json** 🟡 medium — npm bug #4828 can cause issues when a lock file generated on macOS is used in Linux CI via `npm ci`. sharp uses optional dependencies for platform-specific prebuilt binaries. In practice, `npm ci` on ubuntu-latest with Node 22 resolves this correctly as long as optional deps are enabled (the default).
 
