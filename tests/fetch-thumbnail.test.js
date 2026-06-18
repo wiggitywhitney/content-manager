@@ -2,6 +2,15 @@
 
 'use strict';
 
+jest.mock('sharp', () => {
+  const chainable = {
+    resize: jest.fn().mockReturnThis(),
+    jpeg: jest.fn().mockReturnThis(),
+    toBuffer: jest.fn().mockResolvedValue(Buffer.from('converted-jpeg-data')),
+  };
+  return jest.fn().mockReturnValue(chainable);
+});
+
 const { fetchThumbnail, extractVideoId } = require('../src/fetch-thumbnail');
 
 const FAKE_IMAGE_BYTES = Buffer.from('fake-jpeg-data');

@@ -188,6 +188,36 @@ describe('postToMicroblog', () => {
     });
   });
 
+  describe('gist post type with imageBuffer', () => {
+    const BOARD_JPEG_BUFFER = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]); // JPEG magic bytes
+
+    test('uses provided imageBuffer directly without fetching from YouTube', async () => {
+      await postToMicroblog(
+        makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.jpg' }),
+        { bypassViewCount: true, imageBuffer: BOARD_JPEG_BUFFER }
+      );
+      const ytFetch = fetchSpy.mock.calls.find(([url]) => url.includes('img.youtube.com'));
+      expect(ytFetch).toBeUndefined();
+    });
+
+    test('uploads provided imageBuffer to media endpoint', async () => {
+      await postToMicroblog(
+        makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.jpg' }),
+        { bypassViewCount: true, imageBuffer: BOARD_JPEG_BUFFER }
+      );
+      const mediaUpload = fetchSpy.mock.calls.find(([url]) => url.includes('micropub/media'));
+      expect(mediaUpload).toBeDefined();
+    });
+
+    test('returns postUrl when imageBuffer is provided with a non-YouTube URL', async () => {
+      const result = await postToMicroblog(
+        makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.jpg' }),
+        { bypassViewCount: true, imageBuffer: BOARD_JPEG_BUFFER }
+      );
+      expect(result.postUrl).toBe('https://micro.blog/wiggitywhitney/2026/test-post');
+    });
+  });
+
   describe('error cases', () => {
     test('throws if MICROBLOG_APP_TOKEN is missing', async () => {
       delete process.env.MICROBLOG_APP_TOKEN;
@@ -195,9 +225,19 @@ describe('postToMicroblog', () => {
         .rejects.toThrow('MICROBLOG_APP_TOKEN environment variable is required');
     });
 
-    test('throws if YouTube URL is not recognizable', async () => {
+    test('throws if YouTube URL is not recognizable and no imageBuffer provided', async () => {
       await expect(postToMicroblog(makePost({ postType: 'talk', youtubeUrl: 'https://example.com/video' }), { bypassViewCount: true }))
         .rejects.toThrow('Could not extract video ID from');
+    });
+
+    test('does not throw when URL is not YouTube if imageBuffer is provided', async () => {
+      const boardBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+      await expect(
+        postToMicroblog(
+          makePost({ postType: 'gist', youtubeUrl: 'https://raw.githubusercontent.com/wiggitywhitney/board-notes/main/thunder/ep19/board.jpg' }),
+          { bypassViewCount: true, imageBuffer: boardBuffer }
+        )
+      ).resolves.toMatchObject({ postUrl: expect.any(String) });
     });
   });
 });
