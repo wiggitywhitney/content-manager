@@ -7,7 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Changed
-- (2026-06-19) Enabled two-posts-per-day mode by default. Set `TWO_POSTS_PER_DAY=true` in the daily workflow so the evening cron dispatches a career post every day instead of being skipped. The feature was implemented in the previous session; this change activates it.
+- (2026-06-19) Enabled two-posts-per-day mode by default. Set `TWO_POSTS_PER_DAY=true` in the daily workflow so the evening cron runs the career sync path each evening instead of being skipped. The feature was implemented in the previous session; this change activates it.
 
 ### Added
 - (2026-06-18) Added two-posts-per-day mode to drain the social post backlog. A `TWO_POSTS_PER_DAY` env var in `daily-sync.yml` (default `false`) enables two cron slots: morning at 8am CT (13:00 UTC) for social content and evening at 4pm CT (21:00 UTC) for career content. When enabled, the career-posted-today guard is bypassed for social dispatch so both can go out on the same day. When disabled, the evening cron exits early via a `skip_run` guard and one-post-per-day behavior is fully preserved. A `getSlot()` helper detects which cron fired by UTC hour. The career sync step now runs in every evening slot in two-post mode regardless of day parity, fixing a bug where even-day evenings were skipped entirely.

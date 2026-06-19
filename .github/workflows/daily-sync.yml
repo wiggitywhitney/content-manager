@@ -76,8 +76,8 @@ jobs:
       group: daily-sync-${{ github.ref }}
       cancel-in-progress: true
     env:
-      # Set to 'true' to enable two-post-per-day mode (morning=social, evening=career).
-      # Set to 'false' (default) to restore one-post-per-day behavior — evening cron runs but skips posting.
+      # Set to 'true' (default) to enable two-post-per-day mode (morning=social, evening=career).
+      # Set to 'false' to restore one-post-per-day behavior — evening cron runs but skips posting.
       TWO_POSTS_PER_DAY: 'true'
 
     steps:
