@@ -112,9 +112,9 @@ describe('daily-sync workflow', () => {
       expect(crons).toContain('0 21 * * *');
     });
 
-    test('daily-sync job has TWO_POSTS_PER_DAY env var defaulting to false', () => {
+    test('daily-sync job has TWO_POSTS_PER_DAY env var set to true', () => {
       const jobEnv = workflow.jobs['daily-sync'].env || {};
-      expect(jobEnv.TWO_POSTS_PER_DAY).toBe('false');
+      expect(jobEnv.TWO_POSTS_PER_DAY).toBe('true');
     });
 
     test('Determine post priority step runs before Scan for new content', () => {
