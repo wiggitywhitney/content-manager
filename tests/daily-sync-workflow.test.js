@@ -152,6 +152,13 @@ describe('daily-sync workflow', () => {
       expect(jobEnv.TWO_POSTS_PER_DAY || stepEnv.TWO_POSTS_PER_DAY).toBeDefined();
     });
 
+    test('Post social content step passes IS_MORNING_SLOT from priority step output', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const postStep = steps.find(s => s.name === 'Post social content');
+      const stepEnv = postStep.env || {};
+      expect(stepEnv.IS_MORNING_SLOT).toContain('is_morning_slot');
+    });
+
     test('Sync career content step condition includes is_morning_slot and TWO_POSTS_PER_DAY for evening slot routing', () => {
       const steps = workflow.jobs['daily-sync'].steps;
       const careerStep = steps.find(s => s.name === 'Sync content to Micro.blog and update About page');

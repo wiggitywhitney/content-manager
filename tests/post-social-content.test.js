@@ -1191,3 +1191,165 @@ describe('processPostsForDate — single-post mode unchanged when TWO_POSTS_PER_
     expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
   });
 });
+
+describe('processPostsForDate — two-post mode evening fallback (IS_MORNING_SLOT=false)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.DRY_RUN = 'true';
+    process.env.TWO_POSTS_PER_DAY = 'true';
+    process.env.IS_MORNING_SLOT = 'false';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    checkCareerPostedToday.mockResolvedValue(false);
+    checkSocialPostedToday.mockResolvedValue(true); // social already posted this morning
+  });
+
+  afterEach(() => {
+    delete process.env.DRY_RUN;
+    delete process.env.TWO_POSTS_PER_DAY;
+    delete process.env.IS_MORNING_SLOT;
+  });
+
+  test('empty career queue with pending social dispatches social (bypasses social guard)', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-06-19');
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+  });
+
+  test('career already posted today — skips social dispatch', async () => {
+    checkCareerPostedToday.mockResolvedValue(true);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate('2026-06-19');
+
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+  });
+
+  test('both queues empty — exits cleanly returning false', async () => {
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+
+    await expect(processPostsForDate('2026-06-19')).resolves.toBe(false);
+  });
+});
+
+const { submitPostResultMetric } = require('../src/post-social-content');
+
+describe('submitPostResultMetric', () => {
+  let fetchMock;
+
+  beforeEach(() => {
+    fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    global.fetch = fetchMock;
+  });
+
+  afterEach(() => {
+    delete process.env.DD_API_KEY;
+  });
+
+  test('is a no-op when DD_API_KEY is not set', async () => {
+    delete process.env.DD_API_KEY;
+    await submitPostResultMetric('linkedin', true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('submits gauge value 1 to Datadog on success', async () => {
+    process.env.DD_API_KEY = 'test-dd-key';
+    await submitPostResultMetric('bluesky', true);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.datadoghq.com/api/v2/series',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'DD-API-KEY': 'test-dd-key' }),
+      })
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.series[0].metric).toBe('content_manager.social_post.result');
+    expect(body.series[0].points[0].value).toBe(1);
+    expect(body.series[0].tags).toContain('platform:bluesky');
+  });
+
+  test('submits gauge value 0 to Datadog on failure', async () => {
+    process.env.DD_API_KEY = 'test-dd-key';
+    await submitPostResultMetric('mastodon', false);
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.series[0].points[0].value).toBe(0);
+    expect(body.series[0].tags).toContain('platform:mastodon');
+  });
+
+  test('does not throw when Datadog returns a non-ok response', async () => {
+    process.env.DD_API_KEY = 'test-dd-key';
+    fetchMock.mockResolvedValue({ ok: false, status: 400, text: async () => 'bad request' });
+    await expect(submitPostResultMetric('linkedin', true)).resolves.toBeUndefined();
+  });
+
+  test('does not throw when fetch rejects', async () => {
+    process.env.DD_API_KEY = 'test-dd-key';
+    fetchMock.mockRejectedValue(new Error('network error'));
+    await expect(submitPostResultMetric('linkedin', false)).resolves.toBeUndefined();
+  });
+});
+
+describe('dispatchPost — emits post result metrics per platform', () => {
+  let fetchMock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    global.fetch = fetchMock;
+    process.env.DD_API_KEY = 'test-dd-key';
+    delete process.env.DRY_RUN;
+    downloadFromDrive.mockResolvedValue({ buffer: FAKE_VIDEO_BUFFER, mimeType: 'video/mp4', filename: 'video.mp4' });
+    fetchThumbnail.mockResolvedValue(FAKE_IMAGE_BUFFER);
+    updatePostResult.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    delete process.env.DD_API_KEY;
+  });
+
+  function metricCalls() {
+    return fetchMock.mock.calls.filter(call => call[0] === 'https://api.datadoghq.com/api/v2/series');
+  }
+
+  test('bluesky success emits metric with value 1', async () => {
+    postToBluesky.mockResolvedValue({ postUrl: 'https://bsky.app/post/1' });
+    await dispatchPost(makePost({ postType: 'episode', platforms: ['bluesky'], driveVideoId: null, youtubeUrl: 'https://youtu.be/abc' }), '2026-06-19');
+
+    const calls = metricCalls();
+    expect(calls.length).toBe(1);
+    const body = JSON.parse(calls[0][1].body);
+    expect(body.series[0].tags).toContain('platform:bluesky');
+    expect(body.series[0].points[0].value).toBe(1);
+  });
+
+  test('mastodon failure emits metric with value 0', async () => {
+    postToMastodon.mockRejectedValue(new Error('mastodon down'));
+    await dispatchPost(makePost({ postType: 'episode', platforms: ['mastodon'], driveVideoId: null, youtubeUrl: 'https://youtu.be/abc' }), '2026-06-19');
+
+    const calls = metricCalls();
+    expect(calls.length).toBe(1);
+    const body = JSON.parse(calls[0][1].body);
+    expect(body.series[0].tags).toContain('platform:mastodon');
+    expect(body.series[0].points[0].value).toBe(0);
+  });
+
+  test('linkedin success and bluesky failure each emit independent metrics', async () => {
+    postToLinkedIn.mockResolvedValue({ postUrl: 'https://linkedin.com/post/1' });
+    postToBluesky.mockRejectedValue(new Error('bluesky error'));
+    const post = makePost({ postType: 'episode', platforms: ['linkedin', 'bluesky'], driveVideoId: null, youtubeUrl: 'https://youtu.be/abc' });
+
+    await dispatchPost(post, '2026-06-19');
+
+    const calls = metricCalls();
+    expect(calls.length).toBe(2);
+    const linkedinCall = calls.find(c => JSON.parse(c[1].body).series[0].tags.includes('platform:linkedin'));
+    const blueskyCall = calls.find(c => JSON.parse(c[1].body).series[0].tags.includes('platform:bluesky'));
+    expect(JSON.parse(linkedinCall[1].body).series[0].points[0].value).toBe(1);
+    expect(JSON.parse(blueskyCall[1].body).series[0].points[0].value).toBe(0);
+  });
+});
