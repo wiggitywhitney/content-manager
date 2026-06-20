@@ -25,6 +25,8 @@ async function submitPostResultMetric(platform, success) {
   if (!apiKey) return;
 
   const timestamp = Math.floor(Date.now() / 1000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const response = await fetch('https://api.datadoghq.com/api/v2/series', {
       method: 'POST',
@@ -40,6 +42,7 @@ async function submitPostResultMetric(platform, success) {
           tags: ['service:content-manager', `platform:${platform}`],
         }],
       }),
+      signal: controller.signal,
     });
     if (!response.ok) {
       const text = await response.text();
@@ -47,6 +50,8 @@ async function submitPostResultMetric(platform, success) {
     }
   } catch (err) {
     console.warn(`[social] Warning: failed to submit post result metric: ${err.message}`); // eslint-disable-line no-console
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
