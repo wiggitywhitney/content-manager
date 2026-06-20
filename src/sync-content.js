@@ -1133,10 +1133,10 @@ async function syncContent() {
           stats.emptyRows++;
         } else if (validation.reason.includes('Invalid Type')) {
           stats.invalidType++;
-          log(`Row ${parsed.rowIndex}: ✗ Skipped - ${validation.reason}`, 'WARN');
+          log(`Row ${parsed.rowIndex}: ✗ Skipped - ${validation.reason}`, 'ERROR');
         } else if (validation.reason.includes('Missing required fields')) {
           stats.missingFields++;
-          log(`Row ${parsed.rowIndex}: ✗ Skipped - ${validation.reason}`, 'WARN');
+          log(`Row ${parsed.rowIndex}: ✗ Skipped - ${validation.reason}`, 'ERROR');
         }
       }
     }
