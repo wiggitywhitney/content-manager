@@ -30,7 +30,7 @@ Whitney publishes three distinct types of posts. This system manages the first t
 - **Tier 2 (fallback type)**: If the priority type has nothing to post, the other type posts instead.
 - **Tier 3 (micro.blog-only)**: If both career and social have nothing to post for this run, the oldest pending micro.blog-only row dispatches. Micro.blog posts cross-post to LinkedIn, Bluesky, and Mastodon via micro.blog's feed-based syndication — only post here when both other tiers are empty.
 
-**Two-post mode** (`TWO_POSTS_PER_DAY=true`): morning slot dispatches social only; evening slot dispatches career only — no day-parity logic. The career-posted-today gate is bypassed so career can post even if a social post already ran that morning.
+**Two-post mode** (`TWO_POSTS_PER_DAY=true`): morning slot dispatches social only; evening slot dispatches career only — no day-parity logic. The career-posted-today gate is bypassed so career can post even if a social post already ran that morning. If the career queue is empty when the evening slot runs, the evening slot falls back to dispatching social instead. The workflow passes `IS_MORNING_SLOT` to `post-social-content.js` so it can detect the evening slot and bypass the social-already-posted guard for this fallback.
 
 **Social queue dispatch**: On each run, finds the oldest pending row by row order (not by date). If that row has a Group ID in Column N, posts all pending rows sharing that Group ID in the same run — one post per platform, same day. Rows with no Group ID post individually. After posting, today's date is written to Column G.
 

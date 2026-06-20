@@ -14,6 +14,48 @@ const { downloadFromDrive } = require('./drive-download');
 const { fetchThumbnail } = require('./fetch-thumbnail');
 
 /**
+ * Submit a gauge metric to Datadog reporting the result of a platform post attempt.
+ * No-op when DD_API_KEY is not set. Errors are logged as warnings and not re-thrown.
+ *
+ * @param {string} platform - 'linkedin' | 'bluesky' | 'mastodon' | 'micro.blog'
+ * @param {boolean} success - true for success (value=1), false for failure (value=0)
+ */
+async function submitPostResultMetric(platform, success) {
+  const apiKey = process.env.DD_API_KEY;
+  if (!apiKey) return;
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch('https://api.datadoghq.com/api/v2/series', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'DD-API-KEY': apiKey,
+      },
+      body: JSON.stringify({
+        series: [{
+          metric: 'content_manager.social_post.result',
+          type: 3, // gauge
+          points: [{ timestamp, value: success ? 1 : 0 }],
+          tags: ['service:content-manager', `platform:${platform}`],
+        }],
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[social] Warning: Datadog metric submission returned ${response.status}: ${text}`); // eslint-disable-line no-console
+    }
+  } catch (err) {
+    console.warn(`[social] Warning: failed to submit post result metric: ${err.message}`); // eslint-disable-line no-console
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
  * Return today's date as a YYYY-MM-DD string in UTC.
  *
  * @returns {string}
@@ -88,8 +130,10 @@ async function dispatchPost(post, today) {
     try {
       ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer, imageBuffer }));
       console.log(`[social] Posted row ${post.rowIndex} to Bluesky: ${bskyPostUrl}`); // eslint-disable-line no-console
+      await submitPostResultMetric('bluesky', true);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Bluesky: ${err.message}`); // eslint-disable-line no-console
+      await submitPostResultMetric('bluesky', false);
       failureCount++;
     }
   } else if (post.platforms.includes('bluesky')) {
@@ -101,8 +145,10 @@ async function dispatchPost(post, today) {
     try {
       ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer, imageBuffer }));
       console.log(`[social] Posted row ${post.rowIndex} to Mastodon: ${mastodonPostUrl}`); // eslint-disable-line no-console
+      await submitPostResultMetric('mastodon', true);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to Mastodon: ${err.message}`); // eslint-disable-line no-console
+      await submitPostResultMetric('mastodon', false);
       failureCount++;
     }
   } else if (post.platforms.includes('mastodon')) {
@@ -114,8 +160,10 @@ async function dispatchPost(post, today) {
     try {
       ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer, imageBuffer }));
       console.log(`[social] Posted row ${post.rowIndex} to LinkedIn: ${linkedinPostUrl}`); // eslint-disable-line no-console
+      await submitPostResultMetric('linkedin', true);
     } catch (err) {
       console.error(`[social] Failed to post row ${post.rowIndex} to LinkedIn: ${err.message}`); // eslint-disable-line no-console
+      await submitPostResultMetric('linkedin', false);
       failureCount++;
     }
   } else if (post.platforms.includes('linkedin')) {
@@ -170,17 +218,30 @@ async function dispatchPost(post, today) {
  */
 async function processPostsForDate(today) {
   const twoPosts = process.env.TWO_POSTS_PER_DAY === 'true';
+  // IS_MORNING_SLOT defaults to true (morning) unless explicitly set to 'false' by the workflow
+  const isMorningSlot = process.env.IS_MORNING_SLOT !== 'false';
+  // Evening fallback: in two-post mode, evening slot dispatches social when career queue is empty
+  const eveningFallback = twoPosts && !isMorningSlot;
 
-  if (await checkSocialPostedToday()) {
-    console.log('[social] Social content already posted today — skipping dispatch'); // eslint-disable-line no-console
-    return false;
-  }
+  if (eveningFallback) {
+    // Evening slot owns social; but if career already posted this morning, skip social fallback
+    if (await checkCareerPostedToday()) {
+      console.log('[social] Career content posted today in evening slot — skipping social fallback'); // eslint-disable-line no-console
+      return false;
+    }
+    console.log('[social] Evening slot: career queue empty — falling back to social dispatch'); // eslint-disable-line no-console
+  } else {
+    if (await checkSocialPostedToday()) {
+      console.log('[social] Social content already posted today — skipping dispatch'); // eslint-disable-line no-console
+      return false;
+    }
 
-  // In single-post mode, one managed post per day — skip social if career already posted.
-  // In two-post mode, career and social each have their own slot; career guard is bypassed here.
-  if (!twoPosts && await checkCareerPostedToday()) {
-    console.log('[social] Career content already posted today — skipping social dispatch'); // eslint-disable-line no-console
-    return false;
+    // In single-post mode, one managed post per day — skip social if career already posted.
+    // In two-post mode, career and social each have their own slot; career guard is bypassed here.
+    if (!twoPosts && await checkCareerPostedToday()) {
+      console.log('[social] Career content already posted today — skipping social dispatch'); // eslint-disable-line no-console
+      return false;
+    }
   }
 
   let hadFailure = false;
@@ -259,4 +320,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processPostsForDate, dispatchPost, main, getSlot };
+module.exports = { processPostsForDate, dispatchPost, main, getSlot, submitPostResultMetric };

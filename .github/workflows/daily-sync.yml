@@ -185,6 +185,7 @@ jobs:
           MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
           MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
           MICROBLOG_APP_TOKEN: ${{ secrets.MICROBLOG_APP_TOKEN }}
+          IS_MORNING_SLOT: ${{ steps.priority.outputs.is_morning_slot }}
         run: node src/post-social-content.js
 
       - name: Update page visibility
