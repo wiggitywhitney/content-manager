@@ -176,6 +176,10 @@ jobs:
           echo "DD_API_KEY=$DD_API_KEY" >> "$GITHUB_ENV"
           rm /tmp/sa-key.json
 
+      - name: Emit LinkedIn token expiry metric
+        if: steps.priority.outputs.skip_run != 'true'
+        run: node -e "const { checkTokenExpiry } = require('./src/post-linkedin'); checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT).catch(console.error);"
+
       - name: Post social content
         if: steps.priority.outputs.skip_run != 'true'
         env:
