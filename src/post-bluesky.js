@@ -36,26 +36,12 @@ function buildBskyWebUrl(handle, uri) {
   return `https://bsky.app/profile/${handle}/post/${rkey}`;
 }
 
-async function uploadVideoToBluesky(agent, videoBuffer) {
-  console.log('[bluesky] Uploading video...'); // eslint-disable-line no-console
-  if (!agent.pdsUrl) {
-    throw new Error('Bluesky login succeeded but agent.pdsUrl is undefined — cannot derive PDS DID for service auth');
-  }
-  const pdsDid = `did:web:${new URL(agent.pdsUrl).hostname}`;
-  const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
-    aud: pdsDid,
-    lxm: 'com.atproto.repo.uploadBlob',
-    exp: Math.floor(Date.now() / 1000) + 60 * 30,
-  });
-  if (!serviceAuth?.token) {
-    throw new Error('Protocol error: getServiceAuth returned no token');
-  }
-
-  const uploadUrl = `${VIDEO_SERVICE}/xrpc/app.bsky.video.uploadVideo?did=${encodeURIComponent(agent.session.did)}&name=video.mp4`;
+async function uploadAndPoll(serviceToken, did, videoBuffer) {
+  const uploadUrl = `${VIDEO_SERVICE}/xrpc/app.bsky.video.uploadVideo?did=${encodeURIComponent(did)}&name=video.mp4`;
   const uploadRes = await fetchWithTimeout(uploadUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${serviceAuth.token}`,
+      Authorization: `Bearer ${serviceToken}`,
       'Content-Type': 'video/mp4',
       'Content-Length': String(videoBuffer.length),
     },
@@ -96,6 +82,35 @@ async function uploadVideoToBluesky(agent, videoBuffer) {
     } else {
       await new Promise(r => setTimeout(r, 1000));
     }
+  }
+  return blob;
+}
+
+async function uploadVideoToBluesky(agent, videoBuffer) {
+  console.log('[bluesky] Uploading video...'); // eslint-disable-line no-console
+  if (!agent.pdsUrl) {
+    throw new Error('Bluesky login succeeded but agent.pdsUrl is undefined — cannot derive PDS DID for service auth');
+  }
+  const pdsDid = `did:web:${new URL(agent.pdsUrl).hostname}`;
+  const { data: serviceAuth } = await agent.com.atproto.server.getServiceAuth({
+    aud: pdsDid,
+    lxm: 'com.atproto.repo.uploadBlob',
+    exp: Math.floor(Date.now() / 1000) + 60 * 30,
+  });
+  if (!serviceAuth?.token) {
+    throw new Error('Protocol error: getServiceAuth returned no token');
+  }
+
+  let blob;
+  try {
+    blob = await uploadAndPoll(serviceAuth.token, agent.session.did, videoBuffer);
+  } catch (err) {
+    if (!err.message.includes('Bluesky video processing failed')) {
+      throw err;
+    }
+    // Transient job failure — retry once with a fresh upload
+    console.log('[bluesky] Video processing failed, retrying upload once...'); // eslint-disable-line no-console
+    blob = await uploadAndPoll(serviceAuth.token, agent.session.did, videoBuffer);
   }
 
   return {
