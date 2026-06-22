@@ -293,9 +293,12 @@ describe('postToBluesky - video path', () => {
     await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('503');
   });
 
-  test('throws if job status indicates failure', async () => {
+  test('throws if job status indicates failure and retry also fails', async () => {
+    // Retry gets one chance: upload + poll for each attempt = 4 total fetch calls
     mockFetch = jest.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'codec not supported' } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: 'job-retry' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'codec not supported' } }) });
     global.fetch = mockFetch;
     await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('codec not supported');
@@ -310,5 +313,50 @@ describe('postToBluesky - video path', () => {
       com: { atproto: { server: { getServiceAuth: mockGetServiceAuth } } },
     }));
     await expect(postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })).rejects.toThrow('pdsUrl');
+  });
+
+  test('retries once when first job fails and succeeds on second attempt', async () => {
+    const MOCK_JOB_ID_2 = 'job-retry-789';
+    const MOCK_BLOB_2 = { $type: 'blob', ref: { $link: 'bafyretry' }, mimeType: 'video/mp4', size: 99 };
+    mockFetch = jest.fn()
+      // First upload
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) })
+      // First job status — fails
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'transient I/O error' } }) })
+      // Retry upload
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID_2 }) })
+      // Retry job status — succeeds
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { blob: MOCK_BLOB_2 } }) });
+    global.fetch = mockFetch;
+
+    const result = await postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') });
+
+    // Post was created with the blob from the successful retry
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embed: expect.objectContaining({ video: MOCK_BLOB_2 }),
+      })
+    );
+    expect(result.postUrl).toContain('bsky.app');
+  });
+
+  test('throws when retry job also fails — does not attempt a third upload', async () => {
+    mockFetch = jest.fn()
+      // First upload
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) })
+      // First job status — fails
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'first error' } }) })
+      // Retry upload
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: 'job-retry-again' }) })
+      // Retry job status — also fails
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { state: 'failed', error: 'second error' } }) });
+    global.fetch = mockFetch;
+
+    await expect(
+      postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })
+    ).rejects.toThrow('second error');
+
+    // Only 4 fetch calls: 2 uploads + 2 status polls (no third upload attempt)
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 });
