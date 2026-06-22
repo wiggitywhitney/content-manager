@@ -168,6 +168,48 @@ describe('daily-sync workflow', () => {
     });
   });
 
+  describe('emit LinkedIn token expiry metric step', () => {
+    let dailySyncSteps;
+    let metricStep;
+    let gsmStep;
+    let postStep;
+
+    beforeAll(() => {
+      dailySyncSteps = workflow.jobs['daily-sync'].steps;
+      metricStep = dailySyncSteps.find(s => s.name === 'Emit LinkedIn token expiry metric');
+      gsmStep = dailySyncSteps.find(s => s.name && s.name.toLowerCase().includes('read credentials from gsm'));
+      postStep = dailySyncSteps.find(s => s.name === 'Post social content');
+    });
+
+    test('step exists in daily-sync job', () => {
+      expect(metricStep).toBeDefined();
+    });
+
+    test('step is gated on skip_run so it does not run when the workflow skips', () => {
+      expect(metricStep.if).toContain('skip_run');
+    });
+
+    test('step appears after Read credentials from GSM so LINKEDIN_TOKEN_EXPIRES_AT is available', () => {
+      const gsmIndex = dailySyncSteps.indexOf(gsmStep);
+      const metricIndex = dailySyncSteps.indexOf(metricStep);
+      expect(metricIndex).toBeGreaterThan(gsmIndex);
+    });
+
+    test('step appears before Post social content', () => {
+      const metricIndex = dailySyncSteps.indexOf(metricStep);
+      const postIndex = dailySyncSteps.indexOf(postStep);
+      expect(metricIndex).toBeLessThan(postIndex);
+    });
+
+    test('step uses LINKEDIN_TOKEN_EXPIRES_AT from GITHUB_ENV', () => {
+      expect(metricStep.run).toContain('LINKEDIN_TOKEN_EXPIRES_AT');
+    });
+
+    test('step calls checkTokenExpiry or submitTokenExpiryMetric from post-linkedin', () => {
+      expect(metricStep.run).toMatch(/checkTokenExpiry|submitTokenExpiryMetric/);
+    });
+  });
+
   describe('e2e-tests job: LinkedIn secrets removed', () => {
     let e2eSteps;
 
