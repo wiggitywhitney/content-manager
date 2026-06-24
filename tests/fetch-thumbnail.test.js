@@ -59,6 +59,10 @@ describe('extractVideoId', () => {
   test('throws for unrecognized YouTube domain', () => {
     expect(() => extractVideoId('https://vimeo.com/12345')).toThrow('Unrecognized YouTube URL format');
   });
+
+  test('extracts ID from www.youtu.be short URL', () => {
+    expect(extractVideoId('https://www.youtu.be/abc123')).toBe('abc123');
+  });
 });
 
 describe('fetchThumbnail', () => {
@@ -257,5 +261,26 @@ describe('fetchThumbnail — SDI episodes', () => {
 
     expect(result).toBeNull();
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('ECONNREFUSED'));
+  });
+});
+
+describe('fetchThumbnail — www.youtu.be URLs', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+  });
+
+  test('fetches YouTube thumbnail from www.youtu.be URL', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(FAKE_IMAGE_BYTES.buffer),
+    });
+
+    const result = await fetchThumbnail('https://www.youtu.be/uIuBBp3Ib64');
+    expect(Buffer.isBuffer(result)).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('https://i.ytimg.com/vi/uIuBBp3Ib64/maxresdefault.jpg');
   });
 });

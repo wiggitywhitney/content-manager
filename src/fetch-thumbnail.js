@@ -18,7 +18,7 @@ function extractVideoId(youtubeUrl) {
     throw new Error(`Invalid YouTube URL: ${youtubeUrl}`);
   }
 
-  if (url.hostname === 'youtu.be') {
+  if (url.hostname === 'youtu.be' || url.hostname === 'www.youtu.be') {
     const id = url.pathname.split('/').filter(Boolean)[0];
     if (!id) throw new Error(`No video ID in YouTube URL: ${youtubeUrl}`);
     return id;
@@ -118,7 +118,7 @@ const SDI_FEED_URL = 'https://feeds.fireside.fm/softwaredefinedinterviews/rss';
 function isYoutubeUrl(url) {
   try {
     const h = new URL(url).hostname;
-    return h === 'youtu.be' || h === 'youtube.com' || h === 'www.youtube.com';
+    return h === 'youtu.be' || h === 'www.youtu.be' || h === 'youtube.com' || h === 'www.youtube.com';
   } catch {
     return false;
   }
