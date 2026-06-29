@@ -122,7 +122,7 @@ async function uploadToMediaEndpoint(buffer, mimeType, filename, token) {
  * @param {string} token
  * @returns {Promise<string>} Post URL from the Location header
  */
-async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) {
+async function createMicropubPost(postText, mediaUrl, mimeType, altText, token, suppressCrossPosting = false) {
   const params = new URLSearchParams();
   params.append('h', 'entry');
   params.append('content', postText);
@@ -134,6 +134,10 @@ async function createMicropubPost(postText, mediaUrl, mimeType, altText, token) 
     } else {
       params.append('video[]', mediaUrl);
     }
+  }
+
+  if (suppressCrossPosting) {
+    params.append('mp-syndicate-to[]', '');
   }
 
   const res = await fetch(MICROPUB_ENDPOINT, {
@@ -182,7 +186,7 @@ function detectMimeType(buffer) {
  * @param {Buffer|null} [options.imageBuffer=null] - Pre-fetched image buffer; skips YouTube thumbnail fetch when provided. Requires bypassViewCount: true.
  * @returns {Promise<{postUrl: string}|{skipped: true, viewCount: number}>}
  */
-async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = null } = {}) {
+async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = null, suppressCrossPosting = false } = {}) {
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable is required');
 
@@ -229,7 +233,7 @@ async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = nu
     if (media) {
       mediaUrl = await uploadToMediaEndpoint(media.buffer, media.mimeType, media.filename, token);
     }
-    const postUrl = await createMicropubPost(post.postText, mediaUrl, media?.mimeType ?? null, post.altText, token);
+    const postUrl = await createMicropubPost(post.postText, mediaUrl, media?.mimeType ?? null, post.altText, token, suppressCrossPosting);
     return { postUrl };
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
