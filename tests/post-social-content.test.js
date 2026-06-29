@@ -486,7 +486,7 @@ describe('dispatchPost', () => {
       );
       expect(postToMicroblog).toHaveBeenCalledWith(
         expect.objectContaining({ postType: 'episode' }),
-        expect.objectContaining({ suppressCrossPosting: true })
+        expect.objectContaining({ bypassViewCount: true, imageBuffer: FAKE_IMAGE_BUFFER, suppressCrossPosting: true })
       );
     });
 
