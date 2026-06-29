@@ -285,6 +285,26 @@ describe('postToMicroblog', () => {
       ).rejects.toThrow('Unrecognized image format');
     });
   });
+
+  describe('suppressCrossPosting option', () => {
+    test('includes mp-syndicate-to[] blank value in Micropub request when suppressCrossPosting is true', async () => {
+      await postToMicroblog(makePost(), { bypassViewCount: true, suppressCrossPosting: true });
+      const micropubCall = fetchSpy.mock.calls.find(([url]) => url === 'https://micro.blog/micropub');
+      expect(micropubCall[1].body).toContain('mp-syndicate-to%5B%5D=');
+    });
+
+    test('does not include mp-syndicate-to in Micropub request when suppressCrossPosting is false', async () => {
+      await postToMicroblog(makePost(), { bypassViewCount: true, suppressCrossPosting: false });
+      const micropubCall = fetchSpy.mock.calls.find(([url]) => url === 'https://micro.blog/micropub');
+      expect(micropubCall[1].body).not.toContain('mp-syndicate-to');
+    });
+
+    test('does not include mp-syndicate-to in Micropub request when suppressCrossPosting is omitted', async () => {
+      await postToMicroblog(makePost(), { bypassViewCount: true });
+      const micropubCall = fetchSpy.mock.calls.find(([url]) => url === 'https://micro.blog/micropub');
+      expect(micropubCall[1].body).not.toContain('mp-syndicate-to');
+    });
+  });
 });
 
 describe('scanAndPostShorts', () => {

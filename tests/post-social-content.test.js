@@ -477,6 +477,30 @@ describe('dispatchPost', () => {
       expect(updatePostResult).toHaveBeenCalledWith(5, expect.objectContaining({ status: 'posted' }));
     });
   });
+
+  describe('micro.blog suppressCrossPosting', () => {
+    test('passes suppressCrossPosting: true when micro.blog is one of multiple platforms', async () => {
+      await dispatchPost(
+        makePost({ postType: 'episode', platforms: ['bluesky', 'micro.blog'] }),
+        '2026-04-27'
+      );
+      expect(postToMicroblog).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'episode' }),
+        expect.objectContaining({ bypassViewCount: true, imageBuffer: FAKE_IMAGE_BUFFER, suppressCrossPosting: true })
+      );
+    });
+
+    test('does not pass suppressCrossPosting: true when micro.blog is the only platform', async () => {
+      await dispatchPost(
+        makePost({ postType: 'episode', platforms: ['micro.blog'] }),
+        '2026-04-27'
+      );
+      expect(postToMicroblog).toHaveBeenCalledWith(
+        expect.objectContaining({ postType: 'episode' }),
+        { bypassViewCount: true, imageBuffer: FAKE_IMAGE_BUFFER }
+      );
+    });
+  });
 });
 
 const FAKE_GROUP_POST = { rowIndex: 2, title: 'Test Episode', postType: 'episode', platforms: ['bluesky'], groupId: 'ep-1', postText: 'test', youtubeUrl: '', altText: '', scheduledDate: '', status: 'pending', linkedinPostUrl: '', bskyPostUrl: '', mastodonPostUrl: '', microblogPostUrl: '' };
