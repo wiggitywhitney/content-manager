@@ -26,7 +26,25 @@ const COL = {
   MICROBLOG_POST_URL: 12,
   GROUP_ID: 13,  // Column N — groups platform-variant rows that should post on the same day
   DRIVE_VIDEO_ID: 14,  // Column O — Google Drive file ID for short video (populated by journal skill)
+  RETRY_COUNT: 15,  // Column P — number of automatic re-dispatch attempts for a failed row
 };
+
+// Maximum number of automatic re-dispatch attempts for a row with status=failed.
+// Once retryCount reaches this cap, the row is treated as a permanent dead end.
+const MAX_RETRY_ATTEMPTS = 3;
+
+/**
+ * Returns true if a post should be included in the dispatch queue: it is pending
+ * (or has empty status), or it failed but hasn't exhausted its retry attempts.
+ * Posted rows are always excluded.
+ *
+ * @param {Object} post - Parsed post object
+ * @returns {boolean}
+ */
+function isDispatchable(post) {
+  if (!post.status || post.status === 'pending') return true;
+  return post.status === 'failed' && post.retryCount < MAX_RETRY_ATTEMPTS;
+}
 
 /**
  * Parse raw Google Sheets rows into post objects.
@@ -70,6 +88,7 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       microblogPostUrl: (row[COL.MICROBLOG_POST_URL] || '').trim(),
       groupId: (row[COL.GROUP_ID] || '').trim() || null,
       driveVideoId: (row[COL.DRIVE_VIDEO_ID] || '').trim() || null,
+      retryCount: parseInt(row[COL.RETRY_COUNT], 10) || 0,
     });
   }
 
@@ -113,7 +132,7 @@ async function fetchPendingPostsForToday(todayDate) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:O`;
+  const range = `${SOCIAL_POSTS_TAB}!A:P`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -159,7 +178,7 @@ async function fetchAllSocialPosts() {
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
-    range: `${SOCIAL_POSTS_TAB}!A:O`,
+    range: `${SOCIAL_POSTS_TAB}!A:P`,
   });
 
   const rows = response.data.values || [];
@@ -175,9 +194,7 @@ async function fetchAllSocialPosts() {
  */
 async function fetchOldestPendingPost() {
   const posts = await fetchAllSocialPosts();
-  const pending = posts.filter(p =>
-    (!p.status || p.status === 'pending') && !isMicroblogOnly(p)
-  );
+  const pending = posts.filter(p => isDispatchable(p) && !isMicroblogOnly(p));
   return pending.length > 0 ? pending[0] : null;
 }
 
@@ -192,9 +209,7 @@ async function fetchOldestPendingPost() {
  */
 async function fetchOldestPendingGroup() {
   const posts = await fetchAllSocialPosts();
-  const pending = posts.filter(p =>
-    (!p.status || p.status === 'pending') && !isMicroblogOnly(p)
-  );
+  const pending = posts.filter(p => isDispatchable(p) && !isMicroblogOnly(p));
 
   if (pending.length === 0) return [];
 
@@ -215,7 +230,7 @@ async function fetchOldestPendingGroup() {
 async function fetchOldestPendingMicroblogPost() {
   const posts = await fetchAllSocialPosts();
   const pending = posts.filter(p =>
-    (!p.status || p.status === 'pending') && p.postType !== 'short' && isMicroblogOnly(p)
+    isDispatchable(p) && p.postType !== 'short' && isMicroblogOnly(p)
   );
   return pending.length > 0 ? pending[0] : null;
 }
@@ -240,7 +255,7 @@ async function fetchRecentShortRows(limit = 10) {
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const range = `${SOCIAL_POSTS_TAB}!A:O`;
+  const range = `${SOCIAL_POSTS_TAB}!A:P`;
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
@@ -279,7 +294,7 @@ async function checkSocialPostedToday() {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: STAGED_SPREADSHEET_ID,
-      range: `${SOCIAL_POSTS_TAB}!A:O`,
+      range: `${SOCIAL_POSTS_TAB}!A:P`,
     });
 
     const today = new Date().toISOString().slice(0, 10);

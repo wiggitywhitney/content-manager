@@ -161,6 +161,32 @@ describe('updatePostResult', () => {
     const ranges = call.resource.data.map(d => d.range);
     expect(ranges).not.toContain('Social Posts Queue!G3');
   });
+
+  test('writes retryCount to Column P when provided', async () => {
+    await updatePostResult(4, { status: 'failed', retryCount: 2 });
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const pRange = call.resource.data.find(d => d.range === 'Social Posts Queue!P4');
+    expect(pRange).toBeDefined();
+    expect(pRange.values).toEqual([[2]]);
+  });
+
+  test('writes retryCount of 0 to Column P — not skipped as falsy', async () => {
+    await updatePostResult(4, { status: 'posted', retryCount: 0 });
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const pRange = call.resource.data.find(d => d.range === 'Social Posts Queue!P4');
+    expect(pRange).toBeDefined();
+    expect(pRange.values).toEqual([[0]]);
+  });
+
+  test('omits Column P when retryCount is not provided', async () => {
+    await updatePostResult(3, { status: 'posted' });
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const ranges = call.resource.data.map(d => d.range);
+    expect(ranges).not.toContain('Social Posts Queue!P3');
+  });
 });
 
 describe('updateMicroblogPostUrl', () => {

@@ -15,6 +15,7 @@ const COL = {
   BSKY_POST_URL: 'K',
   MASTODON_POST_URL: 'L',
   MICROBLOG_POST_URL: 'M',
+  RETRY_COUNT: 'P',
 };
 
 /**
@@ -28,8 +29,9 @@ const COL = {
  * @param {string} [fields.linkedinPostUrl] - LinkedIn post URL (column J)
  * @param {string} [fields.mastodonPostUrl] - Mastodon post URL (column L)
  * @param {string} [fields.microblogPostUrl] - micro.blog post URL (column M)
+ * @param {number} [fields.retryCount] - Automatic re-dispatch attempt count (column P)
  */
-async function updatePostResult(rowIndex, { status, scheduledDate, bskyPostUrl, linkedinPostUrl, mastodonPostUrl, microblogPostUrl } = {}) {
+async function updatePostResult(rowIndex, { status, scheduledDate, bskyPostUrl, linkedinPostUrl, mastodonPostUrl, microblogPostUrl, retryCount } = {}) {
   if (!status) throw new Error('status field is required');
 
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -67,6 +69,9 @@ async function updatePostResult(rowIndex, { status, scheduledDate, bskyPostUrl, 
   }
   if (microblogPostUrl) {
     data.push({ range: `Social Posts Queue!${COL.MICROBLOG_POST_URL}${rowIndex}`, values: [[microblogPostUrl]] });
+  }
+  if (retryCount !== undefined) {
+    data.push({ range: `Social Posts Queue!${COL.RETRY_COUNT}${rowIndex}`, values: [[retryCount]] });
   }
 
   await sheets.spreadsheets.values.batchUpdate({

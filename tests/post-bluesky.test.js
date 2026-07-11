@@ -359,4 +359,94 @@ describe('postToBluesky - video path', () => {
     // Only 4 fetch calls: 2 uploads + 2 status polls (no third upload attempt)
     expect(mockFetch).toHaveBeenCalledTimes(4);
   });
+
+  test('reuses the blob when upload returns 409 already_exists for a completed job', async () => {
+    mockFetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'already_exists', jobId: MOCK_JOB_ID, state: 'JOB_STATE_COMPLETED', blob: MOCK_BLOB }),
+    });
+    global.fetch = mockFetch;
+
+    const result = await postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') });
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.objectContaining({ embed: expect.objectContaining({ video: MOCK_BLOB }) })
+    );
+    expect(result.postUrl).toContain('bsky.app');
+    // No polling needed — the job was already complete
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('continues polling the existing job when upload returns 409 already_exists but not yet complete', async () => {
+    mockFetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: 'already_exists', jobId: MOCK_JOB_ID, state: 'JOB_STATE_PROCESSING' }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobStatus: { blob: MOCK_BLOB } }) });
+    global.fetch = mockFetch;
+
+    const result = await postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') });
+
+    const [pollUrl] = mockFetch.mock.calls[1];
+    expect(pollUrl).toContain('video.bsky.app/xrpc/app.bsky.video.getJobStatus');
+    expect(pollUrl).toContain(`jobId=${encodeURIComponent(MOCK_JOB_ID)}`);
+    expect(result.postUrl).toContain('bsky.app');
+  });
+
+  test('throws with 409 status when the response body has neither a blob nor a jobId', async () => {
+    mockFetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'already_exists' }),
+    });
+    global.fetch = mockFetch;
+
+    await expect(
+      postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })
+    ).rejects.toThrow('409');
+  });
+
+  test('does not time out at the previous 2-minute polling ceiling', async () => {
+    jest.useFakeTimers();
+    let pollCount = 0;
+    mockFetch = jest.fn().mockImplementation((url) => {
+      if (String(url).includes('uploadVideo')) {
+        return Promise.resolve({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) });
+      }
+      pollCount++;
+      if (pollCount < 130) {
+        return Promise.resolve({ ok: true, json: async () => ({ jobStatus: { state: 'JOB_STATE_PROCESSING' } }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ jobStatus: { blob: MOCK_BLOB } }) });
+    });
+    global.fetch = mockFetch;
+
+    const promise = postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') });
+    await jest.advanceTimersByTimeAsync(130000);
+    const result = await promise;
+
+    expect(result.postUrl).toContain('bsky.app');
+    jest.useRealTimers();
+  });
+
+  test('respects a configurable polling ceiling via BLUESKY_VIDEO_POLL_TIMEOUT_MS', async () => {
+    process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS = '2000';
+    jest.useFakeTimers();
+    mockFetch = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ jobStatus: { state: 'JOB_STATE_PROCESSING' } }) });
+    global.fetch = mockFetch;
+
+    const assertion = expect(
+      postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })
+    ).rejects.toThrow(/timed out/i);
+    await jest.runAllTimersAsync();
+    await assertion;
+
+    jest.useRealTimers();
+    delete process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS;
+  });
 });
