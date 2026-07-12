@@ -110,7 +110,7 @@ async function dispatchPost(post, today) {
       // Drive API error (including transient failures) — mark failed so the operator can investigate.
       // Distinct from "no ID" above: if the file ID is present but download fails, something is wrong.
       console.error(`[social] Failed to download Drive video for row ${post.rowIndex}: ${err.message}`); // eslint-disable-line no-console
-      await updatePostResult(post.rowIndex, { status: 'failed' });
+      await updatePostResult(post.rowIndex, { status: 'failed', retryCount: (post.retryCount || 0) + 1 });
       return true;
     }
   }
@@ -186,13 +186,14 @@ async function dispatchPost(post, today) {
 
   if (attemptCount === 0 && skippedCount === 0) {
     console.warn(`[social] Row ${post.rowIndex} has no dispatchable platforms (platforms: [${post.platforms.join(',')}], type: ${post.postType}); marking failed to unblock queue`); // eslint-disable-line no-console
-    await updatePostResult(post.rowIndex, { status: 'failed' });
+    await updatePostResult(post.rowIndex, { status: 'failed', retryCount: (post.retryCount || 0) + 1 });
     return true;
   }
 
   const status = failureCount === 0 ? 'posted' : 'failed';
   const resultFields = { status };
   if (status === 'posted' && today) resultFields.scheduledDate = today;
+  if (status === 'failed') resultFields.retryCount = (post.retryCount || 0) + 1;
   if (bskyPostUrl) resultFields.bskyPostUrl = bskyPostUrl;
   if (mastodonPostUrl) resultFields.mastodonPostUrl = mastodonPostUrl;
   if (linkedinPostUrl) resultFields.linkedinPostUrl = linkedinPostUrl;

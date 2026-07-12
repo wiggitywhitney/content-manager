@@ -47,25 +47,45 @@ async function uploadAndPoll(serviceToken, did, videoBuffer) {
     },
     body: videoBuffer,
   }, 120000);
+
+  let jobId;
   if (!uploadRes.ok) {
-    throw new Error(`Bluesky video upload failed: ${uploadRes.status}`);
-  }
-  const { jobId } = await uploadRes.json();
-  if (!jobId) {
-    throw new Error('Protocol error: video upload response missing jobId');
+    if (uploadRes.status === 409) {
+      // Bluesky returns 409 already_exists when a video for this upload was already submitted.
+      // The body may report the job as already complete (reuse its blob) or still in progress
+      // (continue polling using the existing jobId) rather than failing the whole post.
+      const body = await uploadRes.json();
+      if (body && body.blob) {
+        return body.blob;
+      }
+      if (body && body.jobId) {
+        jobId = body.jobId;
+      } else {
+        throw new Error('Bluesky video upload failed: 409');
+      }
+    } else {
+      throw new Error(`Bluesky video upload failed: ${uploadRes.status}`);
+    }
+  } else {
+    ({ jobId } = await uploadRes.json());
+    if (!jobId) {
+      throw new Error('Protocol error: video upload response missing jobId');
+    }
   }
 
   let blob;
-  const maxPolls = 120; // 2-minute ceiling at 1s intervals
-  let pollCount = 0;
+  // Default ceiling is 5 minutes; override via BLUESKY_VIDEO_POLL_TIMEOUT_MS for testing or tuning.
+  const pollTimeoutMs = Number(process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS) || 300000;
+  const pollDeadline = Date.now() + pollTimeoutMs;
   while (!blob) {
-    if (pollCount++ >= maxPolls) {
-      throw new Error('Bluesky video processing timed out after 2 minutes');
+    const remainingMs = pollDeadline - Date.now();
+    if (remainingMs <= 0) {
+      throw new Error(`Bluesky video processing timed out after ${Math.round(pollTimeoutMs / 1000)} seconds`);
     }
     const statusRes = await fetchWithTimeout(
       `${VIDEO_SERVICE}/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`,
       {},
-      15000
+      Math.min(15000, remainingMs)
     );
     if (!statusRes.ok) {
       throw new Error(`Bluesky job status check failed: ${statusRes.status}`);

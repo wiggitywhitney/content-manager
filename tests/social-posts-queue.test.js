@@ -12,7 +12,7 @@ const { parseSocialPostRows, filterPostsForDate, fetchOldestPendingPost, fetchOl
 // E(4)=YouTube URL, F(5)=Alt Text, G(6)=Scheduled Date, H(7)=Platforms,
 // I(8)=Status, J(9)=LinkedIn Post URL, K(10)=Bluesky Post URL,
 // L(11)=Mastodon Post URL, M(12)=micro.blog Post URL, N(13)=Group ID,
-// O(14)=Drive Video ID
+// O(14)=Drive Video ID, P(15)=Retry Count
 
 function makeRow({
   show = 'Thunder',
@@ -30,8 +30,9 @@ function makeRow({
   microblogUrl = '',
   groupId = '',
   driveVideoId = '',
+  retryCount = '',
 } = {}) {
-  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId, driveVideoId];
+  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId, driveVideoId, retryCount];
 }
 
 describe('parseSocialPostRows', () => {
@@ -57,6 +58,7 @@ describe('parseSocialPostRows', () => {
       microblogPostUrl: '',
       groupId: null,
       driveVideoId: null,
+      retryCount: 0,
     });
   });
 
@@ -139,6 +141,41 @@ describe('parseSocialPostRows', () => {
     const posts = parseSocialPostRows(rows);
 
     expect(posts[0].driveVideoId).toBeNull();
+  });
+
+  test('parses retryCount from column P when present', () => {
+    const rows = [makeRow({ retryCount: '2' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(2);
+  });
+
+  test('parses retryCount as 0 when column P is empty', () => {
+    const rows = [makeRow({ retryCount: '' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(0);
+  });
+
+  test('parses retryCount as 0 when column P is absent', () => {
+    const rows = [makeRow().slice(0, 15)]; // remove column P entirely
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(0);
+  });
+
+  test('parses retryCount as 0 when column P is negative', () => {
+    const rows = [makeRow({ retryCount: '-100' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(0);
+  });
+
+  test('parses retryCount as 0 when column P is partially numeric', () => {
+    const rows = [makeRow({ retryCount: '2oops' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(0);
   });
 });
 
@@ -252,12 +289,31 @@ describe('fetchOldestPendingPost', () => {
     expect(result).toBeNull();
   });
 
-  test('skips posted and failed rows, returns oldest pending', async () => {
+  test('skips posted rows, returns oldest pending', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
     const postedRow = makeRow({ title: 'Posted', status: 'posted' });
-    const failedRow = makeRow({ title: 'Failed', status: 'failed' });
     const pendingRow = makeRow({ title: 'Pending', status: 'pending' });
-    makeSheetsMock([header, postedRow, failedRow, pendingRow]);
+    makeSheetsMock([header, postedRow, pendingRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result.title).toBe('Pending');
+  });
+
+  test('includes a failed row under the retry cap, ahead of a later pending row', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const failedRow = makeRow({ title: 'Failed', status: 'failed', retryCount: '1' });
+    const pendingRow = makeRow({ title: 'Pending', status: 'pending' });
+    makeSheetsMock([header, failedRow, pendingRow]);
+
+    const result = await fetchOldestPendingPost();
+    expect(result.title).toBe('Failed');
+  });
+
+  test('excludes a failed row at or above the retry cap', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const exhaustedFailedRow = makeRow({ title: 'Exhausted', status: 'failed', retryCount: '3' });
+    const pendingRow = makeRow({ title: 'Pending', status: 'pending' });
+    makeSheetsMock([header, exhaustedFailedRow, pendingRow]);
 
     const result = await fetchOldestPendingPost();
     expect(result.title).toBe('Pending');
@@ -341,6 +397,27 @@ describe('fetchOldestPendingGroup', () => {
     expect(result).toHaveLength(0);
   });
 
+  test('includes a failed group row under the retry cap', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const li = makeRow({ title: 'Ep', platforms: 'linkedin', status: 'failed', retryCount: '1', groupId: 'ep-g' });
+    const masto = makeRow({ title: 'Ep', platforms: 'mastodon', status: 'failed', retryCount: '1', groupId: 'ep-g' });
+    makeSheetsMock([header, li, masto]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(2);
+  });
+
+  test('excludes a failed group row at or above the retry cap', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const exhausted = makeRow({ title: 'Exhausted', status: 'failed', retryCount: '3', groupId: 'ex-g' });
+    const pending = makeRow({ title: 'Pending', status: 'pending' });
+    makeSheetsMock([header, exhausted, pending]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Pending');
+  });
+
   test('includes short posts with social platforms — they dispatch immediately without view-count gate', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
     const shortRow = makeRow({ title: 'Short', postType: 'short', platforms: 'bluesky,mastodon', status: 'pending' });
@@ -392,6 +469,25 @@ describe('fetchOldestPendingMicroblogPost', () => {
   test('returns null when only non-microblog rows are pending', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
     const row = makeRow({ platforms: 'linkedin,bluesky', status: '' });
+    makeSheetsMock([header, row]);
+
+    const result = await fetchOldestPendingMicroblogPost();
+    expect(result).toBeNull();
+  });
+
+  test('includes a failed micro.blog-only row under the retry cap', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const row = makeRow({ title: 'MB Retry', platforms: 'micro.blog', status: 'failed', retryCount: '2' });
+    makeSheetsMock([header, row]);
+
+    const result = await fetchOldestPendingMicroblogPost();
+    expect(result).not.toBeNull();
+    expect(result.title).toBe('MB Retry');
+  });
+
+  test('excludes a failed micro.blog-only row at or above the retry cap', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const row = makeRow({ title: 'MB Exhausted', platforms: 'micro.blog', status: 'failed', retryCount: '3' });
     makeSheetsMock([header, row]);
 
     const result = await fetchOldestPendingMicroblogPost();
@@ -537,7 +633,7 @@ describe('checkSocialPostedToday', () => {
     await checkSocialPostedToday();
     expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
       spreadsheetId: STAGED_SPREADSHEET_ID,
-      range: "Social Posts Queue!A:O",
+      range: "Social Posts Queue!A:P",
     }));
   });
 });

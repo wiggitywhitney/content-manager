@@ -124,7 +124,7 @@ describe('dispatchPost', () => {
     test('marks post as failed when Drive download throws', async () => {
       downloadFromDrive.mockRejectedValue(new Error('Drive API 403'));
       await dispatchPost(makePost(), '2026-04-27');
-      expect(updatePostResult).toHaveBeenCalledWith(5, { status: 'failed' });
+      expect(updatePostResult).toHaveBeenCalledWith(5, { status: 'failed', retryCount: 1 });
     });
 
     test('does not call any platform posters when Drive download fails', async () => {
@@ -736,7 +736,17 @@ describe('processPostsForDate — full dispatch coverage', () => {
 
     await expect(processPostsForDate(TODAY_ODD)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(4, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(4, { status: 'failed', retryCount: 1 });
+  });
+
+  test('increments an existing retryCount on failure rather than resetting to 1', async () => {
+    const post = makeEpisodePost({ rowIndex: 4, platforms: ['bluesky'], retryCount: 2 });
+    fetchOldestPendingGroup.mockResolvedValue([post]);
+    postToBluesky.mockRejectedValue(new Error('Network error'));
+
+    await expect(processPostsForDate(TODAY_ODD)).resolves.not.toThrow();
+
+    expect(updatePostResult).toHaveBeenCalledWith(4, { status: 'failed', retryCount: 3 });
   });
 
   test('posts to Mastodon for a pending row with mastodon platform', async () => {
@@ -777,7 +787,7 @@ describe('processPostsForDate — full dispatch coverage', () => {
 
     await expect(processPostsForDate(TODAY_ODD)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(5, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(5, { status: 'failed', retryCount: 1 });
   });
 
   test('posts to LinkedIn for a pending row with linkedin platform', async () => {
@@ -818,7 +828,7 @@ describe('processPostsForDate — full dispatch coverage', () => {
 
     await expect(processPostsForDate(TODAY_ODD)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(8, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(8, { status: 'failed', retryCount: 1 });
   });
 
   test('posts to all three platforms for a row with all platforms', async () => {
@@ -878,7 +888,7 @@ describe('processPostsForDate — full dispatch coverage', () => {
 
     await expect(processPostsForDate(TODAY_ODD)).resolves.not.toThrow();
 
-    expect(updatePostResult).toHaveBeenCalledWith(99, { status: 'failed' });
+    expect(updatePostResult).toHaveBeenCalledWith(99, { status: 'failed', retryCount: 1 });
     expect(postToBluesky).not.toHaveBeenCalled();
   });
 
@@ -913,6 +923,7 @@ describe('processPostsForDate — full dispatch coverage', () => {
     expect(updatePostResult).toHaveBeenCalledWith(11, {
       status: 'failed',
       bskyPostUrl: 'https://bsky.app/profile/handle/post/ccc',
+      retryCount: 1,
     });
   });
 
