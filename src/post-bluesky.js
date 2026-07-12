@@ -76,16 +76,16 @@ async function uploadAndPoll(serviceToken, did, videoBuffer) {
   let blob;
   // Default ceiling is 5 minutes; override via BLUESKY_VIDEO_POLL_TIMEOUT_MS for testing or tuning.
   const pollTimeoutMs = Number(process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS) || 300000;
-  const maxPolls = Math.ceil(pollTimeoutMs / 1000);
-  let pollCount = 0;
+  const pollDeadline = Date.now() + pollTimeoutMs;
   while (!blob) {
-    if (pollCount++ >= maxPolls) {
+    const remainingMs = pollDeadline - Date.now();
+    if (remainingMs <= 0) {
       throw new Error(`Bluesky video processing timed out after ${Math.round(pollTimeoutMs / 1000)} seconds`);
     }
     const statusRes = await fetchWithTimeout(
       `${VIDEO_SERVICE}/xrpc/app.bsky.video.getJobStatus?jobId=${encodeURIComponent(jobId)}`,
       {},
-      15000
+      Math.min(15000, remainingMs)
     );
     if (!statusRes.ok) {
       throw new Error(`Bluesky job status check failed: ${statusRes.status}`);

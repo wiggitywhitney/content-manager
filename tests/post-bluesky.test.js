@@ -449,4 +449,42 @@ describe('postToBluesky - video path', () => {
     jest.useRealTimers();
     delete process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS;
   });
+
+  test('caps total polling time to pollTimeoutMs even when individual status checks are slow', async () => {
+    process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS = '10000';
+    jest.useFakeTimers();
+    let statusCallCount = 0;
+    mockFetch = jest.fn().mockImplementation((url, init) => {
+      if (String(url).includes('uploadVideo')) {
+        return Promise.resolve({ ok: true, json: async () => ({ jobId: MOCK_JOB_ID }) });
+      }
+      statusCallCount++;
+      // Simulate a status check that takes 8s to resolve on its own, but should be
+      // aborted sooner once the remaining poll budget drops below that.
+      return new Promise((resolve, reject) => {
+        const slowTimer = setTimeout(() => resolve({ ok: true, json: async () => ({ jobStatus: { state: 'JOB_STATE_PROCESSING' } }) }), 8000);
+        init.signal.addEventListener('abort', () => {
+          clearTimeout(slowTimer);
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    });
+    global.fetch = mockFetch;
+
+    const assertion = expect(
+      postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })
+    ).rejects.toThrow(/timed out/i);
+    await jest.runAllTimersAsync();
+    await assertion;
+
+    // A poll-count-based ceiling would allow ~10 iterations of 8s+ each (80s+ of real
+    // time) before exhausting maxPolls. The wall-clock deadline should cut this off
+    // after at most 2 status checks.
+    expect(statusCallCount).toBeLessThanOrEqual(2);
+
+    jest.useRealTimers();
+    delete process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS;
+  });
 });

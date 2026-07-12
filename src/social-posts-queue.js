@@ -88,7 +88,10 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
       microblogPostUrl: (row[COL.MICROBLOG_POST_URL] || '').trim(),
       groupId: (row[COL.GROUP_ID] || '').trim() || null,
       driveVideoId: (row[COL.DRIVE_VIDEO_ID] || '').trim() || null,
-      retryCount: parseInt(row[COL.RETRY_COUNT], 10) || 0,
+      retryCount: (() => {
+        const parsed = Number(row[COL.RETRY_COUNT]);
+        return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+      })(),
     });
   }
 

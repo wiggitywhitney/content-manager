@@ -163,6 +163,20 @@ describe('parseSocialPostRows', () => {
 
     expect(posts[0].retryCount).toBe(0);
   });
+
+  test('parses retryCount as 0 when column P is negative', () => {
+    const rows = [makeRow({ retryCount: '-100' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(0);
+  });
+
+  test('parses retryCount as 0 when column P is partially numeric', () => {
+    const rows = [makeRow({ retryCount: '2oops' })];
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].retryCount).toBe(0);
+  });
 });
 
 describe('filterPostsForDate', () => {
