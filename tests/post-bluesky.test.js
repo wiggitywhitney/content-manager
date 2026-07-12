@@ -473,18 +473,20 @@ describe('postToBluesky - video path', () => {
     });
     global.fetch = mockFetch;
 
-    const assertion = expect(
-      postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })
-    ).rejects.toThrow(/timed out/i);
-    await jest.runAllTimersAsync();
-    await assertion;
+    try {
+      const assertion = expect(
+        postToBluesky(makePost(), { videoBuffer: Buffer.from('fake-video') })
+      ).rejects.toThrow(/timed out/i);
+      await jest.runAllTimersAsync();
+      await assertion;
 
-    // A poll-count-based ceiling would allow ~10 iterations of 8s+ each (80s+ of real
-    // time) before exhausting maxPolls. The wall-clock deadline should cut this off
-    // after at most 2 status checks.
-    expect(statusCallCount).toBeLessThanOrEqual(2);
-
-    jest.useRealTimers();
-    delete process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS;
+      // A poll-count-based ceiling would allow ~10 iterations of 8s+ each (80s+ of real
+      // time) before exhausting maxPolls. The wall-clock deadline should cut this off
+      // after at most 2 status checks.
+      expect(statusCallCount).toBeLessThanOrEqual(2);
+    } finally {
+      jest.useRealTimers();
+      delete process.env.BLUESKY_VIDEO_POLL_TIMEOUT_MS;
+    }
   });
 });
