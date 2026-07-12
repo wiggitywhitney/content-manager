@@ -186,9 +186,10 @@ async function fetchAllSocialPosts() {
 }
 
 /**
- * Fetch the oldest pending post from the Social Posts Queue tab, regardless of scheduled date.
+ * Fetch the oldest dispatchable post from the Social Posts Queue tab, regardless of scheduled date.
+ * Dispatchable includes pending rows and failed rows still under the retry cap (see isDispatchable).
  * Excludes micro.blog-only rows — those are dispatched separately by fetchOldestPendingMicroblogPost.
- * Returns the first pending non-micro.blog row in sheet order, or null if none exist.
+ * Returns the first dispatchable non-micro.blog row in sheet order, or null if none exist.
  *
  * @returns {Promise<Object|null>} The oldest pending non-micro.blog post, or null
  */
@@ -199,11 +200,12 @@ async function fetchOldestPendingPost() {
 }
 
 /**
- * Fetch the oldest pending group of non-micro.blog posts.
- * If the oldest pending post has a Group ID, returns all pending non-micro.blog posts
+ * Fetch the oldest dispatchable group of non-micro.blog posts.
+ * Dispatchable includes pending rows and failed rows still under the retry cap (see isDispatchable).
+ * If the oldest dispatchable post has a Group ID, returns all dispatchable non-micro.blog posts
  * sharing that Group ID so they can be dispatched together on the same day.
  * If no Group ID, returns a single-element array.
- * Returns an empty array if no pending non-micro.blog posts exist.
+ * Returns an empty array if no dispatchable non-micro.blog posts exist.
  *
  * @returns {Promise<Object[]>} Posts to dispatch together, or empty array
  */
@@ -221,9 +223,10 @@ async function fetchOldestPendingGroup() {
 }
 
 /**
- * Fetch the oldest pending micro.blog-only post.
+ * Fetch the oldest dispatchable micro.blog-only post.
+ * Dispatchable includes pending rows and failed rows still under the retry cap (see isDispatchable).
  * Only called after the non-micro.blog queue and career backlog are confirmed empty.
- * Returns null if no pending micro.blog posts exist.
+ * Returns null if no dispatchable micro.blog posts exist.
  *
  * @returns {Promise<Object|null>} The oldest pending micro.blog post, or null
  */
