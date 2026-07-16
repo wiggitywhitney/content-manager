@@ -121,7 +121,7 @@ jobs:
           # In single-post mode, skip evening cron runs to preserve one-post-per-day behavior
           if [ "${TWO_POSTS_PER_DAY}" != "true" ] && [ "$IS_MORNING" = "false" ]; then
             echo "skip_run=true" >> "$GITHUB_OUTPUT"
-            echo "[priority] Evening run skipped — TWO_POSTS_PER_DAY is not enabled"
+            echo "[priority] Evening run skipped — TWO_POSTS_PER_DAY=${TWO_POSTS_PER_DAY} (single-post mode)"
             exit 0
           fi
           echo "skip_run=false" >> "$GITHUB_OUTPUT"
@@ -156,7 +156,7 @@ jobs:
         run: node src/sync-content.js
 
       - name: Read credentials from GSM
-        if: steps.priority.outputs.skip_run != 'true'
+        if: (success() || failure()) && steps.priority.outcome == 'success' && steps.priority.outputs.skip_run != 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -177,11 +177,11 @@ jobs:
           rm /tmp/sa-key.json
 
       - name: Emit LinkedIn token expiry metric
-        if: steps.priority.outputs.skip_run != 'true'
+        if: (success() || failure()) && steps.priority.outcome == 'success' && steps.priority.outputs.skip_run != 'true'
         run: node -e "const { checkTokenExpiry } = require('./src/post-linkedin'); checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT).catch(console.error);"
 
       - name: Post social content
-        if: steps.priority.outputs.skip_run != 'true'
+        if: (success() || failure()) && steps.priority.outcome == 'success' && steps.priority.outputs.skip_run != 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
