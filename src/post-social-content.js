@@ -76,6 +76,20 @@ function getSlot(now = new Date()) {
 }
 
 /**
+ * Determine whether a given date/slot combination is a scheduled micro.blog-only override slot:
+ * Wednesday evening or Sunday morning. UTC day-of-week is safe here because both target cron
+ * times (13:00 and 21:00 UTC) fall within the same calendar day in CDT.
+ *
+ * @param {string} today - Date in YYYY-MM-DD format
+ * @param {boolean} isMorningSlot - true for the morning cron, false for the evening cron
+ * @returns {boolean}
+ */
+function isMicroblogOverrideSlot(today, isMorningSlot) {
+  const dayOfWeek = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = Sunday, 3 = Wednesday
+  return (dayOfWeek === 3 && !isMorningSlot) || (dayOfWeek === 0 && isMorningSlot);
+}
+
+/**
  * Dispatch a single post to all of its specified platforms.
  * When DRY_RUN=true, logs what would be dispatched and returns immediately.
  * Otherwise, collects all results before writing to the sheet so that a failure
@@ -222,6 +236,21 @@ async function processPostsForDate(today) {
   const twoPosts = process.env.TWO_POSTS_PER_DAY === 'true';
   // IS_MORNING_SLOT defaults to true (morning) unless explicitly set to 'false' by the workflow
   const isMorningSlot = process.env.IS_MORNING_SLOT !== 'false';
+
+  // Scheduled override: on Wednesday evening and Sunday morning, the oldest pending micro.blog-only
+  // row dispatches ahead of and instead of the normal three-tier priority logic below. This breaks
+  // up gist-post dominance on whitneylee.com's home page. If no such row is pending, fall through
+  // to the normal logic unchanged.
+  if (isMicroblogOverrideSlot(today, isMorningSlot)) {
+    const overridePost = await fetchOldestPendingMicroblogPost();
+    if (overridePost) {
+      console.log(`[social] Scheduled micro.blog-only override slot — Row ${overridePost.rowIndex}: ${overridePost.title} (${overridePost.postType})`); // eslint-disable-line no-console
+      const failed = await dispatchPost(overridePost, today);
+      return !!failed;
+    }
+    console.log('[social] Scheduled micro.blog-only override slot — no pending micro.blog-only row; falling back to normal dispatch'); // eslint-disable-line no-console
+  }
+
   // Evening fallback: in two-post mode, evening slot dispatches social when career queue is empty
   const eveningFallback = twoPosts && !isMorningSlot;
 
@@ -322,4 +351,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { processPostsForDate, dispatchPost, main, getSlot, submitPostResultMetric };
+module.exports = { processPostsForDate, dispatchPost, main, getSlot, isMicroblogOverrideSlot, submitPostResultMetric };
