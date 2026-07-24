@@ -34,7 +34,7 @@ jest.mock('../src/fetch-thumbnail', () => ({
   fetchThumbnail: jest.fn(),
 }));
 
-const { dispatchPost, processPostsForDate, main, getSlot } = require('../src/post-social-content');
+const { dispatchPost, processPostsForDate, main, getSlot, isMicroblogOverrideSlot } = require('../src/post-social-content');
 const { postToBluesky } = require('../src/post-bluesky');
 const { postToMastodon } = require('../src/post-mastodon');
 const { postToLinkedIn } = require('../src/post-linkedin');
@@ -1146,6 +1146,32 @@ describe('getSlot', () => {
   });
 });
 
+describe('isMicroblogOverrideSlot', () => {
+  test('Wednesday evening is an override slot', () => {
+    expect(isMicroblogOverrideSlot('2026-06-17', false)).toBe(true); // 2026-06-17 is a Wednesday
+  });
+
+  test('Wednesday morning is NOT an override slot', () => {
+    expect(isMicroblogOverrideSlot('2026-06-17', true)).toBe(false);
+  });
+
+  test('Sunday morning is an override slot', () => {
+    expect(isMicroblogOverrideSlot('2026-06-21', true)).toBe(true); // 2026-06-21 is a Sunday
+  });
+
+  test('Sunday evening is NOT an override slot', () => {
+    expect(isMicroblogOverrideSlot('2026-06-21', false)).toBe(false);
+  });
+
+  test('Monday morning is NOT an override slot', () => {
+    expect(isMicroblogOverrideSlot('2026-06-15', true)).toBe(false); // 2026-06-15 is a Monday
+  });
+
+  test('Monday evening is NOT an override slot', () => {
+    expect(isMicroblogOverrideSlot('2026-06-15', false)).toBe(false);
+  });
+});
+
 describe('processPostsForDate — two-post mode (TWO_POSTS_PER_DAY=true)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -1267,6 +1293,113 @@ describe('processPostsForDate — two-post mode evening fallback (IS_MORNING_SLO
     fetchOldestPendingMicroblogPost.mockResolvedValue(null);
 
     await expect(processPostsForDate('2026-06-19')).resolves.toBe(false);
+  });
+});
+
+describe('processPostsForDate — scheduled micro.blog-only override slots (Wed evening / Sun morning)', () => {
+  const WEDNESDAY = '2026-06-17';
+  const SUNDAY = '2026-06-21';
+  const MONDAY = '2026-06-15';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.DRY_RUN = 'true';
+    fetchOldestPendingGroup.mockResolvedValue([]);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    checkCareerPostedToday.mockResolvedValue(false);
+    checkSocialPostedToday.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    delete process.env.DRY_RUN;
+    delete process.env.IS_MORNING_SLOT;
+  });
+
+  test('Wednesday evening with a pending micro.blog-only row dispatches it, bypassing normal tiers', async () => {
+    process.env.IS_MORNING_SLOT = 'false';
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate(WEDNESDAY);
+
+    expect(fetchOldestPendingMicroblogPost).toHaveBeenCalled();
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+  });
+
+  test('Wednesday evening override dispatch skips the career/social posted-today guards', async () => {
+    process.env.IS_MORNING_SLOT = 'false';
+    checkCareerPostedToday.mockResolvedValue(true);
+    checkSocialPostedToday.mockResolvedValue(true);
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+
+    await processPostsForDate(WEDNESDAY);
+
+    expect(fetchOldestPendingMicroblogPost).toHaveBeenCalled();
+  });
+
+  test('Sunday morning with a pending micro.blog-only row dispatches it, bypassing normal tiers', async () => {
+    process.env.IS_MORNING_SLOT = 'true';
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate(SUNDAY);
+
+    expect(fetchOldestPendingMicroblogPost).toHaveBeenCalled();
+    expect(fetchOldestPendingGroup).not.toHaveBeenCalled();
+  });
+
+  test('Wednesday morning (not an override slot) runs normal three-tier logic instead', async () => {
+    process.env.IS_MORNING_SLOT = 'true';
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate(WEDNESDAY);
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+  });
+
+  test('Sunday evening (not an override slot) runs normal three-tier logic instead', async () => {
+    process.env.IS_MORNING_SLOT = 'false';
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate(SUNDAY);
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+  });
+
+  test('Wednesday evening with no pending micro.blog-only row falls back to normal three-tier logic', async () => {
+    process.env.IS_MORNING_SLOT = 'false';
+    fetchOldestPendingMicroblogPost.mockResolvedValue(null);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate(WEDNESDAY);
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+  });
+
+  test('non-override slot (Monday morning) does not trigger the micro.blog override even with a pending row', async () => {
+    process.env.IS_MORNING_SLOT = 'true';
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+    fetchOldestPendingGroup.mockResolvedValue([FAKE_GROUP_POST]);
+
+    await processPostsForDate(MONDAY);
+
+    expect(fetchOldestPendingGroup).toHaveBeenCalled();
+  });
+
+  test('dispatched override row records Column G, Column M, and Status via the normal update path', async () => {
+    delete process.env.DRY_RUN;
+    process.env.IS_MORNING_SLOT = 'false';
+    fetchOldestPendingMicroblogPost.mockResolvedValue(FAKE_MICROBLOG_POST);
+    postToMicroblog.mockResolvedValue({ postUrl: 'https://micro.blog/wiggitywhitney/override-post' });
+
+    await processPostsForDate(WEDNESDAY);
+
+    expect(postToMicroblog).toHaveBeenCalled();
+    expect(updatePostResult).toHaveBeenCalledWith(FAKE_MICROBLOG_POST.rowIndex, expect.objectContaining({
+      status: 'posted',
+      scheduledDate: WEDNESDAY,
+      microblogPostUrl: 'https://micro.blog/wiggitywhitney/override-post',
+    }));
   });
 });
 
