@@ -7,6 +7,7 @@ Entry format: `- (YYYY-MM-DD) Description of feature-level change (PRD #X, miles
 ## [Unreleased]
 
 ### Changed
+- (2026-07-29) Reverted `daily-sync.yml` to one post per day. Set `TWO_POSTS_PER_DAY=false` (the documented default) so the evening cron once again exits early via the `skip_run` guard instead of running the career sync path. Career and social content share the single morning slot via the existing day-parity priority logic.
 - (2026-06-19) Enabled two-posts-per-day mode by default. Set `TWO_POSTS_PER_DAY=true` in the daily workflow so the evening cron runs the career sync path each evening instead of being skipped. The feature was implemented in the previous session; this change activates it.
 
 ### Added
