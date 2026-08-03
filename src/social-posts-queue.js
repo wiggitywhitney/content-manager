@@ -33,6 +33,11 @@ const COL = {
 // Once retryCount reaches this cap, the row is treated as a permanent dead end.
 const MAX_RETRY_ATTEMPTS = 3;
 
+// Recognized platform tokens for the Platforms column. Shared with dispatchPost
+// (src/post-social-content.js) and the e2e dispatch test so all three stay in sync.
+const PLATFORMS = { LINKEDIN: 'linkedin', BLUESKY: 'bluesky', MASTODON: 'mastodon', MICROBLOG: 'micro.blog' };
+const KNOWN_PLATFORMS = Object.values(PLATFORMS);
+
 /**
  * Returns true if a post should be included in the dispatch queue: it is pending
  * (or has empty status), or it failed but hasn't exhausted its retry attempts.
@@ -70,6 +75,13 @@ function parseSocialPostRows(rows, { hasHeader = false } = {}) {
     const platforms = platformsRaw
       ? platformsRaw.split(',').map(p => p.trim().toLowerCase()).filter(Boolean)
       : [];
+
+    for (const platform of platforms) {
+      if (!KNOWN_PLATFORMS.includes(platform)) {
+        const suggestion = platform === 'microblog' ? ' (did you mean "micro.blog"?)' : '';
+        console.warn(`[social] Row ${i + 1}: unrecognized platform "${platform}"${suggestion}`); // eslint-disable-line no-console
+      }
+    }
 
     posts.push({
       rowIndex: i + 1, // 1-indexed to match Sheets row numbers
@@ -321,4 +333,4 @@ async function checkSocialPostedToday() {
   }
 }
 
-module.exports = { COL, parseSocialPostRows, filterPostsForDate, fetchAllSocialPosts, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };
+module.exports = { COL, PLATFORMS, KNOWN_PLATFORMS, parseSocialPostRows, filterPostsForDate, fetchAllSocialPosts, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };
