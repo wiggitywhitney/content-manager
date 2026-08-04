@@ -6,6 +6,7 @@ jest.mock('../src/social-posts-queue', () => ({
   fetchOldestPendingGroup: jest.fn(),
   fetchOldestPendingMicroblogPost: jest.fn(),
   checkSocialPostedToday: jest.fn(),
+  PLATFORMS: jest.requireActual('../src/social-posts-queue').PLATFORMS,
 }));
 jest.mock('../src/career-post-guard', () => ({
   checkCareerPostedToday: jest.fn(),

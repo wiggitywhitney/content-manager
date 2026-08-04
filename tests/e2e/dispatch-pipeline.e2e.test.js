@@ -6,6 +6,7 @@
 const { google } = require('googleapis');
 const { execFileSync } = require('child_process');
 const path = require('path');
+const { KNOWN_PLATFORMS } = require('../../src/social-posts-queue');
 
 const STAGED_SPREADSHEET_ID = '1eatUotHm4YOin1_rsqRSb71wY4S-lh5SsGInJVznBts';
 const SOCIAL_POSTS_TAB = 'Social Posts Queue';
@@ -147,9 +148,8 @@ describe('Dispatch pipeline e2e', () => {
     if (dispatchLines.length === 0) return;
 
     // Every dispatched row must target at least one known platform
-    const knownPlatforms = ['bluesky', 'mastodon', 'linkedin', 'micro.blog'];
     for (const line of dispatchLines) {
-      const hasPlatform = knownPlatforms.some(p => line.includes(p));
+      const hasPlatform = KNOWN_PLATFORMS.some(p => line.includes(p));
       expect(hasPlatform).toBe(true);
     }
   });

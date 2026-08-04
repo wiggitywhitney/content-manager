@@ -3,7 +3,7 @@
 
 'use strict';
 
-const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, checkSocialPostedToday } = require('./social-posts-queue');
+const { fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, checkSocialPostedToday, PLATFORMS } = require('./social-posts-queue');
 const { checkCareerPostedToday } = require('./career-post-guard');
 const { postToBluesky } = require('./post-bluesky');
 const { postToMastodon } = require('./post-mastodon');
@@ -139,7 +139,7 @@ async function dispatchPost(post, today) {
     }
   }
 
-  if (post.platforms.includes('bluesky') && !post.bskyPostUrl) {
+  if (post.platforms.includes(PLATFORMS.BLUESKY) && !post.bskyPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: bskyPostUrl } = await postToBluesky(post, { videoBuffer, imageBuffer }));
@@ -150,11 +150,11 @@ async function dispatchPost(post, today) {
       await submitPostResultMetric('bluesky', false);
       failureCount++;
     }
-  } else if (post.platforms.includes('bluesky')) {
+  } else if (post.platforms.includes(PLATFORMS.BLUESKY)) {
     skippedCount++;
   }
 
-  if (post.platforms.includes('mastodon') && !post.mastodonPostUrl) {
+  if (post.platforms.includes(PLATFORMS.MASTODON) && !post.mastodonPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: mastodonPostUrl } = await postToMastodon(post, { videoBuffer, imageBuffer }));
@@ -165,11 +165,11 @@ async function dispatchPost(post, today) {
       await submitPostResultMetric('mastodon', false);
       failureCount++;
     }
-  } else if (post.platforms.includes('mastodon')) {
+  } else if (post.platforms.includes(PLATFORMS.MASTODON)) {
     skippedCount++;
   }
 
-  if (post.platforms.includes('linkedin') && !post.linkedinPostUrl) {
+  if (post.platforms.includes(PLATFORMS.LINKEDIN) && !post.linkedinPostUrl) {
     attemptCount++;
     try {
       ({ postUrl: linkedinPostUrl } = await postToLinkedIn(post, { videoBuffer, imageBuffer }));
@@ -180,13 +180,13 @@ async function dispatchPost(post, today) {
       await submitPostResultMetric('linkedin', false);
       failureCount++;
     }
-  } else if (post.platforms.includes('linkedin')) {
+  } else if (post.platforms.includes(PLATFORMS.LINKEDIN)) {
     skippedCount++;
   }
 
-  if (post.platforms.includes('micro.blog') && post.postType !== 'short' && !post.microblogPostUrl) {
+  if (post.platforms.includes(PLATFORMS.MICROBLOG) && post.postType !== 'short' && !post.microblogPostUrl) {
     attemptCount++;
-    const suppressCrossPosting = post.platforms.filter(p => p !== 'micro.blog').length > 0;
+    const suppressCrossPosting = post.platforms.filter(p => p !== PLATFORMS.MICROBLOG).length > 0;
     try {
       ({ postUrl: microblogPostUrl } = await postToMicroblog(post, { bypassViewCount: true, imageBuffer, ...(suppressCrossPosting && { suppressCrossPosting: true }) }));
       console.log(`[social] Posted row ${post.rowIndex} to micro.blog: ${microblogPostUrl}`); // eslint-disable-line no-console
@@ -194,7 +194,7 @@ async function dispatchPost(post, today) {
       console.error(`[social] Failed to post row ${post.rowIndex} to micro.blog: ${err.message}`); // eslint-disable-line no-console
       failureCount++;
     }
-  } else if (post.platforms.includes('micro.blog') && post.postType !== 'short') {
+  } else if (post.platforms.includes(PLATFORMS.MICROBLOG) && post.postType !== 'short') {
     skippedCount++;
   }
 

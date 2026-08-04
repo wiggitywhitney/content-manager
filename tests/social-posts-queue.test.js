@@ -177,6 +177,40 @@ describe('parseSocialPostRows', () => {
 
     expect(posts[0].retryCount).toBe(0);
   });
+
+  test('logs a specific warning for an unrecognized platform token', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const rows = [makeRow({ platforms: 'microblog,bluesky' })];
+
+    parseSocialPostRows(rows);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const warning = warnSpy.mock.calls[0][0];
+    expect(warning).toContain('Row 1');
+    expect(warning).toContain('unrecognized platform "microblog"');
+    expect(warning).toContain('(did you mean "micro.blog"?)');
+    warnSpy.mockRestore();
+  });
+
+  test('does not filter unrecognized platform tokens out of post.platforms', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const rows = [makeRow({ platforms: 'microblog,bluesky' })];
+
+    const posts = parseSocialPostRows(rows);
+
+    expect(posts[0].platforms).toEqual(['microblog', 'bluesky']);
+    warnSpy.mockRestore();
+  });
+
+  test('does not log a warning when all platform tokens are recognized', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const rows = [makeRow({ platforms: 'linkedin,bluesky,mastodon,micro.blog' })];
+
+    parseSocialPostRows(rows);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 });
 
 describe('filterPostsForDate', () => {
