@@ -169,7 +169,7 @@ async function fetchPendingPostsForToday(todayDate) {
  * @returns {boolean}
  */
 function isMicroblogOnly(post) {
-  return post.platforms.length === 1 && post.platforms[0] === 'micro.blog';
+  return post.platforms.length === 1 && post.platforms[0] === PLATFORMS.MICROBLOG;
 }
 
 /**
