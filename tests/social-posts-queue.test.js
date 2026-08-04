@@ -184,8 +184,11 @@ describe('parseSocialPostRows', () => {
 
     parseSocialPostRows(rows);
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Row 1'));
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unrecognized platform "microblog"'));
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const warning = warnSpy.mock.calls[0][0];
+    expect(warning).toContain('Row 1');
+    expect(warning).toContain('unrecognized platform "microblog"');
+    expect(warning).toContain('(did you mean "micro.blog"?)');
     warnSpy.mockRestore();
   });
 
