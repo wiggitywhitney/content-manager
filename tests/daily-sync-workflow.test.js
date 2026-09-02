@@ -138,6 +138,20 @@ describe('daily-sync workflow', () => {
       expect(priorityStep.run).toContain('is_morning_slot');
     });
 
+    test('Determine post priority step classifies slot via scripts/determine-slot.sh, not wall-clock hour', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const priorityStep = steps.find(s => s.id === 'priority');
+      expect(priorityStep.run).toContain('scripts/determine-slot.sh');
+      expect(priorityStep.run).not.toContain('date -u +%H');
+    });
+
+    test('Determine post priority step passes github.event.schedule via env, not inline interpolation', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const priorityStep = steps.find(s => s.id === 'priority');
+      expect(priorityStep.env && priorityStep.env.GITHUB_EVENT_SCHEDULE).toBe('${{ github.event.schedule }}');
+      expect(priorityStep.run).not.toContain('${{ github.event.schedule }}');
+    });
+
     test('Determine post priority step computes skip_run output', () => {
       const steps = workflow.jobs['daily-sync'].steps;
       const priorityStep = steps.find(s => s.id === 'priority');
