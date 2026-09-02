@@ -107,15 +107,16 @@ jobs:
         id: priority
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           DAY=$(date +%-d)
           CAREER_FIRST=$((DAY % 2))
           echo "career_first=${CAREER_FIRST}" >> "$GITHUB_OUTPUT"
 
-          # Slot detection: morning = UTC hour before 17 (covers 8am CDT cron at 13:00 UTC)
-          #                 evening = UTC hour 17 or later (covers 4pm CDT cron at 21:00 UTC)
-          HOUR=$(date -u +%H)
-          if [ "$HOUR" -lt 17 ]; then IS_MORNING=true; else IS_MORNING=false; fi
+          # Slot detection: keyed off which cron actually fired (github.event.schedule),
+          # not wall-clock time — a delayed or late-firing run is still classified correctly.
+          # Empty on workflow_dispatch; falls back to morning (see scripts/determine-slot.sh).
+          IS_MORNING=$(scripts/determine-slot.sh "${GITHUB_EVENT_SCHEDULE}")
           echo "is_morning_slot=${IS_MORNING}" >> "$GITHUB_OUTPUT"
 
           # In single-post mode, skip evening cron runs to preserve one-post-per-day behavior
