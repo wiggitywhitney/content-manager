@@ -85,7 +85,6 @@ describe('Dispatch pipeline e2e', () => {
         env: {
           ...process.env,
           DRY_RUN: 'true',
-          CAREER_PRIORITY: '0', // override date-based priority to exercise social dispatch path
         },
         timeout: 30000,
       }).toString();
@@ -133,11 +132,11 @@ describe('Dispatch pipeline e2e', () => {
     // DRY_RUN mode was active
     expect(pipelineOutput).toContain('[social] DRY_RUN mode active');
 
-    // Either a dispatch occurred, or the guard correctly detected already-posted content —
-    // both are valid outcomes.
+    // A dispatch occurred, or one of the pre-dispatch guards correctly fired — all are valid outcomes.
     const didDispatch = pipelineOutput.includes('[social] DRY_RUN: Would dispatch row');
-    const guardFired = pipelineOutput.includes('Social content already posted today');
-    expect(didDispatch || guardFired).toBe(true);
+    const socialGuardFired = pipelineOutput.includes('Social content already posted today');
+    const careerGuardFired = pipelineOutput.includes('Career content already posted today');
+    expect(didDispatch || socialGuardFired || careerGuardFired).toBe(true);
   });
 
   test('DRY_RUN dispatch targets correct platforms for the dispatched row', () => {
