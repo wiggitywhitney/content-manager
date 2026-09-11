@@ -2,6 +2,11 @@
 # Node modules (dependencies)
 node_modules/
 
+# This repo tracks prds/ in git; negate a personal global gitignore rule
+# that would otherwise exclude it (see prds/1-automated-content-publishing.md
+# and other already-tracked PRDs).
+!prds/
+
 # Environment variables (API keys and secrets)
 .env
 
