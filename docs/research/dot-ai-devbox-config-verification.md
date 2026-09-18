@@ -4,6 +4,7 @@
 **Last Updated:** 2026-09-18
 
 ## Update Log
+
 | Date | Summary |
 |------|---------|
 | 2026-09-18 | Initial research |
@@ -11,7 +12,7 @@
 ## Findings
 
 ### Summary
-`dot-ai` (Viktor Farcic's real project, github.com/vfarcic/dot-ai) is a public repo containing its actual `devbox.json` and `.dot-agent-deck.toml`. Its `devbox.json` scripts are minimal: `agent` and `agent-tester` are both literally `["claude"]`, and `agent-medium` is `["claude --model sonnet"]` — no other agent-related scripts exist. Its `.dot-agent-deck.toml` maps orchestrator/coder/reviewer/auditor/documenter/tester roles to `command = "devbox run agent"` (or `agent-tester`, functionally identical), and only `release` to `command = "devbox run agent-medium"`. No role's command includes a permission-mode flag (`--dangerously-skip-permissions`, `--permission-mode`, `--allowedTools`/`--disallowedTools`) — whatever lets these roles run unattended is not visible in this repo's committed config.
+`dot-ai` (Viktor Farcic's real project, github.com/vfarcic/dot-ai) is a public repo containing its actual `devbox.json` and `.dot-agent-deck.toml`. Its `devbox.json` defines four scripts: `agent` and `agent-tester` are both literally `["claude"]`, `agent-medium` is `["claude --model sonnet"]`, and `agent-oc` is `["opencode"]` — present in the file but not referenced by any role in `.dot-agent-deck.toml`. Its `.dot-agent-deck.toml` maps orchestrator/coder/reviewer/auditor/documenter/tester roles to `command = "devbox run agent"` (or `agent-tester`, functionally identical), and only `release` to `command = "devbox run agent-medium"`. No role's command includes a permission-mode flag (`--dangerously-skip-permissions`, `--permission-mode`, `--allowedTools`/`--disallowedTools`) — whatever lets these roles run unattended is not visible in this repo's committed config.
 
 ### Findings
 
