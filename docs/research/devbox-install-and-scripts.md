@@ -28,20 +28,14 @@ curl -fsSL https://get.jetify.com/devbox | bash
 No brew tap of any name is documented. ([jetify-com/devbox README](https://github.com/jetify-com/devbox), [Installing Devbox](https://www.jetify.com/docs/devbox/installing-devbox))
 
 **2. devbox.json custom-scripts schema** 🟢 high confidence
-Scripts live under `shell.scripts`, each value a string or array of command strings:
+Scripts live under `shell.scripts`, each value a string or array of command strings. This is illustrative schema syntax only — `--agent <role>` is not a real `claude` CLI flag and does not reflect this project's actual decided script bodies. For this repo's real, verified command bodies (bare `claude` for six roles, `claude --model sonnet` for `release`), see [Research: dot-ai devbox config verification](dot-ai-devbox-config-verification.md) and PRD #126 Decision #14.
 ```json
 {
-  "packages": ["nodejs@latest"],
+  "packages": [],
   "shell": {
     "init_hook": ["echo setting up"],
     "scripts": {
-      "agent-orchestrator": "claude --agent orchestrator",
-      "agent-coder": "claude --agent coder",
-      "agent-reviewer": "claude --agent reviewer",
-      "agent-auditor": "claude --agent auditor",
-      "agent-tester": "claude --agent tester",
-      "agent-release": "claude --agent release",
-      "agent-documenter": "claude --agent documenter"
+      "my-script": "some-command --flag"
     }
   }
 }
