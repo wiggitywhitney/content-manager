@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.18.3/.schema/devbox.schema.json",
+  "packages": [],
+  "shell": {
+    "scripts": {
+      "agent-orchestrator": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
+      "agent-coder": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
+      "agent-reviewer": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
+      "agent-auditor": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
+      "agent-documenter": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
+      "agent-tester": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
+      "agent-release": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}' --model sonnet"
+    }
+  }
+}
