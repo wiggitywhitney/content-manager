@@ -32,6 +32,9 @@ LINKEDIN_ACCESS_TOKEN: ref+gcpsecrets://demoo-ooclock/linkedin_access_token
 LINKEDIN_TOKEN_EXPIRES_AT: ref+gcpsecrets://demoo-ooclock/linkedin_token_expires_at
 LINKEDIN_PERSON_URN: ref+gcpsecrets://demoo-ooclock/linkedin_person_urn
 
+# Slack incoming webhook — used by scripts/notify-slack.sh (dot-agent-deck orchestration notifications)
+SLACK_WEBHOOK_URL: ref+gcpsecrets://demoo-ooclock/dot_agent_deck_slack_webhook
+
 # Datadog credentials — shared with commit-story project (no new secrets needed)
 # DD_API_KEY: used by post-linkedin.js to emit token expiry metric; fetched from GSM at runtime in daily-sync.yml (no GitHub Actions secret needed)
 # DD_APP_KEY: needed for monitor creation (M4) — maps to DD-APPLICATION-KEY header in Datadog API

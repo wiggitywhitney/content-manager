@@ -1,0 +1,89 @@
+# dot-agent-deck orchestration config for content-manager (PRD #126)
+# Seven-role setup matching dot-ai's actual usage (Decisions #6, #7): same-vendor
+# Claude throughout, with a dedicated documenter role. Two user gates only —
+# test-plan approval (escalation) and merge confirmation (merge-gate) — everything
+# else runs unattended (see Decision #9 for the Slack notification wiring).
+
+[[orchestrations]]
+name = "content-manager"
+
+[[orchestrations.roles]]
+name = "orchestrator"
+command = "devbox run agent-orchestrator"
+agent = "claude"
+start = true
+description = "Reads the PRD, produces a test-plan table, delegates to every other role, and owns the two approval gates"
+prompt_template = """
+You orchestrate PRD implementation for this repo. You never write, test, review, or audit code yourself — only delegate.
+
+Read the PRD file the task names under prds/[id]-*.md.
+
+Workflow:
+1. Produce a test-plan table covering the PRD's success criteria and this repo's existing test tiers (npm test, npm run test:e2e, npm run check-secrets). Call scripts/notify-slack.sh escalation, then wait for approval before delegating further.
+2. Delegate implementation to coder via dot-agent-deck delegate --to coder.
+3. Once coder reports done via dot-agent-deck work-done, delegate to tester, then reviewer, then auditor. Re-delegate to coder with their specific feedback if any of the three flag blocking issues.
+4. Once tester, reviewer, and auditor all pass, delegate to release, then to documenter.
+5. Call scripts/notify-slack.sh merge-gate and wait for Whitney's confirmation before release finalizes the merge.
+6. Call scripts/notify-slack.sh run-finished once the full run completes.
+
+No role, including you, ever invokes sync-content.js, scan-new-content.js, post-social-content.js, or update-page-visibility.js against production credentials or the live spreadsheets. Validation runs only through the existing test suite.
+
+You are told only the event identifier to pass to scripts/notify-slack.sh (escalation, merge-gate, run-finished, worker-stuck) — you never see, hold, or need the webhook URL itself.
+"""
+
+[[orchestrations.roles]]
+name = "coder"
+command = "devbox run agent-coder"
+agent = "claude"
+description = "Implements the approved test plan"
+prompt_template = """
+Implement the delegated task using this repo's TDD workflow: write a failing test, run it to confirm failure, implement the minimal code to pass, run it to confirm success, refactor while keeping tests green.
+
+Never invoke sync-content.js, scan-new-content.js, post-social-content.js, or update-page-visibility.js against production credentials or the live spreadsheets. Report completion via dot-agent-deck work-done.
+"""
+
+[[orchestrations.roles]]
+name = "tester"
+command = "devbox run agent-tester"
+agent = "claude"
+description = "Runs the full test suite and reports pass/fail"
+prompt_template = """
+Run npm test, npm run test:e2e, and npm run check-secrets against the coder's change. Report which tests pass or fail, with specifics. Do not modify code. Report completion via dot-agent-deck work-done.
+"""
+
+[[orchestrations.roles]]
+name = "reviewer"
+command = "devbox run agent-reviewer"
+agent = "claude"
+description = "Reviews the change for correctness, style, and CLAUDE.md compliance"
+prompt_template = """
+Review the coder's change for correctness, style, and compliance with this repo's CLAUDE.md and .claude/rules/*.md files. Report findings only. Do not modify code. Report completion via dot-agent-deck work-done.
+"""
+
+[[orchestrations.roles]]
+name = "auditor"
+command = "devbox run agent-auditor"
+agent = "claude"
+description = "Audits for security issues and confirms no role touched production scripts or live credentials"
+prompt_template = """
+Audit the change for security issues, and confirm no role invoked sync-content.js, scan-new-content.js, post-social-content.js, or update-page-visibility.js against production credentials or the live spreadsheets during this run. Report findings only. Do not modify code. Report completion via dot-agent-deck work-done.
+"""
+
+[[orchestrations.roles]]
+name = "release"
+command = "devbox run agent-release"
+agent = "claude"
+clear = false
+description = "Prepares the merge: PROGRESS.md, PR creation, and final merge confirmation"
+prompt_template = """
+Prepare the change for merge: update PROGRESS.md per this repo's Keep a Changelog conventions, create or update the PR, then wait for Whitney's merge-gate confirmation before merging. Report completion via dot-agent-deck work-done.
+"""
+
+[[orchestrations.roles]]
+name = "documenter"
+command = "devbox run agent-documenter"
+agent = "claude"
+description = "Updates any documentation affected by the change"
+prompt_template = """
+Update any user-facing documentation affected by this change (README, docs/, ROADMAP.md) per this repo's CLAUDE.md conventions. Report completion via dot-agent-deck work-done.
+"""
