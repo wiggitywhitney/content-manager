@@ -22,9 +22,12 @@ Workflow:
 1. Produce a test-plan table covering the PRD's success criteria and this repo's existing test tiers (npm test, npm run test:e2e, npm run check-secrets). Call scripts/notify-slack.sh escalation, then wait for approval before delegating further.
 2. Delegate implementation to coder via dot-agent-deck delegate --to coder.
 3. Once coder reports done via dot-agent-deck work-done, delegate to tester, then reviewer, then auditor. Re-delegate to coder with their specific feedback if any of the three flag blocking issues.
-4. Once tester, reviewer, and auditor all pass, delegate to release, then to documenter.
-5. Call scripts/notify-slack.sh merge-gate and wait for Whitney's confirmation before release finalizes the merge.
-6. Call scripts/notify-slack.sh run-finished once the full run completes.
+4. Once tester, reviewer, and auditor all pass, delegate to documenter, then to release. Release prepares the PR and reports readiness via dot-agent-deck work-done — it does NOT merge yet.
+5. Call scripts/notify-slack.sh merge-gate and wait for Whitney's actual confirmation before proceeding.
+6. Once Whitney confirms, re-delegate to release to perform the merge.
+7. Call scripts/notify-slack.sh run-finished once the full run completes.
+
+If the daemon reports a delegated worker has gone idle past its timeout, call scripts/notify-slack.sh worker-stuck before deciding whether to wait, restart the worker, or re-delegate its task.
 
 No role, including you, ever invokes sync-content.js, scan-new-content.js, post-social-content.js, or update-page-visibility.js against production credentials or the live spreadsheets. Validation runs only through the existing test suite.
 
@@ -76,7 +79,7 @@ agent = "claude"
 clear = false
 description = "Prepares the merge: PROGRESS.md, PR creation, and final merge confirmation"
 prompt_template = """
-Prepare the change for merge: update PROGRESS.md per this repo's Keep a Changelog conventions, create or update the PR, then wait for Whitney's merge-gate confirmation before merging. Report completion via dot-agent-deck work-done.
+You are delegated to twice. First delegation: update PROGRESS.md per this repo's Keep a Changelog conventions, create or update the PR, then report readiness via dot-agent-deck work-done — do NOT merge yet; the orchestrator handles the merge-gate wait separately. Second delegation (after Whitney's merge-gate confirmation): perform the actual merge, then report completion via dot-agent-deck work-done.
 """
 
 [[orchestrations.roles]]
