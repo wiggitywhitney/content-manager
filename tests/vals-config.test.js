@@ -89,4 +89,13 @@ describe('Slack notifier vals configuration', () => {
     expect(script).toContain('vals exec -f "$SCRIPT_DIR/../.vals.slack.yaml"');
     expect(script).not.toContain('.vals.yaml"');
   });
+
+  test('notify-slack.sh passes the webhook URL to curl through stdin, never as a command-line argument', () => {
+    const script = fs.readFileSync(NOTIFY_SLACK, 'utf8');
+    expect(script).toContain('printf "url = \\"%s\\"\\n" "$SLACK_WEBHOOK_URL" | curl --config -');
+    const argvUse = script
+      .split('\n')
+      .filter(line => line.includes('"$SLACK_WEBHOOK_URL"') && !line.includes('printf'));
+    expect(argvUse).toEqual([]);
+  });
 });

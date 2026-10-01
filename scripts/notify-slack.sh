@@ -18,11 +18,12 @@ esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 STATUS=$(vals exec -f "$SCRIPT_DIR/../.vals.slack.yaml" -- bash -c '
-  curl -s -o /dev/null -w "%{http_code}" \
+  # The URL goes to curl on stdin (printf is a builtin), so it never appears in any process argv.
+  printf "url = \"%s\"\n" "$SLACK_WEBHOOK_URL" | curl --config - \
+    -s -o /dev/null -w "%{http_code}" \
     --connect-timeout 5 --max-time 10 \
     -X POST -H "Content-Type: application/json" \
-    -d "{\"text\":\"$1\"}" \
-    "$SLACK_WEBHOOK_URL"
+    -d "{\"text\":\"$1\"}"
 ' _ "$TEXT" 2>/dev/null)
 
 if [[ "$STATUS" != 2* ]]; then
