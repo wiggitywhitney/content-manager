@@ -3,13 +3,13 @@
   "packages": [],
   "shell": {
     "scripts": {
-      "agent-orchestrator": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
-      "agent-coder": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
-      "agent-reviewer": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
-      "agent-auditor": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
-      "agent-documenter": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
-      "agent-tester": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}'",
-      "agent-release": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false}}' --model sonnet"
+      "agent-orchestrator": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}'",
+      "agent-coder": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}'",
+      "agent-reviewer": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}'",
+      "agent-auditor": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}'",
+      "agent-documenter": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}'",
+      "agent-tester": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}'",
+      "agent-release": "claude --dangerously-skip-permissions --settings '{\"sandbox\": {\"enabled\": true, \"failIfUnavailable\": true, \"allowUnsandboxedCommands\": false, \"network\": {\"allowUnixSockets\": [\"/tmp/dot-agent-deck-502.sock\"]}}}' --model sonnet"
     }
   }
 }
