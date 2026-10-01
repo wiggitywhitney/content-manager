@@ -63,3 +63,30 @@ describe('vals configuration', () => {
     }
   });
 });
+
+describe('Slack notifier vals configuration', () => {
+  const SLACK_VALS_YAML = path.join(ROOT, '.vals.slack.yaml');
+  const NOTIFY_SLACK = path.join(ROOT, 'scripts', 'notify-slack.sh');
+
+  test('.vals.yaml does not reference the Slack webhook, so a missing webhook secret cannot break other vals exec commands', () => {
+    const valsContent = fs.readFileSync(VALS_YAML, 'utf8');
+    expect(valsContent).not.toMatch(/^\s*SLACK_WEBHOOK_URL\s*:/m);
+    expect(valsContent).not.toContain('dot_agent_deck_slack_webhook');
+  });
+
+  test('.vals.slack.yaml holds only the Slack webhook secret reference', () => {
+    expect(fs.existsSync(SLACK_VALS_YAML)).toBe(true);
+    const activeLines = fs.readFileSync(SLACK_VALS_YAML, 'utf8')
+      .split('\n')
+      .filter(line => line.trim() && !line.trim().startsWith('#'));
+    expect(activeLines).toEqual([
+      'SLACK_WEBHOOK_URL: ref+gcpsecrets://demoo-ooclock/dot_agent_deck_slack_webhook',
+    ]);
+  });
+
+  test('notify-slack.sh reads the webhook from .vals.slack.yaml, not .vals.yaml', () => {
+    const script = fs.readFileSync(NOTIFY_SLACK, 'utf8');
+    expect(script).toContain('vals exec -f "$SCRIPT_DIR/../.vals.slack.yaml"');
+    expect(script).not.toContain('.vals.yaml"');
+  });
+});

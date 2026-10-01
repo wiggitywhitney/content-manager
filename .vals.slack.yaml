@@ -1,0 +1,5 @@
+# Slack incoming webhook for dot-agent-deck orchestration notifications.
+# Read only by scripts/notify-slack.sh. Kept out of .vals.yaml so that a missing or
+# unreadable webhook secret cannot break every other `vals exec -f .vals.yaml` command,
+# and so the webhook URL is never injected into any process except the notifier.
+SLACK_WEBHOOK_URL: ref+gcpsecrets://demoo-ooclock/dot_agent_deck_slack_webhook

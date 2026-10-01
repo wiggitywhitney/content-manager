@@ -17,7 +17,7 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-STATUS=$(vals exec -f "$SCRIPT_DIR/../.vals.yaml" -- bash -c '
+STATUS=$(vals exec -f "$SCRIPT_DIR/../.vals.slack.yaml" -- bash -c '
   curl -s -o /dev/null -w "%{http_code}" \
     --connect-timeout 5 --max-time 10 \
     -X POST -H "Content-Type: application/json" \
