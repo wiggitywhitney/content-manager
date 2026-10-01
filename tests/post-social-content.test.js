@@ -708,6 +708,20 @@ describe('processPostsForDate — full dispatch coverage', () => {
     expect(updatePostResult).toHaveBeenCalledTimes(2);
   });
 
+  test('dispatches split gist rows with a shared group id to every platform in one run', async () => {
+    const mainPost = makeEpisodePost({ rowIndex: 2, postType: 'gist', platforms: ['linkedin', 'mastodon', 'micro.blog'], groupId: 'illuminated-openlineage-gist' });
+    const bskyPost = makeEpisodePost({ rowIndex: 3, postType: 'gist', platforms: ['bluesky'], groupId: 'illuminated-openlineage-gist' });
+    fetchOldestPendingGroup.mockResolvedValue([mainPost, bskyPost]);
+
+    await processPostsForDate(TODAY_ODD);
+
+    expect(postToLinkedIn).toHaveBeenCalledWith(mainPost, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(postToMastodon).toHaveBeenCalledWith(mainPost, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(postToMicroblog).toHaveBeenCalledWith(mainPost, { bypassViewCount: true, imageBuffer: FAKE_IMAGE_BUFFER, suppressCrossPosting: true });
+    expect(postToBluesky).toHaveBeenCalledWith(bskyPost, { videoBuffer: null, imageBuffer: FAKE_IMAGE_BUFFER });
+    expect(updatePostResult).toHaveBeenCalledTimes(2);
+  });
+
   test('updates sheet with posted status and Bluesky URL on success', async () => {
     const post = makeEpisodePost({ rowIndex: 3, platforms: ['bluesky'] });
     fetchOldestPendingGroup.mockResolvedValue([post]);

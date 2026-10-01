@@ -422,6 +422,30 @@ describe('fetchOldestPendingGroup', () => {
     expect(result).toHaveLength(3);
   });
 
+  test('returns split gist rows sharing a group id together, including a multi-platform row with micro.blog', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const main = makeRow({ show: 'Datadog Illuminated', title: 'OpenLineage', postType: 'gist', platforms: 'linkedin,mastodon,micro.blog', status: 'pending', groupId: 'illuminated-openlineage-gist' });
+    const bsky = makeRow({ show: 'Datadog Illuminated', title: 'OpenLineage', postType: 'gist', platforms: 'bluesky', status: 'pending', groupId: 'illuminated-openlineage-gist' });
+    makeSheetsMock([header, main, bsky]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result.map(p => p.platforms)).toEqual([
+      ['linkedin', 'mastodon', 'micro.blog'],
+      ['bluesky'],
+    ]);
+  });
+
+  test('returns only the first split gist row when the rows have no group id', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
+    const main = makeRow({ show: 'Datadog Illuminated', title: 'OpenLineage', postType: 'gist', platforms: 'linkedin,mastodon,micro.blog', status: 'pending', groupId: '' });
+    const bsky = makeRow({ show: 'Datadog Illuminated', title: 'OpenLineage', postType: 'gist', platforms: 'bluesky', status: 'pending', groupId: '' });
+    makeSheetsMock([header, main, bsky]);
+
+    const result = await fetchOldestPendingGroup();
+    expect(result).toHaveLength(1);
+    expect(result[0].platforms).toEqual(['linkedin', 'mastodon', 'micro.blog']);
+  });
+
   test('returns empty array when only posted rows exist', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB', 'Group ID'];
     const posted = makeRow({ status: 'posted' });
