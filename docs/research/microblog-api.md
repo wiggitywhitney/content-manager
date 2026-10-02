@@ -1,13 +1,14 @@
 # Research: Micro.blog API Capabilities
 
 **Project:** content-manager
-**Last Updated:** 2026-04-08
+**Last Updated:** 2026-10-02
 
 ## Update Log
 
 | Date | Summary |
 |------|---------|
 | 2026-04-08 | Initial structured research. Consolidates existing docs/microblog-api-capabilities.md with current (2026) web verification. Focuses on page editing (PRD #2 blocker), cross-posting architecture (PRD #7 relevance), and syndication controls. |
+| 2026-10-02 | Marked the double-posting fix as implemented and struck through the earlier "no per-post toggle" and category-feed claims it superseded. |
 | 2026-06-26 | Added `mp-syndicate-to[]` per-post syndication control findings. Root cause of gist double-posting issue: `createMicropubPost` doesn't suppress cross-posting, so micro.blog re-syndicates to platforms we already post to directly. Fix: pass blank `mp-syndicate-to[]=` when micro.blog is not the only platform. Category-based filtering confirmed unreliable — `mp-syndicate-to` is the correct solution. |
 
 ## Findings
@@ -53,9 +54,9 @@ The Micropub API supports a `mp-syndicate-to[]` parameter that controls which cr
 - `mp-syndicate-to[]=` (blank value) → no cross-posting at all
 - `mp-syndicate-to[]=mastodon` → cross-post to Mastodon only
 
-**Application to the double-posting bug:** `createMicropubPost` in `post-microblog.js` currently omits `mp-syndicate-to[]`, so every micro.blog post triggers cross-posting to all configured platforms. When a social post already goes to Bluesky, Mastodon, and LinkedIn via direct API calls AND to micro.blog, micro.blog re-syndicates those same posts — causing duplicates.
+**Application to the double-posting bug:** `createMicropubPost` in `post-microblog.js` originally omitted `mp-syndicate-to[]`, so every micro.blog post triggered cross-posting to all configured platforms. When a social post already goes to Bluesky, Mastodon, and LinkedIn via direct API calls AND to micro.blog, micro.blog re-syndicated those same posts — causing duplicates.
 
-**Fix:** Pass `mp-syndicate-to[]=` (blank) when micro.blog is not the only platform in `post.platforms`. The micro.blog-only fallback tier (Step 3 in `processPostsForDate`) and career posts (`sync-content.js`) should still omit this parameter so cross-posting works normally for those flows. 🟢 High confidence — verified against official Micropub docs.
+**Fix (implemented):** `createMicropubPost` now takes a `suppressCrossPosting` option and appends a blank `mp-syndicate-to[]` when it is set. Pass `mp-syndicate-to[]=` (blank) when micro.blog is not the only platform in `post.platforms`. The micro.blog-only fallback tier (Step 3 in `processPostsForDate`) and career posts (`sync-content.js`) should still omit this parameter so cross-posting works normally for those flows. 🟢 High confidence — verified against official Micropub docs.
 
 **Category-based filtering: confirmed unreliable (do not use).** The category feed approach was tested by community members, and micro.blog confirmed: "you cannot set automatic crossposting based on the source feed or the category of a post." ([Different crossposting per category](https://help.micro.blog/t/different-crossposting-per-category/3744)) 🟢 High confidence — this is documented behavior, not a bug.
 

@@ -1,19 +1,20 @@
 # Research: dot-agent-deck Install and Config
 
 **Project:** content-manager
-**Last Updated:** 2026-09-21
+**Last Updated:** 2026-10-02
 
 ## Update Log
 
 | Date | Summary |
 |------|---------|
+| 2026-10-02 | Noted that v0.41.0, not v0.40.x, is the installed and verified version. |
 | 2026-09-21 | Synced the hooks-install finding below to PRD #126 Decision #1/#12's resolved answer (a live check against the installed v0.41.0 tool) — the three-way disagreement is settled, not still open. |
 | 2026-09-18 | Initial research |
 
 ## Findings
 
 ### Summary
-`dot-agent-deck` (vfarcic) is actively developed (v0.40.x as of Sept 2026). Prior design assumptions in PRD #126 — brew tap install, `.dot-agent-deck.toml` filename/generation, the `agent = "claude"` status-tracking requirement, and the timeout-key top-level-ordering requirement — all check out against current docs; no contradictions found.
+`dot-agent-deck` (vfarcic) is actively developed (v0.40.x when this research began on 2026-09-18; v0.41.0 is the version actually installed and checked, per PRD #126 Decision #12). Prior design assumptions in PRD #126 — brew tap install, `.dot-agent-deck.toml` filename/generation, the `agent = "claude"` status-tracking requirement, and the timeout-key top-level-ordering requirement — all check out against current docs; no contradictions found.
 
 ### Surprises & Gotchas
 - The official quick-start renders install and hook-setup as two separate commands, easy to misread as one: `brew tap vfarcic/tap && brew install dot-agent-deck`, then separately `dot-agent-deck hooks install dot-agent-deck`. 🟢 **Resolved** (2026-09-21): a live check against the actually-installed v0.41.0 tool (PRD #126 Decisions #1 and #12) confirmed hooks are auto-installed on every dashboard startup — no manual `hooks install` step is required. `hooks install`/`hooks uninstall` exist only as manual troubleshooting commands, and the command takes no positional argument, only `--agent <AGENT>` (default `claude-code`). No further verification needed; do not reopen this as a three-way disagreement.
