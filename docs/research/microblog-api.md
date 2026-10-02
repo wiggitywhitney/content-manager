@@ -68,11 +68,10 @@ Micro.blog cross-posting works by monitoring the blog's RSS/JSON feed, not by re
 
 **Implications:**
 - Cross-posting timing depends on feed polling interval, not post creation
-- No API parameter exists to control which platforms receive a specific post
-- Per-category filtering is possible only via category-specific feeds (`/categories/name/feed.xml`)
-- There is no per-post cross-posting toggle in any API
+- ~~No API parameter exists to control which platforms receive a specific post~~ **Superseded (2026-06-26):** the Micropub create request accepts `mp-syndicate-to[]`, which controls per-post syndication, and a blank value turns cross-posting off for that post. See "Per-Post Syndication Control via `mp-syndicate-to`" above.
+- ~~Per-category filtering is possible only via category-specific feeds (`/categories/name/feed.xml`)~~ **Superseded (2026-06-26):** micro.blog confirmed that cross-posting cannot be set by source feed or category, so category feeds do not filter cross-posts.
 
-🟢 High confidence — verified against official docs and book.
+🟢 High confidence on the feed-based timing — verified against official docs and book. The two struck-through claims are kept for history.
 
 ### Current Cross-Posting Platforms (as of January 2026)
 
@@ -84,7 +83,7 @@ Micro.blog cross-posting works by monitoring the blog's RSS/JSON feed, not by re
 **Notable limitations:**
 - LinkedIn: Image cross-posting reportedly planned but not implemented (per Manton, December 2025)
 - Medium: Settings are global — all posts go to Medium, no category filtering
-- Category-based filtering: Only works via custom feed URLs, not reliable for selective cross-posting
+- Category-based filtering: does not work for selective cross-posting (micro.blog confirmed, 2026-06-26); use `mp-syndicate-to[]` per post instead
 
 🟢 High confidence.
 
