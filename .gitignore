@@ -15,3 +15,6 @@ node_modules/
 
 # Temporary CSV files (working files for manual review)
 data/temp-*.csv
+
+# dot-agent-deck orchestrator handoff files and worker logs (local only)
+.dot-agent-deck/
