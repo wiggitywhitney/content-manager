@@ -50,7 +50,7 @@ No dedicated changelog/migration page was found; only one concrete regression (i
 Not a separate manual step — Devbox auto-installs Nix on first `devbox shell`/`devbox run`.
 
 ### Recommendation
-Install via the curl script, not brew — brew is not an option for devbox. Skip any separate Nix setup step; devbox installs Nix on first run. That install needs admin rights, so on a fresh machine either preinstall Nix or arrange temporary admin access before launching any role. Define the 7 `agent-<role>` scripts directly under `shell.scripts` as shown above; avoid `source`-ing helper scripts from `init_hook` given the open bug — use `bash` instead of `source` for anything that must run scripts.
+Install via the curl script, not brew — brew is not an option for devbox. Skip any separate Nix setup step; devbox installs Nix on first run. On macOS that install is multi-user and needs admin rights, so on a fresh Mac either preinstall Nix or arrange temporary admin access before launching any role. Linux and WSL2 get a single-user install. Define the 7 `agent-<role>` scripts directly under `shell.scripts` as shown above; avoid `source`-ing helper scripts from `init_hook` given the open bug — use `bash` instead of `source` for anything that must run scripts.
 
 ### Caveats
 - The devbox.json JSON Schema file itself wasn't fetched in this session — verify the exact `$schema` version string at implementation time (`https://raw.githubusercontent.com/jetify-com/devbox/<version>/.schema/devbox.schema.json`).
