@@ -66,7 +66,7 @@ function getTodayDate() {
 
 /**
  * Return the current posting slot based on UTC hour.
- * Morning slot covers the 8am CDT cron (13:00 UTC); evening slot covers the 4pm CDT cron (21:00 UTC).
+ * Morning slot covers the 8:17am CDT cron (13:17 UTC); evening slot covers the 4:17pm CDT cron (21:17 UTC).
  *
  * @param {Date} [now] - Defaults to current time; pass a Date in tests to avoid clock dependency.
  * @returns {'morning'|'evening'}
@@ -78,7 +78,7 @@ function getSlot(now = new Date()) {
 /**
  * Determine whether a given date/slot combination is a scheduled micro.blog-only override slot:
  * Wednesday evening or Sunday morning. UTC day-of-week is safe here because both target cron
- * times (13:00 and 21:00 UTC) fall within the same calendar day in CDT.
+ * times (13:17 and 21:17 UTC) fall within the same calendar day in CDT.
  *
  * @param {string} today - Date in YYYY-MM-DD format
  * @param {boolean} isMorningSlot - true for the morning cron, false for the evening cron

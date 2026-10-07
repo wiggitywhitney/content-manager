@@ -6,7 +6,7 @@
 jest.mock('googleapis');
 
 const { google } = require('googleapis');
-const { checkCareerPostedToday } = require('../src/career-post-guard');
+const { checkCareerPostedToday, fetchCareerPostedToday } = require('../src/career-post-guard');
 
 const LIVE_SPREADSHEET_ID = '1E10fSvDbcDdtNNtDQ9QtydUXSBZH2znY6ztIxT4fwVs';
 
@@ -101,5 +101,39 @@ describe('checkCareerPostedToday', () => {
     google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
     const result = await checkCareerPostedToday();
     expect(result).toBe(false);
+  });
+});
+
+describe('fetchCareerPostedToday (strict — throws instead of failing open)', () => {
+  beforeEach(() => {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ type: 'service_account' });
+  });
+
+  afterEach(() => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    jest.clearAllMocks();
+  });
+
+  test('returns true when a row has a timestamp from today', async () => {
+    makeSheetsMock([[`${todayPrefix()}T13:20:00.000Z`]]);
+    expect(await fetchCareerPostedToday()).toBe(true);
+  });
+
+  test('returns false when no Column I timestamp is from today', async () => {
+    makeSheetsMock([['2026-01-01T13:20:00.000Z']], [['2025-06-01T13:20:00.000Z']]);
+    expect(await fetchCareerPostedToday()).toBe(false);
+  });
+
+  test('throws when GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    await expect(fetchCareerPostedToday()).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
+  });
+
+  test('throws when a Sheets API call fails', async () => {
+    google.sheets.mockReturnValue({
+      spreadsheets: { values: { get: jest.fn().mockRejectedValue(new Error('Network error')) } },
+    });
+    google.auth = { GoogleAuth: jest.fn().mockImplementation(() => ({})) };
+    await expect(fetchCareerPostedToday()).rejects.toThrow('Network error');
   });
 });

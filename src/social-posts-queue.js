@@ -289,6 +289,43 @@ async function fetchRecentShortRows(limit = 10) {
 }
 
 /**
+ * Strict form of the social-posted-today check: resolves true/false, and throws on a
+ * missing credential or any Sheets API error instead of failing open.
+ * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G.
+ * Covers micro.blog-only rows too, since their dispatch writes the same status and date.
+ * Used by evening-catch-up.js, where treating an error as "nothing posted today" would
+ * produce a second post.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function fetchSocialPostedToday() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not set — cannot check whether social content posted today');
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: STAGED_SPREADSHEET_ID,
+    range: `${SOCIAL_POSTS_TAB}!A:P`,
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = response.data.values || [];
+  return rows.some(row => {
+    const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
+    const status = (row[COL.STATUS] || '').trim().toLowerCase();
+    return status === 'posted' && scheduledDate.startsWith(today);
+  });
+}
+
+/**
  * Returns true if a social post was dispatched today.
  * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G.
  * Returns false (not throws) on any error so transient failures don't suppress future posts.
@@ -296,34 +333,15 @@ async function fetchRecentShortRows(limit = 10) {
  * @returns {Promise<boolean>}
  */
 async function checkSocialPostedToday() {
-  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!serviceAccountJson) {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     console.warn('[social-guard] GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping social post check'); // eslint-disable-line no-console
     return false;
   }
 
   try {
-    const credentials = JSON.parse(serviceAccountJson);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: STAGED_SPREADSHEET_ID,
-      range: `${SOCIAL_POSTS_TAB}!A:P`,
-    });
-
-    const today = new Date().toISOString().slice(0, 10);
-    const rows = response.data.values || [];
-    const posted = rows.some(row => {
-      const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
-      const status = (row[COL.STATUS] || '').trim().toLowerCase();
-      return status === 'posted' && scheduledDate.startsWith(today);
-    });
-
+    const posted = await fetchSocialPostedToday();
     if (posted) {
+      const today = new Date().toISOString().slice(0, 10);
       console.log(`[social-guard] Social content already posted today (${today})`); // eslint-disable-line no-console
     }
     return posted;
@@ -333,4 +351,4 @@ async function checkSocialPostedToday() {
   }
 }
 
-module.exports = { COL, PLATFORMS, KNOWN_PLATFORMS, parseSocialPostRows, filterPostsForDate, fetchAllSocialPosts, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday };
+module.exports = { COL, PLATFORMS, KNOWN_PLATFORMS, parseSocialPostRows, filterPostsForDate, fetchAllSocialPosts, fetchPendingPostsForToday, fetchOldestPendingPost, fetchOldestPendingGroup, fetchOldestPendingMicroblogPost, fetchRecentShortRows, isMicroblogOnly, checkSocialPostedToday, fetchSocialPostedToday };

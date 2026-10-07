@@ -12,6 +12,54 @@ const SHEET_NAME = process.env.SHEET_NAME || 'Sheet1';
 const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
 
 /**
+ * Strict form of the career-posted-today check: resolves true/false, and throws on a
+ * missing credential or any Sheets API error instead of failing open.
+ *
+ * Reads Column I ("Micro.blog Posted At") of the live production spreadsheet and checks
+ * for any timestamp matching today's UTC date. Used by evening-catch-up.js, where treating
+ * an error as "nothing posted today" would produce a second post.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function fetchCareerPostedToday() {
+  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON not set — cannot check whether career content posted today');
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  // Read Column I from both tabs — sync-content.js can write to either
+  const [mainResponse, historicalResponse] = await Promise.all([
+    sheets.spreadsheets.values.get({
+      spreadsheetId: LIVE_SPREADSHEET_ID,
+      range: `${SHEET_NAME}!I:I`,
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId: LIVE_SPREADSHEET_ID,
+      range: `${HISTORICAL_TAB_NAME}!I:I`,
+    }),
+  ]);
+
+  const allRows = [
+    ...(mainResponse.data.values || []),
+    ...(historicalResponse.data.values || []),
+  ];
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+
+  return allRows.some(row => {
+    const val = (row[0] || '').trim();
+    return val.startsWith(today);
+  });
+}
+
+/**
  * Returns true if career content was posted to Micro.blog today.
  *
  * Reads Column I ("Micro.blog Posted At") of the live production spreadsheet and checks
@@ -24,44 +72,14 @@ const HISTORICAL_TAB_NAME = process.env.HISTORICAL_TAB_NAME || '2024 & earlier';
  * @returns {Promise<boolean>}
  */
 async function checkCareerPostedToday() {
-  const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!serviceAccountJson) {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     console.warn('[career-guard] GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping career post check'); // eslint-disable-line no-console
     return false;
   }
 
   try {
-    const credentials = JSON.parse(serviceAccountJson);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    // Read Column I from both tabs — sync-content.js can write to either
-    const [mainResponse, historicalResponse] = await Promise.all([
-      sheets.spreadsheets.values.get({
-        spreadsheetId: LIVE_SPREADSHEET_ID,
-        range: `${SHEET_NAME}!I:I`,
-      }),
-      sheets.spreadsheets.values.get({
-        spreadsheetId: LIVE_SPREADSHEET_ID,
-        range: `${HISTORICAL_TAB_NAME}!I:I`,
-      }),
-    ]);
-
-    const allRows = [
-      ...(mainResponse.data.values || []),
-      ...(historicalResponse.data.values || []),
-    ];
+    const posted = await fetchCareerPostedToday();
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
-
-    const posted = allRows.some(row => {
-      const val = (row[0] || '').trim();
-      return val.startsWith(today);
-    });
-
     if (posted) {
       console.log(`[career-guard] Career content already posted today (${today}) — skipping social dispatch`); // eslint-disable-line no-console
     } else {
@@ -135,4 +153,4 @@ async function checkAllCareerPostsPublished() {
   }
 }
 
-module.exports = { checkCareerPostedToday, checkAllCareerPostsPublished };
+module.exports = { checkCareerPostedToday, fetchCareerPostedToday, checkAllCareerPostsPublished };
