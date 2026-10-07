@@ -1144,11 +1144,11 @@ describe('main — exit code on partial platform failure', () => {
 });
 
 describe('getSlot', () => {
-  test('returns morning for UTC hours before 17 (covers 8am CDT cron at 13:00 UTC)', () => {
+  test('returns morning for UTC hours before 17 (covers 8:17am CDT cron at 13:17 UTC)', () => {
     expect(getSlot(new Date('2026-06-18T13:00:00Z'))).toBe('morning');
   });
 
-  test('returns evening for UTC hour 21 (covers 4pm CDT cron at 21:00 UTC)', () => {
+  test('returns evening for UTC hour 21 (covers 4:17pm CDT cron at 21:17 UTC)', () => {
     expect(getSlot(new Date('2026-06-18T21:00:00Z'))).toBe('evening');
   });
 
