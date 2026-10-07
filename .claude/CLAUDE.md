@@ -108,7 +108,8 @@ vals exec -f .vals.yaml -- node src/<script>.js
 
 Or use the npm scripts (they wrap `vals exec` automatically):
 ```bash
-npm run sync:test     # dry-run sync
+npm run sync:test     # dry-run sync with DEBUG logging
+npm run sync          # also a dry run locally (CI runs sync-content.js directly with DRY_RUN=false)
 npm run check-posts   # check Micro.blog post state
 ```
 
@@ -120,7 +121,7 @@ npm run check-posts   # check Micro.blog post state
 
 ```bash
 # CORRECT — DRY_RUN is inside vals exec scope
-vals exec -f .vals.yaml -- bash -c 'DRY_RUN=true node src/post-social-content.js'
+vals exec -i -f .vals.yaml -- bash -c 'DRY_RUN=true node src/post-social-content.js'
 
 # WRONG — vals exec strips DRY_RUN, posts go live
 DRY_RUN=true vals exec -f .vals.yaml -- node src/post-social-content.js

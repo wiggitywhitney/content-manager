@@ -62,4 +62,42 @@ describe('vals configuration', () => {
       }
     }
   });
+
+  // Without -i, vals exec drops every inherited variable, including PATH and
+  // any DRY_RUN/LOG_LEVEL set in front of the command.
+  test('sync:test inherits DRY_RUN and LOG_LEVEL through vals exec -i', () => {
+    expect(pkg.scripts['sync:test']).toBe(
+      'DRY_RUN=true LOG_LEVEL=DEBUG vals exec -i -f .vals.yaml -- node -r dotenv/config src/sync-content.js'
+    );
+  });
+
+  test('sync stays a local dry run (no DRY_RUN=false)', () => {
+    expect(pkg.scripts.sync).not.toMatch(/DRY_RUN=false/);
+  });
+});
+
+describe('CLAUDE.md dry-run guidance', () => {
+  let claudeMd;
+
+  beforeAll(() => {
+    claudeMd = fs.readFileSync(path.join(ROOT, '.claude', 'CLAUDE.md'), 'utf8');
+  });
+
+  test('CORRECT dry-run command uses vals exec -i and keeps DRY_RUN inside bash -c', () => {
+    expect(claudeMd).toContain(
+      "vals exec -i -f .vals.yaml -- bash -c 'DRY_RUN=true node src/post-social-content.js'"
+    );
+    expect(claudeMd).not.toContain(
+      "vals exec -f .vals.yaml -- bash -c 'DRY_RUN=true node src/post-social-content.js'"
+    );
+  });
+
+  test('WRONG example and its warning are unchanged', () => {
+    expect(claudeMd).toContain('# WRONG — vals exec strips DRY_RUN, posts go live');
+    expect(claudeMd).toContain('DRY_RUN=true vals exec -f .vals.yaml -- node src/post-social-content.js');
+  });
+
+  test('notes that npm run sync is a dry run locally', () => {
+    expect(claudeMd).toMatch(/npm run sync\s+#.*dry run locally/i);
+  });
 });
