@@ -102,14 +102,25 @@ describe('daily-sync workflow', () => {
   });
 
   describe('two-post mode configuration', () => {
-    test('has morning cron trigger at 13:00 UTC (8am CDT)', () => {
+    test('has morning cron trigger at 13:17 UTC (8:17am CDT)', () => {
       const crons = workflow.on.schedule.map(s => s.cron);
-      expect(crons).toContain('0 13 * * *');
+      expect(crons).toContain('17 13 * * *');
     });
 
-    test('has evening cron trigger at 21:00 UTC (4pm CDT)', () => {
+    test('has evening cron trigger at 21:17 UTC (4:17pm CDT)', () => {
       const crons = workflow.on.schedule.map(s => s.cron);
-      expect(crons).toContain('0 21 * * *');
+      expect(crons).toContain('17 21 * * *');
+    });
+
+    test('no cron fires at the top of the hour, when GitHub delays scheduled runs most', () => {
+      const minutes = workflow.on.schedule.map(s => s.cron.split(' ')[0]);
+      expect(minutes).not.toContain('0');
+    });
+
+    test('daily-sync job queues overlapping runs instead of cancelling an in-progress post', () => {
+      const concurrency = workflow.jobs['daily-sync'].concurrency;
+      expect(concurrency.group).toBe('daily-sync-${{ github.ref }}');
+      expect(concurrency['cancel-in-progress']).toBe(false);
     });
 
     test('daily-sync job has TWO_POSTS_PER_DAY env var set to false', () => {
@@ -150,6 +161,29 @@ describe('daily-sync workflow', () => {
       const priorityStep = steps.find(s => s.id === 'priority');
       expect(priorityStep.env && priorityStep.env.GITHUB_EVENT_SCHEDULE).toBe('${{ github.event.schedule }}');
       expect(priorityStep.run).not.toContain('${{ github.event.schedule }}');
+    });
+
+    test('single-post evening runs decide skip vs. catch-up via src/evening-catch-up.js', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const priorityStep = steps.find(s => s.id === 'priority');
+      expect(priorityStep.run).toContain('node src/evening-catch-up.js');
+      expect(priorityStep.env.GOOGLE_SERVICE_ACCOUNT_JSON).toBe('${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}');
+    });
+
+    test('a failed catch-up check fails the step instead of skipping or posting', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const priorityStep = steps.find(s => s.id === 'priority');
+      expect(priorityStep.run).toMatch(/node src\/evening-catch-up\.js\)?\s*\|\|\s*exit 1/);
+    });
+
+    test('is_morning_slot output is written after the catch-up decision, so a catch-up runs as the morning slot', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const run = steps.find(s => s.id === 'priority').run;
+      const catchUpIndex = run.indexOf('node src/evening-catch-up.js');
+      const outputIndexes = [...run.matchAll(/is_morning_slot=/g)].map(m => m.index);
+      expect(catchUpIndex).toBeGreaterThanOrEqual(0);
+      expect(outputIndexes.length).toBeGreaterThan(0);
+      outputIndexes.forEach(i => expect(i).toBeGreaterThan(catchUpIndex));
     });
 
     test('Determine post priority step computes skip_run output', () => {

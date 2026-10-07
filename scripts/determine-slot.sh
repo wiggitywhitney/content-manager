@@ -6,10 +6,10 @@ set -euo pipefail
 schedule="${1:-}"
 
 case "$schedule" in
-  "0 13 * * *")
+  "17 13 * * *")
     echo true
     ;;
-  "0 21 * * *")
+  "17 21 * * *")
     echo false
     ;;
   *)

@@ -9,13 +9,13 @@ setup() {
 }
 
 @test "morning cron schedule resolves to true" {
-  run "$SCRIPT" "0 13 * * *"
+  run "$SCRIPT" "17 13 * * *"
   [ "$status" -eq 0 ]
   [ "$output" = "true" ]
 }
 
 @test "evening cron schedule resolves to false" {
-  run "$SCRIPT" "0 21 * * *"
+  run "$SCRIPT" "17 21 * * *"
   [ "$status" -eq 0 ]
   [ "$output" = "false" ]
 }
