@@ -579,7 +579,7 @@ describe('fetchRecentShortRows', () => {
 
   test('returns only rows with postType short', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
-    const shortRow = makeRow({ postType: 'short' });
+    const shortRow = makeRow({ postType: 'short', status: 'posted' });
     const episodeRow = makeRow({ postType: 'episode' });
     makeSheetsMock([header, shortRow, episodeRow]);
 
@@ -592,7 +592,7 @@ describe('fetchRecentShortRows', () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
     const rows = [header];
     for (let i = 1; i <= 15; i++) {
-      rows.push(makeRow({ postType: 'short', title: `Short ${i}`, youtubeUrl: `https://youtu.be/id${i}` }));
+      rows.push(makeRow({ postType: 'short', status: 'posted', title: `Short ${i}`, youtubeUrl: `https://youtu.be/id${i}` }));
     }
     makeSheetsMock(rows);
 
@@ -610,7 +610,7 @@ describe('fetchRecentShortRows', () => {
     expect(result).toHaveLength(0);
   });
 
-  test('includes rows of all statuses (not filtered by status or date)', async () => {
+  test('returns only rows already posted to the other platforms (status=posted)', async () => {
     const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
     makeSheetsMock([
       header,
@@ -620,7 +620,20 @@ describe('fetchRecentShortRows', () => {
     ]);
 
     const result = await fetchRecentShortRows();
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(1);
+    expect(result[0].youtubeUrl).toBe('https://youtu.be/id2');
+  });
+
+  test('applies the limit after filtering, so newer pending rows do not crowd out posted ones', async () => {
+    const header = ['Show', 'Title', 'Post Type', 'Post Text', 'YouTube URL', 'Alt Text', 'Scheduled Date', 'Platforms', 'Status', 'LI', 'BSky', 'Masto', 'MB'];
+    const rows = [header, makeRow({ postType: 'short', status: 'posted', title: 'Posted short' })];
+    for (let i = 1; i <= 12; i++) {
+      rows.push(makeRow({ postType: 'short', status: 'pending', title: `Pending ${i}` }));
+    }
+    makeSheetsMock(rows);
+
+    const result = await fetchRecentShortRows(10);
+    expect(result.map(p => p.title)).toEqual(['Posted short']);
   });
 });
 

@@ -255,11 +255,12 @@ async function fetchOldestPendingMicroblogPost() {
 }
 
 /**
- * Fetch the most recent short rows from the Social Posts Queue tab, regardless of status.
- * Used by the micro.blog view-count scan to find candidates for posting.
+ * Fetch the most recent short rows that have already posted to the other platforms
+ * (status=posted). Used by the micro.blog view-count scan to find candidates for posting,
+ * so a short never reaches micro.blog before its own launch posts.
  *
  * @param {number} limit - Maximum number of short rows to return (default 10)
- * @returns {Promise<Object[]>} The last `limit` rows with postType === 'short', newest first
+ * @returns {Promise<Object[]>} The last `limit` posted rows with postType === 'short', in sheet order
  */
 async function fetchRecentShortRows(limit = 10) {
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -283,7 +284,7 @@ async function fetchRecentShortRows(limit = 10) {
 
   const rows = response.data.values || [];
   const allPosts = parseSocialPostRows(rows, { hasHeader: true });
-  const shortPosts = allPosts.filter(p => p.postType === 'short');
+  const shortPosts = allPosts.filter(p => p.postType === 'short' && p.status === 'posted');
 
   // Return the last `limit` rows in sheet order (most recently added last)
   return shortPosts.slice(-limit);
