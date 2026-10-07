@@ -31,8 +31,9 @@ function makeRow({
   groupId = '',
   driveVideoId = '',
   retryCount = '',
+  microblogPostedAt = '',
 } = {}) {
-  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId, driveVideoId, retryCount];
+  return [show, title, postType, postText, youtubeUrl, altText, scheduledDate, platforms, status, linkedinUrl, bskyUrl, mastodonUrl, microblogUrl, groupId, driveVideoId, retryCount, microblogPostedAt];
 }
 
 describe('parseSocialPostRows', () => {
@@ -673,6 +674,13 @@ describe('checkSocialPostedToday', () => {
     expect(await checkSocialPostedToday()).toBe(false);
   });
 
+  test('returns true when a view-count short posted to micro.blog today (Column Q)', async () => {
+    makeSheetsMock([
+      makeRow({ postType: 'short', scheduledDate: '2026-01-01', status: 'posted', microblogPostedAt: todayPrefix() }),
+    ]);
+    expect(await checkSocialPostedToday()).toBe(true);
+  });
+
   test('returns false (not throws) when GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {
     delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     expect(await checkSocialPostedToday()).toBe(false);
@@ -691,7 +699,7 @@ describe('checkSocialPostedToday', () => {
     await checkSocialPostedToday();
     expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({
       spreadsheetId: STAGED_SPREADSHEET_ID,
-      range: "Social Posts Queue!A:P",
+      range: "Social Posts Queue!A:Q",
     }));
   });
 });
@@ -733,6 +741,33 @@ describe('fetchSocialPostedToday (strict — throws instead of failing open)', (
       makeRow({ scheduledDate: todayPrefix(), status: 'pending' }),
     ]);
     expect(await fetchSocialPostedToday()).toBe(false);
+  });
+
+  test('returns true when a view-count short posted to micro.blog today, even though its Column G date is older', async () => {
+    makeSheetsMock([
+      makeRow({ postType: 'short', scheduledDate: '2026-01-01', status: 'posted', microblogPostedAt: todayPrefix() }),
+    ]);
+    expect(await fetchSocialPostedToday()).toBe(true);
+  });
+
+  test('returns true when a view-count short posted to micro.blog today from a row still pending for other platforms', async () => {
+    makeSheetsMock([
+      makeRow({ postType: 'short', scheduledDate: '', status: 'pending', microblogPostedAt: todayPrefix() }),
+    ]);
+    expect(await fetchSocialPostedToday()).toBe(true);
+  });
+
+  test('returns false when a view-count short posted to micro.blog on an earlier day', async () => {
+    makeSheetsMock([
+      makeRow({ postType: 'short', scheduledDate: '2026-01-01', status: 'posted', microblogPostedAt: '2026-01-02' }),
+    ]);
+    expect(await fetchSocialPostedToday()).toBe(false);
+  });
+
+  test('reads through Column Q', async () => {
+    const { mockGet } = makeSheetsMock([]);
+    await fetchSocialPostedToday();
+    expect(mockGet).toHaveBeenCalledWith(expect.objectContaining({ range: 'Social Posts Queue!A:Q' }));
   });
 
   test('throws when GOOGLE_SERVICE_ACCOUNT_JSON is not set', async () => {

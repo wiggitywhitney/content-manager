@@ -27,6 +27,7 @@ const COL = {
   GROUP_ID: 13,  // Column N — groups platform-variant rows that should post on the same day
   DRIVE_VIDEO_ID: 14,  // Column O — Google Drive file ID for short video (populated by journal skill)
   RETRY_COUNT: 15,  // Column P — number of automatic re-dispatch attempts for a failed row
+  MICROBLOG_POSTED_AT: 16,  // Column Q — UTC date (YYYY-MM-DD) the view-count scan posted a short to micro.blog
 };
 
 // Maximum number of automatic re-dispatch attempts for a row with status=failed.
@@ -293,6 +294,8 @@ async function fetchRecentShortRows(limit = 10) {
  * missing credential or any Sheets API error instead of failing open.
  * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G.
  * Covers micro.blog-only rows too, since their dispatch writes the same status and date.
+ * Also counts a short the view-count scan posted to micro.blog today (column Q), whatever
+ * the row's status and column G date.
  * Used by evening-catch-up.js, where treating an error as "nothing posted today" would
  * produce a second post.
  *
@@ -313,7 +316,7 @@ async function fetchSocialPostedToday() {
 
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: STAGED_SPREADSHEET_ID,
-    range: `${SOCIAL_POSTS_TAB}!A:P`,
+    range: `${SOCIAL_POSTS_TAB}!A:Q`,
   });
 
   const today = new Date().toISOString().slice(0, 10);
@@ -321,13 +324,15 @@ async function fetchSocialPostedToday() {
   return rows.some(row => {
     const scheduledDate = (row[COL.SCHEDULED_DATE] || '').trim();
     const status = (row[COL.STATUS] || '').trim().toLowerCase();
-    return status === 'posted' && scheduledDate.startsWith(today);
+    const microblogPostedAt = (row[COL.MICROBLOG_POSTED_AT] || '').trim();
+    return (status === 'posted' && scheduledDate.startsWith(today)) || microblogPostedAt.startsWith(today);
   });
 }
 
 /**
  * Returns true if a social post was dispatched today.
- * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G.
+ * Reads the Social Posts Queue for any row with status=posted and today's UTC date in column G,
+ * or a view-count short posted to micro.blog today (column Q).
  * Returns false (not throws) on any error so transient failures don't suppress future posts.
  *
  * @returns {Promise<boolean>}
