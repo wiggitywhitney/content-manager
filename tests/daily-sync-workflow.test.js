@@ -15,20 +15,13 @@ beforeAll(() => {
 });
 
 describe('daily-sync workflow', () => {
-  describe('setup-yt-dlp step', () => {
-    let step;
-
-    beforeAll(() => {
+  describe('yt-dlp', () => {
+    // YouTube blocks yt-dlp from GitHub Actions runners, and every video the cron posts
+    // comes from the Drive copy in Column O, so the job installs no yt-dlp.
+    test('is not installed or updated in the daily-sync job', () => {
       const steps = workflow.jobs['daily-sync'].steps;
-      step = steps.find(s => s.uses && s.uses.startsWith('AnimMouse/setup-yt-dlp'));
-    });
-
-    test('exists in daily-sync job', () => {
-      expect(step).toBeDefined();
-    });
-
-    test('has continue-on-error: true so transient FFmpeg download failures do not abort posting', () => {
-      expect(step['continue-on-error']).toBe(true);
+      const ytDlpSteps = steps.filter(s => (s.uses || '').includes('yt-dlp') || (s.run || '').includes('yt-dlp'));
+      expect(ytDlpSteps).toEqual([]);
     });
   });
 

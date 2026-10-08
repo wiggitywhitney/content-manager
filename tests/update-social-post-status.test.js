@@ -212,13 +212,30 @@ describe('updateMicroblogPostUrl', () => {
     await expect(updateMicroblogPostUrl(3, 'https://micro.blog/post/1')).rejects.toThrow('GOOGLE_SERVICE_ACCOUNT_JSON');
   });
 
-  test('writes micro.blog URL to Column M only — does not touch status column', async () => {
+  test('writes micro.blog URL to Column M and the posted date to Column Q — does not touch status or scheduled date', async () => {
     await updateMicroblogPostUrl(5, 'https://whitneylee.com/2026/04/test');
 
     const call = mockBatchUpdate.mock.calls[0][0];
     const ranges = call.resource.data.map(d => d.range);
-    expect(ranges).toEqual(['Social Posts Queue!M5']);
+    expect(ranges).toEqual(['Social Posts Queue!M5', 'Social Posts Queue!Q5']);
     expect(ranges).not.toContain('Social Posts Queue!I5');
+    expect(ranges).not.toContain('Social Posts Queue!G5');
+  });
+
+  test('writes the posted date as YYYY-MM-DD in UTC to Column Q', async () => {
+    await updateMicroblogPostUrl(5, 'https://whitneylee.com/2026/04/test', new Date('2026-10-07T23:42:00.000Z'));
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const qEntry = call.resource.data.find(d => d.range === 'Social Posts Queue!Q5');
+    expect(qEntry.values).toEqual([['2026-10-07']]);
+  });
+
+  test('defaults the posted date to today in UTC', async () => {
+    await updateMicroblogPostUrl(5, 'https://whitneylee.com/2026/04/test');
+
+    const call = mockBatchUpdate.mock.calls[0][0];
+    const qEntry = call.resource.data.find(d => d.range === 'Social Posts Queue!Q5');
+    expect(qEntry.values).toEqual([[new Date().toISOString().slice(0, 10)]]);
   });
 
   test('writes the correct URL value', async () => {

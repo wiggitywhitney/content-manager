@@ -16,6 +16,7 @@ const COL = {
   MASTODON_POST_URL: 'L',
   MICROBLOG_POST_URL: 'M',
   RETRY_COUNT: 'P',
+  MICROBLOG_POSTED_AT: 'Q',
 };
 
 /**
@@ -84,13 +85,16 @@ async function updatePostResult(rowIndex, { status, scheduledDate, bskyPostUrl, 
 }
 
 /**
- * Write the micro.blog post URL to Column M for a row in the Social Posts Queue tab.
- * Used by the independent view-count scan, which does not change the row's status.
+ * Write the micro.blog post URL to Column M and the UTC posted date to Column Q for a row
+ * in the Social Posts Queue tab. Used by the independent view-count scan, which does not
+ * change the row's status or Column G. The Column Q date is what lets the posted-today
+ * checks count the short as the day's managed post.
  *
  * @param {number} rowIndex - 1-indexed row number in the sheet
  * @param {string} microblogPostUrl - micro.blog post URL to write
+ * @param {Date} [postedAt] - When the short posted (injectable for tests)
  */
-async function updateMicroblogPostUrl(rowIndex, microblogPostUrl) {
+async function updateMicroblogPostUrl(rowIndex, microblogPostUrl, postedAt = new Date()) {
   if (!microblogPostUrl) throw new Error('microblogPostUrl is required');
 
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -112,6 +116,7 @@ async function updateMicroblogPostUrl(rowIndex, microblogPostUrl) {
       valueInputOption: 'USER_ENTERED',
       data: [
         { range: `Social Posts Queue!${COL.MICROBLOG_POST_URL}${rowIndex}`, values: [[microblogPostUrl]] },
+        { range: `Social Posts Queue!${COL.MICROBLOG_POSTED_AT}${rowIndex}`, values: [[postedAt.toISOString().slice(0, 10)]] },
       ],
     },
   });

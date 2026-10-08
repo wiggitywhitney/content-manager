@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { downloadShortVideo } = require('./video-download');
+const { downloadFromDrive } = require('./drive-download');
 
 const MICROPUB_ENDPOINT = 'https://micro.blog/micropub';
 const MICROPUB_MEDIA_ENDPOINT = 'https://micro.blog/micropub/media';
@@ -184,9 +185,10 @@ function detectMimeType(buffer) {
  * @param {Object} [options]
  * @param {boolean} [options.bypassViewCount=false] - Skip view count check
  * @param {Buffer|null} [options.imageBuffer=null] - Pre-fetched image buffer; skips YouTube thumbnail fetch when provided. Requires bypassViewCount: true.
+ * @param {Buffer|null} [options.videoBuffer=null] - Pre-fetched MP4 for a short; skips the yt-dlp download when provided.
  * @returns {Promise<{postUrl: string}|{skipped: true, viewCount: number}>}
  */
-async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = null, suppressCrossPosting = false } = {}) {
+async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = null, videoBuffer = null, suppressCrossPosting = false } = {}) {
   const token = process.env.MICROBLOG_APP_TOKEN;
   if (!token) throw new Error('MICROBLOG_APP_TOKEN environment variable is required');
 
@@ -218,7 +220,9 @@ async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = nu
   try {
     let media;
     if (post.postType === 'short') {
-      media = downloadShortVideo(post.youtubeUrl, tmpDir);
+      media = videoBuffer
+        ? { buffer: videoBuffer, mimeType: 'video/mp4', filename: 'video.mp4' }
+        : downloadShortVideo(post.youtubeUrl, tmpDir);
     } else if (imageBuffer) {
       const mimeType = detectMimeType(imageBuffer);
       const ext = mimeType === 'image/jpeg' ? 'jpg' : 'png';
@@ -241,11 +245,35 @@ async function postToMicroblog(post, { bypassViewCount = false, imageBuffer = nu
 }
 
 /**
- * Scan the last SHORT_SCAN_DEPTH short rows in the Social Posts Queue for videos
- * that have crossed VIEW_COUNT_THRESHOLD views, and post any unposted ones to micro.blog.
+ * Group short rows into one entry per short. Rows sharing a Group ID are platform
+ * variants of the same short (for example, a separate Bluesky row with shorter text);
+ * a row with no Group ID is a short on its own. Groups keep sheet order.
+ *
+ * @param {Object[]} rows
+ * @returns {Object[][]}
+ */
+function groupShortRows(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.groupId || `row-${row.rowIndex}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.values()];
+}
+
+/**
+ * Scan the last SHORT_SCAN_DEPTH posted short rows in the Social Posts Queue for videos
+ * that have crossed VIEW_COUNT_THRESHOLD views, and post the oldest unposted one to micro.blog.
  *
  * This runs independently of the platforms column — micro.blog posting is driven
  * entirely by view count, not by what platforms are listed in Column H.
+ *
+ * Posts at most one short per run, and a short with platform-variant rows posts once,
+ * using the row with the most platforms (the main text). Cross-posting is suppressed
+ * because the short already went to LinkedIn, Bluesky, and Mastodon directly. The video
+ * comes from the Drive copy in Column O, since YouTube blocks yt-dlp from CI runners.
+ * The micro.blog URL and posted date are written to every row in the group.
  *
  * @param {boolean} dryRun - When true, logs what would be posted instead of posting
  */
@@ -256,33 +284,60 @@ async function scanAndPostShorts(dryRun = false) {
   const shortRows = await fetchRecentShortRows(SHORT_SCAN_DEPTH);
 
   if (shortRows.length === 0) {
-    console.log('[microblog] No short rows found in queue'); // eslint-disable-line no-console
+    console.log('[microblog] No posted short rows found in queue'); // eslint-disable-line no-console
     return;
   }
 
-  console.log(`[microblog] Scanning ${shortRows.length} recent short(s) for view count ≥ ${VIEW_COUNT_THRESHOLD}`); // eslint-disable-line no-console
+  const groups = groupShortRows(shortRows);
+  console.log(`[microblog] Scanning ${groups.length} recent short(s) for view count ≥ ${VIEW_COUNT_THRESHOLD}`); // eslint-disable-line no-console
 
-  for (const post of shortRows) {
-    if (post.microblogPostUrl) {
-      console.log(`[microblog] Row ${post.rowIndex}: already posted to micro.blog, skipping`); // eslint-disable-line no-console
+  for (const group of groups) {
+    const post = group.reduce((best, row) => (row.platforms.length > best.platforms.length ? row : best));
+    const rowList = group.map(row => row.rowIndex).join(', ');
+
+    if (group.some(row => row.microblogPostUrl)) {
+      console.log(`[microblog] Row(s) ${rowList}: already posted to micro.blog, skipping`); // eslint-disable-line no-console
       continue;
     }
 
     if (dryRun) {
-      console.log(`[microblog] DRY_RUN: Would check view count and post short row ${post.rowIndex}: ${post.title}`); // eslint-disable-line no-console
+      console.log(`[microblog] DRY_RUN: Would check view count and post short row(s) ${rowList}: ${post.title}`); // eslint-disable-line no-console
       continue;
     }
 
     try {
-      const result = await postToMicroblog(post);
-      if (result.skipped) {
-        // Already logged inside postToMicroblog
-      } else {
-        console.log(`[microblog] Row ${post.rowIndex}: posted → ${result.postUrl}`); // eslint-disable-line no-console
-        await updateMicroblogPostUrl(post.rowIndex, result.postUrl);
+      const videoId = extractYouTubeVideoId(post.youtubeUrl);
+      if (!videoId) throw new Error(`Could not extract video ID from: ${post.youtubeUrl}`);
+
+      const viewCount = await getYouTubeViewCount(videoId);
+      if (viewCount < VIEW_COUNT_THRESHOLD) {
+        console.log(`[microblog] Row(s) ${rowList}: ${viewCount} views < ${VIEW_COUNT_THRESHOLD} threshold, skipping`); // eslint-disable-line no-console
+        continue;
       }
+
+      if (!post.driveVideoId) {
+        console.warn(`[microblog] Row(s) ${rowList}: no Drive video ID, skipping`); // eslint-disable-line no-console
+        continue;
+      }
+
+      const { buffer: videoBuffer } = await downloadFromDrive(post.driveVideoId);
+      const { postUrl } = await postToMicroblog(post, { bypassViewCount: true, videoBuffer, suppressCrossPosting: true });
+      console.log(`[microblog] Row(s) ${rowList}: posted → ${postUrl}`); // eslint-disable-line no-console
+      try {
+        for (const row of group) {
+          await updateMicroblogPostUrl(row.rowIndex, postUrl);
+        }
+      } catch (recordErr) {
+        // The short is live but unrecorded, so the next scan would post it again. Stop here
+        // rather than post a second short, and throw so the caller fails the run.
+        const err = new Error(`Row(s) ${rowList}: posted ${postUrl} but could not record it — write the URL to Column M and today's UTC date to Column Q by hand (${recordErr.message})`);
+        err.code = 'MICROBLOG_RECORD_FAILED';
+        throw err;
+      }
+      return;
     } catch (err) {
-      console.error(`[microblog] Row ${post.rowIndex}: failed — ${err.message}`); // eslint-disable-line no-console
+      if (err.code === 'MICROBLOG_RECORD_FAILED') throw err;
+      console.error(`[microblog] Row(s) ${rowList}: failed — ${err.message}`); // eslint-disable-line no-console
     }
   }
 }
