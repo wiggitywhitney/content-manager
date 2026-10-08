@@ -1119,6 +1119,19 @@ describe('main — exit code on partial platform failure', () => {
     expect(processExitSpy).not.toHaveBeenCalledWith(1);
   });
 
+  test('exits 1 when the short scan posted to micro.blog but could not record the post', async () => {
+    const err = Object.assign(new Error('posted but not recorded'), { code: 'MICROBLOG_RECORD_FAILED' });
+    scanAndPostShorts.mockRejectedValue(err);
+    await main();
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+  });
+
+  test('exits 0 when the short scan fails before posting anything', async () => {
+    scanAndPostShorts.mockRejectedValue(new Error('Sheets read failed'));
+    await main();
+    expect(processExitSpy).not.toHaveBeenCalledWith(1);
+  });
+
   test('exits 1 when one platform fails and others succeed', async () => {
     fetchOldestPendingGroup.mockResolvedValue([makeEpisodePost({ platforms: ['bluesky', 'linkedin'] })]);
     postToLinkedIn.mockRejectedValue(new Error('Token expired'));

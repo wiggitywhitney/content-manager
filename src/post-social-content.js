@@ -335,7 +335,9 @@ async function main() {
       await scanAndPostShorts(dryRun);
     } catch (err) {
       console.error('[social] micro.blog short scan failed:', err.message); // eslint-disable-line no-console
-      // Non-fatal: regular platform dispatch already completed
+      // Non-fatal: regular platform dispatch already completed — unless a short posted without
+      // being recorded, which the next scan would post again, so the run must fail visibly.
+      if (err.code === 'MICROBLOG_RECORD_FAILED') hadFailure = true;
     }
   }
 

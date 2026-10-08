@@ -323,11 +323,20 @@ async function scanAndPostShorts(dryRun = false) {
       const { buffer: videoBuffer } = await downloadFromDrive(post.driveVideoId);
       const { postUrl } = await postToMicroblog(post, { bypassViewCount: true, videoBuffer, suppressCrossPosting: true });
       console.log(`[microblog] Row(s) ${rowList}: posted → ${postUrl}`); // eslint-disable-line no-console
-      for (const row of group) {
-        await updateMicroblogPostUrl(row.rowIndex, postUrl);
+      try {
+        for (const row of group) {
+          await updateMicroblogPostUrl(row.rowIndex, postUrl);
+        }
+      } catch (recordErr) {
+        // The short is live but unrecorded, so the next scan would post it again. Stop here
+        // rather than post a second short, and throw so the caller fails the run.
+        const err = new Error(`Row(s) ${rowList}: posted ${postUrl} but could not record it — write the URL to Column M and today's UTC date to Column Q by hand (${recordErr.message})`);
+        err.code = 'MICROBLOG_RECORD_FAILED';
+        throw err;
       }
       return;
     } catch (err) {
+      if (err.code === 'MICROBLOG_RECORD_FAILED') throw err;
       console.error(`[microblog] Row(s) ${rowList}: failed — ${err.message}`); // eslint-disable-line no-console
     }
   }

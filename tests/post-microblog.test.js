@@ -499,6 +499,21 @@ describe('scanAndPostShorts', () => {
     expect(updateMicroblogPostUrl.mock.calls.map(([row]) => row)).toEqual([12]);
   });
 
+  test('stops the scan and reports the post URL when recording it fails, so no second short posts', async () => {
+    updateMicroblogPostUrl.mockRejectedValueOnce(new Error('Sheets unavailable'));
+    fetchRecentShortRows.mockResolvedValue([
+      makeShort({ rowIndex: 10, groupId: 'show-a-s1' }),
+      makeShort({ rowIndex: 12, groupId: 'show-b-s1' }),
+    ]);
+
+    const err = await scanAndPostShorts().catch(e => e);
+
+    expect(micropubCalls()).toHaveLength(1);
+    expect(err.code).toBe('MICROBLOG_RECORD_FAILED');
+    expect(err.message).toContain('https://whitneylee.com/2026/10/07/short.html');
+    expect(err.message).toContain('Sheets unavailable');
+  });
+
   test('posts nothing in dry-run mode', async () => {
     fetchRecentShortRows.mockResolvedValue([makeShort({ rowIndex: 10 })]);
 
