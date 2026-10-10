@@ -132,11 +132,18 @@ describe('Determine post priority step (single-post mode)', () => {
     expect(outputs.skip_run).toBeUndefined();
   });
 
-  test('manual run (no schedule) is gated like the morning slot', () => {
+  test('manual run (no schedule) skips when a managed post already went out today', () => {
     const { status, outputs, nodeCalls } = runPriorityStep({ schedule: '', catchUp: 'skip' });
     expect(status).toBe(0);
     expect(outputs.skip_run).toBe('true');
-    expect(nodeCalls).toContain('src/evening-catch-up.js morning');
+    expect(nodeCalls).toContain('src/evening-catch-up.js manual');
+  });
+
+  test('manual run (no schedule) with no managed post today posts as the morning slot', () => {
+    const { status, outputs } = runPriorityStep({ schedule: '', catchUp: 'catch_up' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('false');
+    expect(outputs.is_morning_slot).toBe('true');
   });
 });
 
@@ -153,6 +160,14 @@ describe('Determine post priority step (two-post mode)', () => {
     const { status, outputs, nodeCalls } = runPriorityStep({ schedule: EVENING_CRON, catchUp: 'error', twoPosts: 'true' });
     expect(status).toBe(0);
     expect(outputs.is_morning_slot).toBe('false');
+    expect(outputs.skip_run).toBe('false');
+    expect(nodeCalls).not.toContain('src/evening-catch-up.js');
+  });
+
+  test('manual run (no schedule) posts as the morning slot without consulting the catch-up check', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: '', catchUp: 'error', twoPosts: 'true' });
+    expect(status).toBe(0);
+    expect(outputs.is_morning_slot).toBe('true');
     expect(outputs.skip_run).toBe('false');
     expect(nodeCalls).not.toContain('src/evening-catch-up.js');
   });

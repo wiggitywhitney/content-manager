@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # ABOUTME: Tests scripts/determine-slot.sh, which classifies a daily-sync run
-# ABOUTME: as morning, midday, or evening based on the triggering cron schedule string.
+# ABOUTME: as morning, midday, evening, or manual based on the triggering cron schedule string.
 
 bats_require_minimum_version 1.5.0
 
@@ -26,16 +26,16 @@ setup() {
   [ "$output" = "evening" ]
 }
 
-@test "empty schedule (workflow_dispatch) falls back to morning" {
+@test "empty schedule (workflow_dispatch) resolves to manual" {
   run --separate-stderr "$SCRIPT" ""
   [ "$status" -eq 0 ]
-  [ "$output" = "morning" ]
+  [ "$output" = "manual" ]
 }
 
-@test "missing argument (schedule unset) falls back to morning" {
+@test "missing argument (schedule unset) resolves to manual" {
   run --separate-stderr "$SCRIPT"
   [ "$status" -eq 0 ]
-  [ "$output" = "morning" ]
+  [ "$output" = "manual" ]
 }
 
 @test "unrecognized schedule string falls back to morning" {

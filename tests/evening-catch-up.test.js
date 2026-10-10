@@ -35,8 +35,8 @@ function fetchers({ career = false, social = false } = {}) {
 }
 
 describe('SLOT_UTC_HOURS', () => {
-  test('matches the scheduled UTC hour of each daily-sync cron', () => {
-    expect(SLOT_UTC_HOURS).toEqual({ morning: 13, midday: 17, evening: 21 });
+  test('matches the scheduled UTC hour of each daily-sync cron, with no cutoff for manual runs', () => {
+    expect(SLOT_UTC_HOURS).toEqual({ morning: 13, midday: 17, evening: 21, manual: 0 });
   });
 });
 
@@ -130,6 +130,23 @@ describe('decideSlotRun for the morning slot', () => {
     const result = await decideSlotRun({ slot: 'morning', now: MORNING_AFTER_MIDNIGHT, ...f });
     expect(result).toEqual({ decision: 'skip', reason: 'after-midnight-utc' });
     expect(f.fetchCareer).not.toHaveBeenCalled();
+  });
+});
+
+describe('decideSlotRun for a manual run', () => {
+  const MANUAL_EARLY_UTC = new Date('2026-10-05T05:00:00.000Z');
+
+  test('checks posted-today instead of skipping as after midnight when started before 13:00 UTC', async () => {
+    const f = fetchers();
+    const result = await decideSlotRun({ slot: 'manual', now: MANUAL_EARLY_UTC, ...f });
+    expect(result).toEqual({ decision: 'catch_up', reason: 'no-managed-post-today' });
+    expect(f.fetchCareer).toHaveBeenCalled();
+    expect(f.fetchSocial).toHaveBeenCalled();
+  });
+
+  test('skips when a managed post already went out today', async () => {
+    const result = await decideSlotRun({ slot: 'manual', now: MANUAL_EARLY_UTC, ...fetchers({ career: true }) });
+    expect(result).toEqual({ decision: 'skip', reason: 'career-posted-today' });
   });
 });
 

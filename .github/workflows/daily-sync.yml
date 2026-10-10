@@ -117,7 +117,7 @@ jobs:
 
           # Slot detection: keyed off which cron actually fired (github.event.schedule),
           # not wall-clock time — a delayed or late-firing run is still classified correctly.
-          # Empty on workflow_dispatch; falls back to morning (see scripts/determine-slot.sh).
+          # Empty on workflow_dispatch, which resolves to manual (see scripts/determine-slot.sh).
           SLOT=$(scripts/determine-slot.sh "${GITHUB_EVENT_SCHEDULE}")
 
           if [ "${TWO_POSTS_PER_DAY}" != "true" ]; then
@@ -138,7 +138,7 @@ jobs:
             # In two-post mode, the morning and evening slots post different content types,
             # so the midday run has no slot to catch up and skips.
             case "$SLOT" in
-              morning) IS_MORNING=true ;;
+              morning|manual) IS_MORNING=true ;;
               evening) IS_MORNING=false ;;
               *)
                 echo "is_morning_slot=false" >> "$GITHUB_OUTPUT"

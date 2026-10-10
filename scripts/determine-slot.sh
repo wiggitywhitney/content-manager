@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ABOUTME: Classifies a daily-sync run as morning, midday, or evening based on which
+# ABOUTME: Classifies a daily-sync run as morning, midday, evening, or manual based on which
 # ABOUTME: cron schedule triggered it, so a late-starting run is still classified correctly.
 set -euo pipefail
 
@@ -15,8 +15,12 @@ case "$schedule" in
   "17 21 * * *")
     echo evening
     ;;
+  "")
+    # workflow_dispatch has no schedule string
+    echo manual
+    ;;
   *)
-    echo "[determine-slot] Unrecognized schedule '${schedule}' (empty means workflow_dispatch) — falling back to morning" >&2
+    echo "[determine-slot] Unrecognized schedule '${schedule}' — falling back to morning" >&2
     echo morning
     ;;
 esac

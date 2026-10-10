@@ -8,8 +8,9 @@ const { fetchSocialPostedToday } = require('./social-posts-queue');
 
 // Scheduled UTC hour of each daily-sync cron (all fire at :17). A run that starts before its
 // slot's hour has been delayed past midnight, so the UTC-dated posted-today checks would read
-// the next day's records.
-const SLOT_UTC_HOURS = { morning: 13, midday: 17, evening: 21 };
+// the next day's records. A manual run (workflow_dispatch) starts when it is triggered, so it
+// has no cutoff and goes straight to the posted-today checks.
+const SLOT_UTC_HOURS = { morning: 13, midday: 17, evening: 21, manual: 0 };
 
 /**
  * Decide what a single-post-mode run of the given slot should do.
@@ -22,7 +23,7 @@ const SLOT_UTC_HOURS = { morning: 13, midday: 17, evening: 21 };
  * which would produce a second post.
  *
  * @param {object} options
- * @param {'morning'|'midday'|'evening'} options.slot - Slot whose cron triggered the run
+ * @param {'morning'|'midday'|'evening'|'manual'} options.slot - Slot whose cron triggered the run, or manual
  * @param {Date} [options.now] - Current time (injectable for tests)
  * @param {() => Promise<boolean>} [options.fetchCareer] - Strict career-posted-today check
  * @param {() => Promise<boolean>} [options.fetchSocial] - Strict social-posted-today check
