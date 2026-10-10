@@ -83,9 +83,12 @@ jobs:
     timeout-minutes: 20
     # Overlapping runs (a delayed morning run and the evening run) queue rather than cancel,
     # so an in-progress post is never killed before its posted-today record is written.
+    # queue: max keeps every pending run waiting; the default allows one pending run, so the
+    # evening run would cancel a midday run still waiting behind a delayed morning run.
     concurrency:
       group: daily-sync-${{ github.ref }}
       cancel-in-progress: false
+      queue: max
     env:
       # Set to 'true' to enable two-post-per-day mode (morning=social, evening=career).
       # Set to 'false' (default) to restore one-post-per-day behavior — each run skips posting

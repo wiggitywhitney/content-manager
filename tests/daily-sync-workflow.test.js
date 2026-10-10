@@ -132,6 +132,11 @@ describe('daily-sync workflow', () => {
       expect(concurrency['cancel-in-progress']).toBe(false);
     });
 
+    test('daily-sync job keeps every pending run queued, so a later run cannot cancel a waiting catch-up', () => {
+      const concurrency = workflow.jobs['daily-sync'].concurrency;
+      expect(concurrency.queue).toBe('max');
+    });
+
     test('daily-sync job has TWO_POSTS_PER_DAY env var set to false', () => {
       const jobEnv = workflow.jobs['daily-sync'].env || {};
       expect(jobEnv.TWO_POSTS_PER_DAY).toBe('false');
