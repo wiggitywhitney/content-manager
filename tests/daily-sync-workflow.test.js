@@ -105,6 +105,20 @@ describe('daily-sync workflow', () => {
       expect(crons).toContain('17 21 * * *');
     });
 
+    test('has midday catch-up cron trigger at 17:17 UTC (12:17pm CDT)', () => {
+      const crons = workflow.on.schedule.map(s => s.cron);
+      expect(crons).toContain('17 17 * * *');
+    });
+
+    test('every cron schedule is one scripts/determine-slot.sh recognizes', () => {
+      const { spawnSync } = require('child_process');
+      const script = path.join(__dirname, '../scripts/determine-slot.sh');
+      const results = workflow.on.schedule.map(s => spawnSync(script, [s.cron], { encoding: 'utf8' }));
+      // An unrecognized schedule falls back to morning with a warning on stderr
+      results.forEach(r => expect(r.stderr).toBe(''));
+      expect(results.map(r => r.stdout.trim()).sort()).toEqual(['evening', 'midday', 'morning']);
+    });
+
     test('no cron fires at the top of the hour, when GitHub delays scheduled runs most', () => {
       const minutes = workflow.on.schedule.map(s => s.cron.split(' ')[0]);
       expect(minutes).not.toContain('0');
@@ -156,17 +170,17 @@ describe('daily-sync workflow', () => {
       expect(priorityStep.run).not.toContain('${{ github.event.schedule }}');
     });
 
-    test('single-post evening runs decide skip vs. catch-up via src/evening-catch-up.js', () => {
+    test('single-post runs of every slot decide skip vs. post via src/evening-catch-up.js', () => {
       const steps = workflow.jobs['daily-sync'].steps;
       const priorityStep = steps.find(s => s.id === 'priority');
-      expect(priorityStep.run).toContain('node src/evening-catch-up.js');
+      expect(priorityStep.run).toContain('node src/evening-catch-up.js "$SLOT"');
       expect(priorityStep.env.GOOGLE_SERVICE_ACCOUNT_JSON).toBe('${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}');
     });
 
     test('a failed catch-up check fails the step instead of skipping or posting', () => {
       const steps = workflow.jobs['daily-sync'].steps;
       const priorityStep = steps.find(s => s.id === 'priority');
-      expect(priorityStep.run).toMatch(/node src\/evening-catch-up\.js\)?\s*\|\|\s*exit 1/);
+      expect(priorityStep.run).toMatch(/node src\/evening-catch-up\.js "\$SLOT"\)?\s*\|\|\s*exit 1/);
     });
 
     test('is_morning_slot output is written after the catch-up decision, so a catch-up runs as the morning slot', () => {
@@ -198,6 +212,14 @@ describe('daily-sync workflow', () => {
       const postStep = steps.find(s => s.name === 'Post social content');
       const stepEnv = postStep.env || {};
       expect(stepEnv.IS_MORNING_SLOT).toContain('is_morning_slot');
+    });
+
+    test('both steps that can post are gated on skip_run, so a run that skips posts nothing', () => {
+      const steps = workflow.jobs['daily-sync'].steps;
+      const careerStep = steps.find(s => s.name === 'Sync content to Micro.blog and update About page');
+      const postStep = steps.find(s => s.name === 'Post social content');
+      expect(careerStep.if).toMatch(/^steps\.priority\.outputs\.skip_run != 'true' && /);
+      expect(postStep.if).toContain("steps.priority.outputs.skip_run != 'true'");
     });
 
     test('Sync career content step condition includes is_morning_slot and TWO_POSTS_PER_DAY for evening slot routing', () => {

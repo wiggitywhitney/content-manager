@@ -77,8 +77,8 @@ function getSlot(now = new Date()) {
 
 /**
  * Determine whether a given date/slot combination is a scheduled micro.blog-only override slot:
- * Wednesday evening or Sunday morning. UTC day-of-week is safe here because both target cron
- * times (13:17 and 21:17 UTC) fall within the same calendar day in CDT.
+ * Wednesday evening or Sunday morning. UTC day-of-week is safe here because all three cron
+ * times (13:17, 17:17, and 21:17 UTC) fall within the same calendar day in CDT.
  *
  * @param {string} today - Date in YYYY-MM-DD format
  * @param {boolean} isMorningSlot - true for the morning cron, false for the evening cron
