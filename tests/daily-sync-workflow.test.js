@@ -113,7 +113,9 @@ describe('daily-sync workflow', () => {
     test('every cron schedule is one scripts/determine-slot.sh recognizes', () => {
       const { spawnSync } = require('child_process');
       const script = path.join(__dirname, '../scripts/determine-slot.sh');
+      // Run directly, as the workflow does, so a lost executable bit fails here too
       const results = workflow.on.schedule.map(s => spawnSync(script, [s.cron], { encoding: 'utf8' }));
+      results.forEach(r => expect(r.status).toBe(0));
       // An unrecognized schedule falls back to morning with a warning on stderr
       results.forEach(r => expect(r.stderr).toBe(''));
       expect(results.map(r => r.stdout.trim()).sort()).toEqual(['evening', 'midday', 'morning']);
