@@ -107,7 +107,7 @@ On every mode transition, a Datadog event fires (via the Events API, using the D
 **Rationale**: Preserves the existing manual escape hatch for cases like a known upcoming content drought, while making the computed cadence the default behavior this PRD exists to deliver. Keeping weekend gating independent of the override avoids collapsing two orthogonal concerns (post count vs. which days to post) into one variable. This is an assumption made without a real-time round-trip with Whitney — flagged here for her to confirm or override.
 
 ### 5. Weekend enforcement mechanism
-**Decision**: Weekday-only mode is enforced with a runtime skip gate (both cron slots exit early on Saturday/Sunday), not by changing the cron schedule itself.
+**Decision**: Weekday-only mode is enforced with a runtime skip gate (both cron slots exit early on Saturday/Sunday), not by changing the cron schedule itself. (Updated per [issue #137](https://github.com/wiggitywhitney/content-manager/issues/137): there are now three cron slots, and morning, midday, and evening must all exit early.)
 **Rationale**: The cron schedule in the workflow YAML is static; a runtime gate is reversible instantly (as soon as depth recovers) without needing a workflow-file edit, matching the existing `skip_run` pattern already used for single-post-mode evening runs.
 
 ## Milestones
