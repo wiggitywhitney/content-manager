@@ -1,5 +1,5 @@
 // ABOUTME: Runs the daily-sync "Determine post priority" step's real bash with a stubbed node,
-// ABOUTME: verifying the single-post evening catch-up, skip, and error branches end to end.
+// ABOUTME: verifying each slot's posted-today gate, skip, and error branches end to end.
 
 'use strict';
 
@@ -13,8 +13,10 @@ const repoRoot = path.join(__dirname, '..');
 const workflow = yaml.load(fs.readFileSync(path.join(repoRoot, '.github/workflows/daily-sync.yml'), 'utf8'));
 const priorityRun = workflow.jobs['daily-sync'].steps.find(s => s.id === 'priority').run;
 
-const MORNING_CRON = workflow.on.schedule[0].cron;
-const EVENING_CRON = workflow.on.schedule[1].cron;
+const crons = workflow.on.schedule.map(s => s.cron);
+const MORNING_CRON = crons.find(c => c.split(' ')[1] === '13');
+const MIDDAY_CRON = crons.find(c => c.split(' ')[1] === '17');
+const EVENING_CRON = crons.find(c => c.split(' ')[1] === '21');
 
 let tmpDir;
 
@@ -70,10 +72,11 @@ function runPriorityStep({ schedule, catchUp, twoPosts = 'false' }) {
 
 describe('Determine post priority step (single-post mode)', () => {
   test('evening run with no managed post today catches up as the morning slot', () => {
-    const { status, outputs } = runPriorityStep({ schedule: EVENING_CRON, catchUp: 'catch_up' });
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: EVENING_CRON, catchUp: 'catch_up' });
     expect(status).toBe(0);
     expect(outputs.skip_run).toBe('false');
     expect(outputs.is_morning_slot).toBe('true');
+    expect(nodeCalls).toContain('src/evening-catch-up.js evening');
   });
 
   test('evening run after a managed post today skips', () => {
@@ -89,21 +92,90 @@ describe('Determine post priority step (single-post mode)', () => {
     expect(outputs.skip_run).toBeUndefined();
   });
 
-  test('morning run never consults the catch-up check', () => {
-    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: MORNING_CRON, catchUp: 'error' });
+  test('midday run with no managed post today catches up as the morning slot', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: MIDDAY_CRON, catchUp: 'catch_up' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('false');
+    expect(outputs.is_morning_slot).toBe('true');
+    expect(nodeCalls).toContain('src/evening-catch-up.js midday');
+  });
+
+  test('midday run after a managed post today skips', () => {
+    const { status, outputs } = runPriorityStep({ schedule: MIDDAY_CRON, catchUp: 'skip' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('true');
+  });
+
+  test('midday run whose posted-today check errors fails the step', () => {
+    const { status, outputs } = runPriorityStep({ schedule: MIDDAY_CRON, catchUp: 'error' });
+    expect(status).not.toBe(0);
+    expect(outputs.skip_run).toBeUndefined();
+  });
+
+  test('morning run with no managed post today posts as the morning slot after checking', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: MORNING_CRON, catchUp: 'catch_up' });
+    expect(status).toBe(0);
+    expect(outputs.is_morning_slot).toBe('true');
+    expect(outputs.skip_run).toBe('false');
+    expect(nodeCalls).toContain('src/evening-catch-up.js morning');
+  });
+
+  test('morning run delayed past a midday catch-up skips, so neither posting step runs', () => {
+    const { status, outputs } = runPriorityStep({ schedule: MORNING_CRON, catchUp: 'skip' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('true');
+  });
+
+  test('morning run whose posted-today check errors fails the step', () => {
+    const { status, outputs } = runPriorityStep({ schedule: MORNING_CRON, catchUp: 'error' });
+    expect(status).not.toBe(0);
+    expect(outputs.skip_run).toBeUndefined();
+  });
+
+  test('manual run (no schedule) skips when a managed post already went out today', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: '', catchUp: 'skip' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('true');
+    expect(nodeCalls).toContain('src/evening-catch-up.js manual');
+  });
+
+  test('manual run (no schedule) with no managed post today posts as the morning slot', () => {
+    const { status, outputs } = runPriorityStep({ schedule: '', catchUp: 'catch_up' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('false');
+    expect(outputs.is_morning_slot).toBe('true');
+  });
+});
+
+describe('Determine post priority step (two-post mode)', () => {
+  test('morning run posts as the morning slot without consulting the catch-up check', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: MORNING_CRON, catchUp: 'error', twoPosts: 'true' });
     expect(status).toBe(0);
     expect(outputs.is_morning_slot).toBe('true');
     expect(outputs.skip_run).toBe('false');
     expect(nodeCalls).not.toContain('src/evening-catch-up.js');
   });
-});
 
-describe('Determine post priority step (two-post mode)', () => {
   test('evening run posts as the evening slot without consulting the catch-up check', () => {
     const { status, outputs, nodeCalls } = runPriorityStep({ schedule: EVENING_CRON, catchUp: 'error', twoPosts: 'true' });
     expect(status).toBe(0);
     expect(outputs.is_morning_slot).toBe('false');
     expect(outputs.skip_run).toBe('false');
+    expect(nodeCalls).not.toContain('src/evening-catch-up.js');
+  });
+
+  test('manual run (no schedule) posts as the morning slot without consulting the catch-up check', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: '', catchUp: 'error', twoPosts: 'true' });
+    expect(status).toBe(0);
+    expect(outputs.is_morning_slot).toBe('true');
+    expect(outputs.skip_run).toBe('false');
+    expect(nodeCalls).not.toContain('src/evening-catch-up.js');
+  });
+
+  test('midday run skips without posting or consulting the catch-up check', () => {
+    const { status, outputs, nodeCalls } = runPriorityStep({ schedule: MIDDAY_CRON, catchUp: 'error', twoPosts: 'true' });
+    expect(status).toBe(0);
+    expect(outputs.skip_run).toBe('true');
     expect(nodeCalls).not.toContain('src/evening-catch-up.js');
   });
 });
