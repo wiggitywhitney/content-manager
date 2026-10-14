@@ -38,13 +38,13 @@ async function applyMonitor(filePath) {
   }
 
   if (id) {
-    console.log(`[monitor] Updated monitor ${id} from ${filePath}`);
+    console.log(`[monitor] Updated monitor ${id} from ${filePath}`); // eslint-disable-line no-console
     return id;
   }
 
   const created = await response.json();
   fs.writeFileSync(filePath, `${JSON.stringify({ id: created.id, ...definition }, null, 2)}\n`);
-  console.log(`[monitor] Created monitor ${created.id}; wrote its id to ${filePath}`);
+  console.log(`[monitor] Created monitor ${created.id}; wrote its id to ${filePath}`); // eslint-disable-line no-console
   return created.id;
 }
 
