@@ -1,4 +1,5 @@
 {
+  "id": 332471567,
   "name": "content-manager: daily-sync liveness",
   "type": "metric alert",
   "query": "max(last_1h):max:content_manager.daily_sync.heartbeat{service:content-manager} < 1",
