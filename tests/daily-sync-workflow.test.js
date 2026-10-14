@@ -14,6 +14,9 @@ beforeAll(() => {
   workflow = yaml.load(raw);
 });
 
+// Runs whenever the Determine post priority step ran, whether it then posted, skipped, or failed
+const RAN_PRIORITY_STEP = "(success() || failure()) && (steps.priority.outcome == 'success' || steps.priority.outcome == 'failure')";
+
 describe('daily-sync workflow', () => {
   describe('yt-dlp', () => {
     // YouTube blocks yt-dlp from GitHub Actions runners, and every video the cron posts
@@ -255,8 +258,10 @@ describe('daily-sync workflow', () => {
       expect(metricStep).toBeDefined();
     });
 
-    test('step is gated on skip_run so it does not run when the workflow skips', () => {
-      expect(metricStep.if).toContain('skip_run');
+    // The token monitor relies on a recent value every day, so every run reports the token,
+    // including runs that skip because the day already posted.
+    test('step runs on skipping runs and failed runs, whenever the priority step ran', () => {
+      expect(metricStep.if).toBe(RAN_PRIORITY_STEP);
     });
 
     test('step appears after Read credentials from GSM so LINKEDIN_TOKEN_EXPIRES_AT is available', () => {
@@ -277,6 +282,57 @@ describe('daily-sync workflow', () => {
 
     test('step calls checkTokenExpiry or submitTokenExpiryMetric from post-linkedin', () => {
       expect(metricStep.run).toMatch(/checkTokenExpiry|submitTokenExpiryMetric/);
+    });
+  });
+
+  describe('daily-sync heartbeat step', () => {
+    let dailySyncSteps;
+    let heartbeatStep;
+    let gsmStep;
+
+    beforeAll(() => {
+      dailySyncSteps = workflow.jobs['daily-sync'].steps;
+      heartbeatStep = dailySyncSteps.find(s => s.name === 'Emit daily-sync heartbeat metric');
+      gsmStep = dailySyncSteps.find(s => s.name && s.name.toLowerCase().includes('read credentials from gsm'));
+    });
+
+    test('step exists in daily-sync job', () => {
+      expect(heartbeatStep).toBeDefined();
+    });
+
+    test('step runs on skipping runs and failed runs, whenever the priority step ran', () => {
+      expect(heartbeatStep.if).toBe(RAN_PRIORITY_STEP);
+    });
+
+    test('step never fails the run', () => {
+      expect(heartbeatStep['continue-on-error']).toBe(true);
+    });
+
+    test('step runs src/daily-sync-heartbeat.js with the slot from scripts/determine-slot.sh', () => {
+      expect(heartbeatStep.run).toContain('node src/daily-sync-heartbeat.js');
+      expect(heartbeatStep.run).toContain('scripts/determine-slot.sh "${GITHUB_EVENT_SCHEDULE}"');
+    });
+
+    test('step passes github.event.schedule via env, not inline interpolation', () => {
+      expect(heartbeatStep.env && heartbeatStep.env.GITHUB_EVENT_SCHEDULE).toBe('${{ github.event.schedule }}');
+      expect(heartbeatStep.run).not.toContain('${{ github.event.schedule }}');
+    });
+
+    test('step appears after Read credentials from GSM so DD_API_KEY is available', () => {
+      expect(dailySyncSteps.indexOf(heartbeatStep)).toBeGreaterThan(dailySyncSteps.indexOf(gsmStep));
+    });
+
+    test('Read credentials from GSM runs whenever the priority step ran, so DD_API_KEY exists when skip_run is true', () => {
+      expect(gsmStep.if).toBe(RAN_PRIORITY_STEP);
+      expect(gsmStep.if).not.toContain('skip_run');
+    });
+
+    test('Read credentials from GSM exports DD_API_KEY before reading the LinkedIn secrets, so a LinkedIn read failure still leaves the heartbeat its key', () => {
+      const ddExport = gsmStep.run.indexOf('DD_API_KEY=$DD_API_KEY');
+      const firstLinkedInRead = gsmStep.run.indexOf('--secret=linkedin_');
+      expect(ddExport).toBeGreaterThanOrEqual(0);
+      expect(firstLinkedInRead).toBeGreaterThanOrEqual(0);
+      expect(ddExport).toBeLessThan(firstLinkedInRead);
     });
   });
 
