@@ -207,9 +207,13 @@ jobs:
           echo "LINKEDIN_PERSON_URN=$LINKEDIN_PERSON_URN" >> "$GITHUB_ENV"
           rm /tmp/sa-key.json
 
+      # Fails the run when LINKEDIN_TOKEN_EXPIRES_AT is missing or malformed: the token monitor does not
+      # alert on missing data, so GitHub's failed-run email is what reports a broken expiry secret.
+      # Later steps still run, since their conditions include failure().
       - name: Emit LinkedIn token expiry metric
         if: (success() || failure()) && (steps.priority.outcome == 'success' || steps.priority.outcome == 'failure')
-        run: node -e "const { checkTokenExpiry } = require('./src/post-linkedin'); checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT).catch(console.error);"
+        run: |
+          node -e "const { checkTokenExpiry } = require('./src/post-linkedin'); checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT, { required: true }).catch((err) => { console.error('[daily-sync] ' + err.message); process.exit(1); });"
 
       # Liveness signal: the Datadog liveness monitor alerts when no run has sent this for 26 hours.
       - name: Emit daily-sync heartbeat metric

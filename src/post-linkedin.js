@@ -75,13 +75,21 @@ async function submitTokenExpiryMetric(daysUntilExpiry) {
  * is the signal to re-run the OAuth setup script before the token expires.
  *
  * @param {string|undefined} expiresAt - Unix timestamp in ms as a string (from LINKEDIN_TOKEN_EXPIRES_AT)
+ * @param {object} [options]
+ * @param {boolean} [options.required=false] - Throw instead of returning when expiresAt is missing or invalid.
+ *   The daily-sync metric step sets this, because the token monitor does not alert on missing data.
  */
-async function checkTokenExpiry(expiresAt) {
-  if (!expiresAt) return;
+async function checkTokenExpiry(expiresAt, { required = false } = {}) {
+  if (!expiresAt) {
+    if (required) throw new Error('LINKEDIN_TOKEN_EXPIRES_AT is not set');
+    return;
+  }
 
   const expiresAtMs = parseInt(expiresAt, 10);
   if (!Number.isFinite(expiresAtMs)) {
-    console.warn('[linkedin] Warning: LINKEDIN_TOKEN_EXPIRES_AT is not a valid millisecond timestamp');
+    const message = 'LINKEDIN_TOKEN_EXPIRES_AT is not a valid millisecond timestamp';
+    if (required) throw new Error(message);
+    console.warn(`[linkedin] Warning: ${message}`);
     return;
   }
   const msRemaining = expiresAtMs - Date.now();

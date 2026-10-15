@@ -132,6 +132,8 @@ describe('committed monitor definitions', () => {
     expect(monitor.options.notify_no_data).toBe(false);
     expect(monitor.message).not.toContain('is_no_data');
     expect(monitor.message).toContain('{{#is_recovery}}');
+    // Without -i, vals exec drops PATH and a Homebrew node is not found
+    expect(monitor.message).toContain('vals exec -i -f .vals.yaml -- node src/linkedin-oauth-setup.js');
     expect(monitor.message).toContain('@whitney.lee@datadoghq.com');
     expect(monitor.message).toContain('@wiggitywhitney@gmail.com');
   });

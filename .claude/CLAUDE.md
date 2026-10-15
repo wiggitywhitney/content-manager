@@ -138,7 +138,7 @@ The `daily-sync` job sends two Datadog gauges on every run that reaches the `Det
 | `content_manager.daily_sync.heartbeat` | `src/daily-sync-heartbeat.js` (`Emit daily-sync heartbeat metric` step) | `1`, tagged `service:content-manager` and `slot:<morning\|midday\|evening\|manual>` |
 | `content_manager.linkedin.token_days_until_expiry` | `checkTokenExpiry` in `src/post-linkedin.js` (`Emit LinkedIn token expiry metric` step) | Days until the LinkedIn token expires |
 
-Both no-op when `DD_API_KEY` is unset and never fail the run. `DD_API_KEY` comes from the `Read credentials from GSM` step, which exports it before reading the LinkedIn secrets.
+Both skip sending when `DD_API_KEY` is unset, and a failed Datadog request only logs a warning. `DD_API_KEY` comes from the `Read credentials from GSM` step, which exports it before reading the LinkedIn secrets. The token metric step fails the run when `LINKEDIN_TOKEN_EXPIRES_AT` is missing or not a millisecond timestamp, because the token monitor does not alert on missing data. GitHub's failed-run email is what reports a broken expiry secret, and later steps, including the heartbeat, still run.
 
 Two monitors watch them, and each has one job:
 

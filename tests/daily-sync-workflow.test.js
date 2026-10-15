@@ -283,6 +283,13 @@ describe('daily-sync workflow', () => {
     test('step calls checkTokenExpiry or submitTokenExpiryMetric from post-linkedin', () => {
       expect(metricStep.run).toMatch(/checkTokenExpiry|submitTokenExpiryMetric/);
     });
+
+    // The token monitor does not alert on missing data, so a missing or malformed expiry
+    // secret fails the run instead, and GitHub's failed-run email is the signal.
+    test('step fails when LINKEDIN_TOKEN_EXPIRES_AT is missing or invalid', () => {
+      expect(metricStep.run).toContain('checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT, { required: true })');
+      expect(metricStep.run).toContain('process.exit(1)');
+    });
   });
 
   describe('daily-sync heartbeat step', () => {
