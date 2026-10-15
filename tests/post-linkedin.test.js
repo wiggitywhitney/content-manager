@@ -96,9 +96,12 @@ describe('checkTokenExpiry', () => {
     const originalFetch = global.fetch;
     global.fetch = jest.fn().mockResolvedValue({ ok: true });
     process.env.DD_API_KEY = 'test-key';
-    await expect(checkTokenExpiry(futureExpiry(40), { required: true })).resolves.toBeUndefined();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    global.fetch = originalFetch;
+    try {
+      await expect(checkTokenExpiry(futureExpiry(40), { required: true })).resolves.toBeUndefined();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 
   test('does not submit metric when expiresAt is malformed', async () => {
