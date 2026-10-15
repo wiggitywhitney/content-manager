@@ -29,11 +29,13 @@ function writeDefinition(dir, definition) {
 
 describe('applyMonitor', () => {
   let originalFetch;
+  let originalEnv;
   let tmpDir;
   let logSpy;
 
   beforeEach(() => {
     originalFetch = global.fetch;
+    originalEnv = { DD_API_KEY: process.env.DD_API_KEY, DD_APP_KEY: process.env.DD_APP_KEY };
     global.fetch = jest.fn();
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apply-monitor-'));
@@ -45,8 +47,19 @@ describe('applyMonitor', () => {
     global.fetch = originalFetch;
     logSpy.mockRestore();
     fs.rmSync(tmpDir, { recursive: true, force: true });
-    delete process.env.DD_API_KEY;
-    delete process.env.DD_APP_KEY;
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  test('passes an AbortSignal to fetch so a hung request times out', async () => {
+    const filePath = writeDefinition(tmpDir, { id: 295791590, ...makeDefinition() });
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ id: 295791590 }) });
+
+    await applyMonitor(filePath);
+
+    expect(global.fetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
   });
 
   test('creates the monitor with POST when the file has no id, and writes the new id back to the file', async () => {

@@ -6,6 +6,7 @@
 const fs = require('fs');
 
 const MONITOR_API = 'https://api.datadoghq.com/api/v1/monitor';
+const REQUEST_TIMEOUT_MS = 30000;
 
 /**
  * Create or update the Datadog monitor described by a JSON file.
@@ -25,6 +26,7 @@ async function applyMonitor(filePath) {
 
   const response = await fetch(url, {
     method,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       'Content-Type': 'application/json',
       'DD-API-KEY': process.env.DD_API_KEY,
