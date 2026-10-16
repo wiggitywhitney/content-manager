@@ -129,6 +129,32 @@ DRY_RUN=true vals exec -f .vals.yaml -- node src/post-social-content.js
 
 Do not run `post-social-content.js` live (without `DRY_RUN=true`) without Whitney's explicit approval. The same rule applies to any other script that writes to social platforms.
 
+## Monitoring
+
+The `daily-sync` job sends two Datadog gauges on every run that reaches the `Determine post priority` step, whether the run then posts, skips, or fails:
+
+| Metric | Sent by | Value |
+|---|---|---|
+| `content_manager.daily_sync.heartbeat` | `src/daily-sync-heartbeat.js` (`Emit daily-sync heartbeat metric` step) | `1`, tagged `service:content-manager` and `slot:<morning\|midday\|evening\|manual>` |
+| `content_manager.linkedin.token_days_until_expiry` | `checkTokenExpiry` in `src/post-linkedin.js` (`Emit LinkedIn token expiry metric` step) | Days until the LinkedIn token expires |
+
+Both skip sending when `DD_API_KEY` is unset, and a failed Datadog request only logs a warning. `DD_API_KEY` comes from the `Read credentials from GSM` step, which exports it before reading the LinkedIn secrets. The token metric step fails the run when `LINKEDIN_TOKEN_EXPIRES_AT` is missing or not a millisecond timestamp, because the token monitor does not alert on missing data. GitHub's failed-run email is what reports a broken expiry secret, and later steps, including the heartbeat, still run.
+
+Two monitors watch them, and each has one job:
+
+| Monitor | Definition | Alerts when |
+|---|---|---|
+| `content-manager: daily-sync liveness` | `datadog/monitors/daily-sync-liveness.json` | No heartbeat for 26 hours (`no_data_timeframe: 1560`): GitHub dropped or delayed the scheduled runs, or every run failed before the priority step |
+| `content-manager: LinkedIn token expiry warning` (ID 295791590) | `datadog/monitors/linkedin-token-expiry.json` | The token has under 30 days (warning) or under 21 days (critical) left. It does not alert on missing data. |
+
+The committed JSON files are the source of truth. Edit the file, then apply it:
+
+```bash
+vals exec -i -f .vals.yaml -- node src/apply-datadog-monitor.js datadog/monitors/<name>.json
+```
+
+A file with an `id` updates that monitor. A file without one creates the monitor and writes the new `id` back into the file, so commit the file afterward. Changes made in the Datadog UI are overwritten by the next apply, so copy them into the file.
+
 ## Secrets Management
 
 Secrets are stored in Google Secret Manager (project: `demoo-ooclock`) and injected locally via [vals](https://github.com/helmfile/vals). Install: `brew install vals`.
