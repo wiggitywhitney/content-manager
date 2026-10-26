@@ -92,6 +92,18 @@ describe('checkTokenExpiry', () => {
     await expect(checkTokenExpiry('not-a-number', { required: true })).rejects.toThrow('not a valid millisecond timestamp');
   });
 
+  test.each([
+    ['a seconds-scale timestamp', '1790000000'],
+    ['trailing non-digit characters', '1790000000000abc'],
+    ['a decimal value', '1790000000000.5'],
+  ])('with required, throws when expiresAt is %s', async (_label, value) => {
+    await expect(checkTokenExpiry(value, { required: true })).rejects.toThrow('not a valid millisecond timestamp');
+  });
+
+  test('with required, accepts an expired millisecond timestamp', async () => {
+    await expect(checkTokenExpiry(futureExpiry(-1), { required: true })).resolves.toBeUndefined();
+  });
+
   test('with required, submits the metric when expiresAt is valid', async () => {
     const originalFetch = global.fetch;
     global.fetch = jest.fn().mockResolvedValue({ ok: true });

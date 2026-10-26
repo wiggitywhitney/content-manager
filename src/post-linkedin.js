@@ -85,8 +85,9 @@ async function checkTokenExpiry(expiresAt, { required = false } = {}) {
     return;
   }
 
-  const expiresAtMs = parseInt(expiresAt, 10);
-  if (!Number.isFinite(expiresAtMs)) {
+  // Values below 1e12 are seconds-scale (before 2001 as milliseconds), so they are rejected
+  const expiresAtMs = Number(expiresAt);
+  if (!Number.isSafeInteger(expiresAtMs) || expiresAtMs < 1_000_000_000_000) {
     const message = 'LINKEDIN_TOKEN_EXPIRES_AT is not a valid millisecond timestamp';
     if (required) throw new Error(message);
     console.warn(`[linkedin] Warning: ${message}`);
