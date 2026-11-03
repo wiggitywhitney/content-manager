@@ -1,0 +1,19 @@
+{
+  "id": 332471567,
+  "name": "content-manager: daily-sync liveness",
+  "type": "metric alert",
+  "query": "max(last_1h):max:content_manager.daily_sync.heartbeat{service:content-manager} < 1",
+  "message": "{{#is_no_data}}\nNo daily-sync run has sent a heartbeat in 26 hours. GitHub dropped or delayed the scheduled runs, the integration-tests job failed and stopped daily-sync from starting, or every run failed before the Determine post priority step.\n\nCheck the workflow runs:\nhttps://github.com/wiggitywhitney/content-manager/actions/workflows/daily-sync.yml\n\nDo not trigger the workflow by hand without first checking whether a post already went out today. A manual run can post to social platforms.\n{{/is_no_data}}\n\n{{#is_recovery}}\nDaily-sync runs are sending heartbeats again. No action needed.\n{{/is_recovery}}\n\n@whitney.lee@datadoghq.com @wiggitywhitney@gmail.com",
+  "tags": [
+    "service:content-manager"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 1
+    },
+    "notify_no_data": true,
+    "no_data_timeframe": 1560,
+    "notify_audit": false,
+    "include_tags": true
+  }
+}

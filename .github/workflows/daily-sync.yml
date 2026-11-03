@@ -183,30 +183,45 @@ jobs:
           MICROBLOG_USERNAME: ${{ secrets.MICROBLOG_USERNAME }}
         run: node src/sync-content.js
 
+      # Runs on every run that reached the priority step, including runs that skip or whose
+      # priority step failed, so the heartbeat and token-expiry metrics report every run.
+      # DD_API_KEY is exported first so a failed LinkedIn secret read still leaves the heartbeat its key.
       - name: Read credentials from GSM
-        if: (success() || failure()) && steps.priority.outcome == 'success' && steps.priority.outputs.skip_run != 'true'
+        if: (success() || failure()) && (steps.priority.outcome == 'success' || steps.priority.outcome == 'failure')
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
           echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/sa-key.json
           gcloud auth activate-service-account --key-file=/tmp/sa-key.json --quiet
+          DD_API_KEY=$(gcloud secrets versions access latest --secret=datadog-commit-story-dev --project=demoo-ooclock 2>/dev/null) || true
+          if [ -n "$DD_API_KEY" ]; then echo "::add-mask::$DD_API_KEY"; else echo "[daily-sync] Warning: DD_API_KEY unavailable; heartbeat and token-expiry metrics will be skipped"; fi
+          echo "DD_API_KEY=$DD_API_KEY" >> "$GITHUB_ENV"
           LINKEDIN_ACCESS_TOKEN=$(gcloud secrets versions access latest --secret=linkedin_access_token --project=demoo-ooclock)
           LINKEDIN_TOKEN_EXPIRES_AT=$(gcloud secrets versions access latest --secret=linkedin_token_expires_at --project=demoo-ooclock)
           LINKEDIN_PERSON_URN=$(gcloud secrets versions access latest --secret=linkedin_person_urn --project=demoo-ooclock)
-          DD_API_KEY=$(gcloud secrets versions access latest --secret=datadog-commit-story-dev --project=demoo-ooclock 2>/dev/null) || true
           echo "::add-mask::$LINKEDIN_ACCESS_TOKEN"
           echo "::add-mask::$LINKEDIN_TOKEN_EXPIRES_AT"
           echo "::add-mask::$LINKEDIN_PERSON_URN"
-          if [ -n "$DD_API_KEY" ]; then echo "::add-mask::$DD_API_KEY"; else echo "[daily-sync] Warning: DD_API_KEY unavailable; token-expiry metric will be skipped"; fi
           echo "LINKEDIN_ACCESS_TOKEN=$LINKEDIN_ACCESS_TOKEN" >> "$GITHUB_ENV"
           echo "LINKEDIN_TOKEN_EXPIRES_AT=$LINKEDIN_TOKEN_EXPIRES_AT" >> "$GITHUB_ENV"
           echo "LINKEDIN_PERSON_URN=$LINKEDIN_PERSON_URN" >> "$GITHUB_ENV"
-          echo "DD_API_KEY=$DD_API_KEY" >> "$GITHUB_ENV"
           rm /tmp/sa-key.json
 
+      # Fails the run when LINKEDIN_TOKEN_EXPIRES_AT is missing or malformed: the token monitor does not
+      # alert on missing data, so GitHub's failed-run email is what reports a broken expiry secret.
+      # Later steps still run, since their conditions include failure().
       - name: Emit LinkedIn token expiry metric
-        if: (success() || failure()) && steps.priority.outcome == 'success' && steps.priority.outputs.skip_run != 'true'
-        run: node -e "const { checkTokenExpiry } = require('./src/post-linkedin'); checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT).catch(console.error);"
+        if: (success() || failure()) && (steps.priority.outcome == 'success' || steps.priority.outcome == 'failure')
+        run: |
+          node -e "const { checkTokenExpiry } = require('./src/post-linkedin'); checkTokenExpiry(process.env.LINKEDIN_TOKEN_EXPIRES_AT, { required: true }).catch((err) => { console.error('[daily-sync] ' + err.message); process.exit(1); });"
+
+      # Liveness signal: the Datadog liveness monitor alerts when no run has sent this for 26 hours.
+      - name: Emit daily-sync heartbeat metric
+        if: (success() || failure()) && (steps.priority.outcome == 'success' || steps.priority.outcome == 'failure')
+        continue-on-error: true
+        env:
+          GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: node src/daily-sync-heartbeat.js "$(scripts/determine-slot.sh "${GITHUB_EVENT_SCHEDULE}")"
 
       - name: Post social content
         if: (success() || failure()) && steps.priority.outcome == 'success' && steps.priority.outputs.skip_run != 'true'
